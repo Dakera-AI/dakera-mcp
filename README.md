@@ -240,6 +240,9 @@ The server communicates over **stdio** using the MCP JSON-RPC protocol. Each too
 | [dakera-py](https://github.com/dakera-ai/dakera-py) | Python SDK |
 | [dakera-js](https://github.com/dakera-ai/dakera-js) | TypeScript/JavaScript SDK |
 | [dakera-go](https://github.com/dakera-ai/dakera-go) | Go SDK |
+| [dakera-rs](https://github.com/dakera-ai/dakera-rs) | Rust SDK |
+| [dakera-cli](https://github.com/dakera-ai/dakera-cli) | Command-line interface |
+| [dakera-dashboard](https://github.com/dakera-ai/dakera-dashboard) | Admin dashboard (Leptos/WASM) |
 | [dakera-docs](https://github.com/dakera-ai/dakera-docs) | Documentation |
 | [dakera-deploy](https://github.com/dakera-ai/dakera-deploy) | Deployment configs and Docker Compose |
 | [dakera-cortex](https://github.com/dakera-ai/dakera-cortex) | Flagship demo with AI agents |
