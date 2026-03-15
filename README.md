@@ -1,5 +1,9 @@
 # Dakera MCP Server
 
+[![CI](https://github.com/dakera-ai/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dakera-ai/dakera-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-1.75+-orange)](https://www.rust-lang.org/)
+
 MCP (Model Context Protocol) server that gives AI agents persistent memory through the [Dakera](https://dakera.ai) vector database. Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client to store, recall, and search memories across sessions.
 
 ## Features
@@ -227,6 +231,18 @@ Point the command to Docker instead of a local binary:
 ```
 
 The server communicates over **stdio** using the MCP JSON-RPC protocol. Each tool call translates to one or more HTTP requests against the Dakera REST API. No local state is kept -- the Dakera API is the single source of truth.
+
+## Related Repositories
+
+| Repository | Description |
+|------------|-------------|
+| [dakera](https://github.com/dakera-ai/dakera) | Core vector database engine (Rust) |
+| [dakera-py](https://github.com/dakera-ai/dakera-py) | Python SDK |
+| [dakera-js](https://github.com/dakera-ai/dakera-js) | TypeScript/JavaScript SDK |
+| [dakera-go](https://github.com/dakera-ai/dakera-go) | Go SDK |
+| [dakera-docs](https://github.com/dakera-ai/dakera-docs) | Documentation |
+| [dakera-deploy](https://github.com/dakera-ai/dakera-deploy) | Deployment configs and Docker Compose |
+| [dakera-cortex](https://github.com/dakera-ai/dakera-cortex) | Flagship demo with AI agents |
 
 ## License
 
