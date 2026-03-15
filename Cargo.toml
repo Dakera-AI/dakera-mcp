@@ -1,0 +1,41 @@
+[package]
+name = "dakera-mcp"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+description = "Dakera MCP Server - Model Context Protocol server for AI agent memory"
+
+[[bin]]
+name = "dakera-mcp"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.37", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client for calling Dakera API
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+
+# Error handling
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# URL encoding for path parameters
+urlencoding = "2"
+
+# TODO: Update to published crate version: dakera-common = "0.2.0"
+# common = { path = "../common" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+panic = "abort"
+strip = "symbols"

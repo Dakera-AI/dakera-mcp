@@ -1,0 +1,184 @@
+//! Dakera MCP tool definitions and execution
+//!
+//! Defines the tools exposed by the Dakera MCP server and handles
+//! calling the Dakera API for each tool invocation.
+
+pub mod agents;
+pub mod fulltext;
+pub mod inference;
+pub mod knowledge;
+pub mod memory;
+pub mod namespaces;
+pub mod sessions;
+pub mod vectors;
+
+use crate::protocol::{CallToolResult, ToolDefinition};
+
+/// API client for calling Dakera endpoints
+pub struct DakeraApiClient {
+    base_url: String,
+    api_key: Option<String>,
+    client: reqwest::Client,
+}
+
+impl DakeraApiClient {
+    pub fn new(base_url: String, api_key: Option<String>) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+
+        Self {
+            base_url,
+            api_key,
+            client,
+        }
+    }
+
+    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let url = format!("{}{}", self.base_url, path);
+        let mut req = self.client.request(method, &url);
+        if let Some(ref key) = self.api_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+        req
+    }
+
+    pub async fn post_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::POST, path)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
+
+    pub async fn get_json(&self, path: &str) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::GET, path)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
+
+    pub async fn put_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::PUT, path)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
+
+    pub async fn delete_json(&self, path: &str) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::DELETE, path)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
+}
+
+/// Helper to extract a required string parameter, returning an error CallToolResult on failure.
+pub fn require_string(args: &serde_json::Value, field: &str) -> Result<String, CallToolResult> {
+    args.get(field)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| CallToolResult::error(format!("Missing required parameter: {}", field)))
+}
+
+/// Format a successful JSON response.
+pub fn ok_json(value: &serde_json::Value) -> CallToolResult {
+    CallToolResult::text(serde_json::to_string_pretty(value).unwrap_or_default())
+}
+
+/// Return all tool definitions aggregated from every module.
+pub fn tool_definitions() -> Vec<ToolDefinition> {
+    let mut defs = Vec::new();
+    defs.extend(memory::definitions());
+    defs.extend(sessions::definitions());
+    defs.extend(agents::definitions());
+    defs.extend(knowledge::definitions());
+    defs.extend(namespaces::definitions());
+    defs.extend(vectors::definitions());
+    defs.extend(inference::definitions());
+    defs.extend(fulltext::definitions());
+    defs
+}
+
+/// Execute a tool call by dispatching to the appropriate module.
+pub async fn execute_tool(
+    client: &DakeraApiClient,
+    name: &str,
+    arguments: &serde_json::Value,
+) -> CallToolResult {
+    if let Some(result) = memory::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = sessions::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = agents::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = knowledge::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = namespaces::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = vectors::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = inference::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = fulltext::execute(client, name, arguments).await {
+        return result;
+    }
+    CallToolResult::error(format!("Unknown tool: {}", name))
+}
