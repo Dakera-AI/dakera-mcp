@@ -3,8 +3,8 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
@@ -305,10 +305,7 @@ pub async fn execute(
     }
 }
 
-async fn tool_vector_upsert(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_upsert(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -324,10 +321,7 @@ async fn tool_vector_upsert(
     }
 }
 
-async fn tool_vector_query(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_query(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -355,10 +349,7 @@ async fn tool_vector_query(
     }
 }
 
-async fn tool_vector_delete(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_delete(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -464,10 +455,7 @@ async fn tool_vector_bulk_delete(
     }
 }
 
-async fn tool_vector_count(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_count(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -484,10 +472,7 @@ async fn tool_vector_count(
     }
 }
 
-async fn tool_vector_export(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_export(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -579,10 +564,7 @@ async fn tool_vector_multi_search(
     if let Some(nw) = args.get("negative_weights") {
         body["negative_weights"] = nw.clone();
     }
-    body["top_k"] = json!(args
-        .get("top_k")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(10));
+    body["top_k"] = json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10));
     if let Some(st) = args.get("score_threshold") {
         body["score_threshold"] = st.clone();
     }
@@ -614,11 +596,7 @@ async fn tool_vector_upsert_columns(
     };
     let ids = match args.get("ids").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
-        _ => {
-            return CallToolResult::error(
-                "Missing or empty required parameter: ids".to_string(),
-            )
-        }
+        _ => return CallToolResult::error("Missing or empty required parameter: ids".to_string()),
     };
     let vectors = match args.get("vectors").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
@@ -643,10 +621,7 @@ async fn tool_vector_upsert_columns(
     }
 }
 
-async fn tool_vector_explain(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_explain(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -661,10 +636,7 @@ async fn tool_vector_explain(
     if let Some(vector) = args.get("vector") {
         body["vector"] = vector.clone();
     }
-    body["top_k"] = json!(args
-        .get("top_k")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(10));
+    body["top_k"] = json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10));
     if let Some(filter) = args.get("filter") {
         body["filter"] = filter.clone();
     }
@@ -687,10 +659,7 @@ async fn tool_vector_explain(
     }
 }
 
-async fn tool_vector_warm(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_vector_warm(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -717,11 +686,7 @@ async fn tool_vector_unified_query(
     };
     let rank_by = match args.get("rank_by") {
         Some(r) => r,
-        None => {
-            return CallToolResult::error(
-                "Missing required parameter: rank_by".to_string(),
-            )
-        }
+        None => return CallToolResult::error("Missing required parameter: rank_by".to_string()),
     };
     let mut body = json!({
         "rank_by": rank_by,

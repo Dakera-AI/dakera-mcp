@@ -2,14 +2,15 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_session_start".into(),
-            description: "Start a new session for an agent. Sessions group related memories together.".into(),
+            description:
+                "Start a new session for an agent. Sessions group related memories together.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -33,7 +34,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_list".into(),
-            description: "List sessions for an agent. Optionally filter to active sessions only.".into(),
+            description: "List sessions for an agent. Optionally filter to active sessions only."
+                .into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -45,7 +47,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_get".into(),
-            description: "Get details for a specific session by ID, including metadata and summary.".into(),
+            description:
+                "Get details for a specific session by ID, including metadata and summary.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -119,9 +122,15 @@ async fn tool_session_list(client: &DakeraApiClient, args: &serde_json::Value) -
         Ok(v) => v,
         Err(e) => return e,
     };
-    let active_only = args.get("active_only").and_then(|v| v.as_bool()).unwrap_or(false);
+    let active_only = args
+        .get("active_only")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let encoded = urlencoding::encode(&agent_id);
-    let path = format!("/v1/sessions?agent_id={}&active_only={}", encoded, active_only);
+    let path = format!(
+        "/v1/sessions?agent_id={}&active_only={}",
+        encoded, active_only
+    );
     match client.get_json(&path).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

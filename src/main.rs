@@ -14,19 +14,17 @@ async fn main() {
     // Initialize logging to stderr (stdout is reserved for MCP protocol)
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::from_default_env()
-                .add_directive("dakera_mcp=info".parse().unwrap()),
+            EnvFilter::from_default_env().add_directive("dakera_mcp=info".parse().unwrap()),
         )
         .with_writer(std::io::stderr)
         .init();
 
     tracing::info!("Dakera MCP Server starting");
 
-    let api_url = std::env::var("DAKERA_API_URL")
-        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let api_url =
+        std::env::var("DAKERA_API_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
-    let api_key = std::env::var("DAKERA_API_KEY")
-        .ok();
+    let api_key = std::env::var("DAKERA_API_KEY").ok();
 
     tracing::info!(api_url = %api_url, has_key = api_key.is_some(), "Connecting to Dakera API");
 

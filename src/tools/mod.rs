@@ -57,7 +57,10 @@ impl DakeraApiClient {
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
 
         if status.is_success() {
             serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
@@ -74,7 +77,10 @@ impl DakeraApiClient {
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
 
         if status.is_success() {
             serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
@@ -96,7 +102,10 @@ impl DakeraApiClient {
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
 
         if status.is_success() {
             serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
@@ -113,7 +122,10 @@ impl DakeraApiClient {
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| format!("Read body failed: {}", e))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
 
         if status.is_success() {
             serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))

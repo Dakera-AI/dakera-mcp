@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
@@ -152,7 +152,10 @@ async fn tool_batch_query_text(
         }
     };
     let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10);
-    let include_vectors = args.get("include_vectors").and_then(|v| v.as_bool()).unwrap_or(false);
+    let include_vectors = args
+        .get("include_vectors")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let mut body = json!({
         "queries": queries,
         "top_k": top_k,

@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
@@ -199,8 +199,14 @@ async fn tool_forget(client: &DakeraApiClient, args: &serde_json::Value) -> Call
     };
     // Only include memory_ids/tags when non-empty; API uses Option<Vec> and
     // treats Some(vec![]) differently from None (empty vec filters out everything).
-    let memory_ids = args.get("memory_ids").and_then(|v| v.as_array()).filter(|a| !a.is_empty());
-    let tags = args.get("tags").and_then(|v| v.as_array()).filter(|a| !a.is_empty());
+    let memory_ids = args
+        .get("memory_ids")
+        .and_then(|v| v.as_array())
+        .filter(|a| !a.is_empty());
+    let tags = args
+        .get("tags")
+        .and_then(|v| v.as_array())
+        .filter(|a| !a.is_empty());
 
     let mut body = json!({
         "agent_id": agent_id,
@@ -295,8 +301,14 @@ async fn tool_memory_update(client: &DakeraApiClient, args: &serde_json::Value) 
     }
     let encoded_id = urlencoding::encode(&memory_id);
     let encoded_agent = urlencoding::encode(&agent_id);
-    let path = format!("/v1/memory/update/{}?agent_id={}", encoded_id, encoded_agent);
-    match client.put_json(&path, &serde_json::Value::Object(body)).await {
+    let path = format!(
+        "/v1/memory/update/{}?agent_id={}",
+        encoded_id, encoded_agent
+    );
+    match client
+        .put_json(&path, &serde_json::Value::Object(body))
+        .await
+    {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }
@@ -324,8 +336,14 @@ async fn tool_memory_importance(
     let mut errors = Vec::new();
 
     for update in updates {
-        let memory_id = update.get("memory_id").and_then(|v| v.as_str()).unwrap_or("");
-        let importance = update.get("importance").and_then(|v| v.as_f64()).unwrap_or(0.5);
+        let memory_id = update
+            .get("memory_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let importance = update
+            .get("importance")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5);
 
         let body = json!({
             "memory_id": memory_id,

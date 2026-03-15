@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
@@ -98,9 +98,7 @@ async fn tool_knowledge_summarize(
     let memory_ids = match args.get("memory_ids").and_then(|v| v.as_array()) {
         Some(arr) if arr.len() >= 2 => arr,
         Some(_) => {
-            return CallToolResult::error(
-                "memory_ids must contain at least 2 IDs".to_string(),
-            )
+            return CallToolResult::error("memory_ids must contain at least 2 IDs".to_string())
         }
         None => return CallToolResult::error("memory_ids array is required".to_string()),
     };

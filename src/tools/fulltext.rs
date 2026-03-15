@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
@@ -187,10 +187,7 @@ async fn tool_fulltext_delete(
     }
 }
 
-async fn tool_fulltext_stats(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_fulltext_stats(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -211,9 +208,7 @@ async fn tool_hybrid_search(client: &DakeraApiClient, args: &serde_json::Value) 
     let vector = match args.get("vector").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
         _ => {
-            return CallToolResult::error(
-                "Missing or empty required parameter: vector".to_string(),
-            )
+            return CallToolResult::error("Missing or empty required parameter: vector".to_string())
         }
     };
     let text = match require_string(args, "text") {
@@ -221,9 +216,18 @@ async fn tool_hybrid_search(client: &DakeraApiClient, args: &serde_json::Value) 
         Err(e) => return e,
     };
     let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10);
-    let vector_weight = args.get("vector_weight").and_then(|v| v.as_f64()).unwrap_or(0.5);
-    let include_metadata = args.get("include_metadata").and_then(|v| v.as_bool()).unwrap_or(true);
-    let include_vectors = args.get("include_vectors").and_then(|v| v.as_bool()).unwrap_or(false);
+    let vector_weight = args
+        .get("vector_weight")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.5);
+    let include_metadata = args
+        .get("include_metadata")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let include_vectors = args
+        .get("include_vectors")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     let mut body = json!({
         "vector": vector,

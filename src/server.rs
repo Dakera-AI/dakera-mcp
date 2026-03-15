@@ -38,11 +38,7 @@ impl McpServer {
             let request: JsonRpcRequest = match serde_json::from_str(&line) {
                 Ok(req) => req,
                 Err(e) => {
-                    let resp = JsonRpcResponse::error(
-                        None,
-                        -32700,
-                        format!("Parse error: {}", e),
-                    );
+                    let resp = JsonRpcResponse::error(None, -32700, format!("Parse error: {}", e));
                     let out = serde_json::to_string(&resp)? + "\n";
                     stdout.write_all(out.as_bytes()).await?;
                     stdout.flush().await?;
@@ -129,9 +125,6 @@ impl McpServer {
             }
         };
 
-        JsonRpcResponse::success(
-            request.id.clone(),
-            response_value,
-        )
+        JsonRpcResponse::success(request.id.clone(), response_value)
     }
 }

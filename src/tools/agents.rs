@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
+use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
-use super::{DakeraApiClient, ok_json, require_string};
 
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
@@ -71,28 +71,31 @@ async fn tool_agent_stats(client: &DakeraApiClient, args: &serde_json::Value) ->
     }
 }
 
-async fn tool_agent_memories(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_agent_memories(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,
     };
-    let limit = std::cmp::min(args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50), 1000);
-    let offset = std::cmp::min(args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0), 100_000);
+    let limit = std::cmp::min(
+        args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50),
+        1000,
+    );
+    let offset = std::cmp::min(
+        args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0),
+        100_000,
+    );
     let encoded = urlencoding::encode(&agent_id);
-    let path = format!("/v1/agents/{}/memories?limit={}&offset={}", encoded, limit, offset);
+    let path = format!(
+        "/v1/agents/{}/memories?limit={}&offset={}",
+        encoded, limit, offset
+    );
     match client.get_json(&path).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }
 }
 
-async fn tool_agent_sessions(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_agent_sessions(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,
