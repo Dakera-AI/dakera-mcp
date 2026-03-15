@@ -302,7 +302,10 @@ async fn tool_memory_update(client: &DakeraApiClient, args: &serde_json::Value) 
     }
 }
 
-async fn tool_memory_importance(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_memory_importance(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,

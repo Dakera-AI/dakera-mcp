@@ -13,7 +13,10 @@ mod tools;
 async fn main() {
     // Initialize logging to stderr (stdout is reserved for MCP protocol)
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("dakera_mcp=info".parse().unwrap()))
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("dakera_mcp=info".parse().unwrap()),
+        )
         .with_writer(std::io::stderr)
         .init();
 

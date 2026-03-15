@@ -305,7 +305,10 @@ pub async fn execute(
     }
 }
 
-async fn tool_vector_upsert(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_upsert(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -321,26 +324,41 @@ async fn tool_vector_upsert(client: &DakeraApiClient, args: &serde_json::Value) 
     }
 }
 
-async fn tool_vector_query(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_query(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let mut body = serde_json::Map::new();
-    body.insert("vector".into(), args.get("vector").cloned().unwrap_or(json!([])));
-    body.insert("top_k".into(), json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10)));
+    body.insert(
+        "vector".into(),
+        args.get("vector").cloned().unwrap_or(json!([])),
+    );
+    body.insert(
+        "top_k".into(),
+        json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10)),
+    );
     if let Some(filter) = args.get("filter") {
         body.insert("filter".into(), filter.clone());
     }
     let encoded = urlencoding::encode(&namespace);
     let path = format!("/v1/namespaces/{}/query", encoded);
-    match client.post_json(&path, &serde_json::Value::Object(body)).await {
+    match client
+        .post_json(&path, &serde_json::Value::Object(body))
+        .await
+    {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }
 }
 
-async fn tool_vector_delete(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_delete(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -356,14 +374,21 @@ async fn tool_vector_delete(client: &DakeraApiClient, args: &serde_json::Value) 
     }
 }
 
-async fn tool_vector_batch_query(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_batch_query(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let queries = match args.get("queries").and_then(|v| v.as_array()) {
         Some(q) if !q.is_empty() => q,
-        _ => return CallToolResult::error("Missing or empty required parameter: queries".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: queries".to_string(),
+            )
+        }
     };
     let body = json!({
         "queries": queries,
@@ -376,18 +401,29 @@ async fn tool_vector_batch_query(client: &DakeraApiClient, args: &serde_json::Va
     }
 }
 
-async fn tool_vector_bulk_update(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_bulk_update(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let filter = match args.get("filter") {
         Some(f) if f.is_object() => f,
-        _ => return CallToolResult::error("Missing or invalid required parameter: filter (must be a JSON object)".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or invalid required parameter: filter (must be a JSON object)".to_string(),
+            )
+        }
     };
     let update = match args.get("update") {
         Some(u) if u.is_object() => u,
-        _ => return CallToolResult::error("Missing or invalid required parameter: update (must be a JSON object)".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or invalid required parameter: update (must be a JSON object)".to_string(),
+            )
+        }
     };
     let body = json!({
         "filter": filter,
@@ -401,14 +437,21 @@ async fn tool_vector_bulk_update(client: &DakeraApiClient, args: &serde_json::Va
     }
 }
 
-async fn tool_vector_bulk_delete(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_bulk_delete(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let filter = match args.get("filter") {
         Some(f) if f.is_object() => f,
-        _ => return CallToolResult::error("Missing or invalid required parameter: filter (must be a JSON object)".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or invalid required parameter: filter (must be a JSON object)".to_string(),
+            )
+        }
     };
     let body = json!({
         "filter": filter,
@@ -421,7 +464,10 @@ async fn tool_vector_bulk_delete(client: &DakeraApiClient, args: &serde_json::Va
     }
 }
 
-async fn tool_vector_count(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_count(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -438,14 +484,23 @@ async fn tool_vector_count(client: &DakeraApiClient, args: &serde_json::Value) -
     }
 }
 
-async fn tool_vector_export(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_export(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(1000);
-    let include_vectors = args.get("include_vectors").and_then(|v| v.as_bool()).unwrap_or(true);
-    let include_metadata = args.get("include_metadata").and_then(|v| v.as_bool()).unwrap_or(true);
+    let include_vectors = args
+        .get("include_vectors")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let include_metadata = args
+        .get("include_metadata")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     let mut body = json!({
         "top_k": top_k,
         "include_vectors": include_vectors,
@@ -462,14 +517,22 @@ async fn tool_vector_export(client: &DakeraApiClient, args: &serde_json::Value) 
     }
 }
 
-async fn tool_vector_aggregate(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_aggregate(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let aggregate_by = match args.get("aggregate_by") {
         Some(a) if a.is_object() => a,
-        _ => return CallToolResult::error("Missing or invalid required parameter: aggregate_by (must be a JSON object)".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or invalid required parameter: aggregate_by (must be a JSON object)"
+                    .to_string(),
+            )
+        }
     };
     let mut body = json!({
         "aggregate_by": aggregate_by,
@@ -488,14 +551,21 @@ async fn tool_vector_aggregate(client: &DakeraApiClient, args: &serde_json::Valu
     }
 }
 
-async fn tool_vector_multi_search(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_multi_search(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let positive_vectors = match args.get("positive_vectors").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
-        _ => return CallToolResult::error("Missing or empty required parameter: positive_vectors".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: positive_vectors".to_string(),
+            )
+        }
     };
     let mut body = json!({
         "positive_vectors": positive_vectors,
@@ -509,11 +579,17 @@ async fn tool_vector_multi_search(client: &DakeraApiClient, args: &serde_json::V
     if let Some(nw) = args.get("negative_weights") {
         body["negative_weights"] = nw.clone();
     }
-    body["top_k"] = json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10));
+    body["top_k"] = json!(args
+        .get("top_k")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(10));
     if let Some(st) = args.get("score_threshold") {
         body["score_threshold"] = st.clone();
     }
-    body["enable_mmr"] = json!(args.get("enable_mmr").and_then(|v| v.as_bool()).unwrap_or(false));
+    body["enable_mmr"] = json!(args
+        .get("enable_mmr")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false));
     if let Some(ml) = args.get("mmr_lambda") {
         body["mmr_lambda"] = ml.clone();
     }
@@ -528,18 +604,29 @@ async fn tool_vector_multi_search(client: &DakeraApiClient, args: &serde_json::V
     }
 }
 
-async fn tool_vector_upsert_columns(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_upsert_columns(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let ids = match args.get("ids").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
-        _ => return CallToolResult::error("Missing or empty required parameter: ids".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: ids".to_string(),
+            )
+        }
     };
     let vectors = match args.get("vectors").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
-        _ => return CallToolResult::error("Missing or empty required parameter: vectors".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: vectors".to_string(),
+            )
+        }
     };
     let mut body = json!({
         "ids": ids,
@@ -556,7 +643,10 @@ async fn tool_vector_upsert_columns(client: &DakeraApiClient, args: &serde_json:
     }
 }
 
-async fn tool_vector_explain(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_explain(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -571,15 +661,24 @@ async fn tool_vector_explain(client: &DakeraApiClient, args: &serde_json::Value)
     if let Some(vector) = args.get("vector") {
         body["vector"] = vector.clone();
     }
-    body["top_k"] = json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10));
+    body["top_k"] = json!(args
+        .get("top_k")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(10));
     if let Some(filter) = args.get("filter") {
         body["filter"] = filter.clone();
     }
     if let Some(text_query) = args.get("text_query") {
         body["text_query"] = text_query.clone();
     }
-    body["execute"] = json!(args.get("execute").and_then(|v| v.as_bool()).unwrap_or(false));
-    body["verbose"] = json!(args.get("verbose").and_then(|v| v.as_bool()).unwrap_or(false));
+    body["execute"] = json!(args
+        .get("execute")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false));
+    body["verbose"] = json!(args
+        .get("verbose")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false));
     let encoded = urlencoding::encode(&namespace);
     let path = format!("/v1/namespaces/{}/explain", encoded);
     match client.post_json(&path, &body).await {
@@ -588,7 +687,10 @@ async fn tool_vector_explain(client: &DakeraApiClient, args: &serde_json::Value)
     }
 }
 
-async fn tool_vector_warm(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_warm(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -605,14 +707,21 @@ async fn tool_vector_warm(client: &DakeraApiClient, args: &serde_json::Value) ->
     }
 }
 
-async fn tool_vector_unified_query(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_vector_unified_query(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let rank_by = match args.get("rank_by") {
         Some(r) => r,
-        None => return CallToolResult::error("Missing required parameter: rank_by".to_string()),
+        None => {
+            return CallToolResult::error(
+                "Missing required parameter: rank_by".to_string(),
+            )
+        }
     };
     let mut body = json!({
         "rank_by": rank_by,

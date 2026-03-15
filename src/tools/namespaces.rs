@@ -88,7 +88,10 @@ async fn tool_namespace_get(client: &DakeraApiClient, args: &serde_json::Value) 
     }
 }
 
-async fn tool_namespace_create(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_namespace_create(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let name = match require_string(args, "name") {
         Ok(v) => v,
         Err(e) => return e,
@@ -108,7 +111,10 @@ async fn tool_namespace_create(client: &DakeraApiClient, args: &serde_json::Valu
     }
 }
 
-async fn tool_namespace_delete(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_namespace_delete(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,

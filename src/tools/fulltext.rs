@@ -119,7 +119,11 @@ async fn tool_fulltext_index(client: &DakeraApiClient, args: &serde_json::Value)
     };
     let documents = match args.get("documents").and_then(|v| v.as_array()) {
         Some(d) if !d.is_empty() => d,
-        _ => return CallToolResult::error("Missing or empty required parameter: documents".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: documents".to_string(),
+            )
+        }
     };
     let body = json!({
         "documents": documents,
@@ -132,7 +136,10 @@ async fn tool_fulltext_index(client: &DakeraApiClient, args: &serde_json::Value)
     }
 }
 
-async fn tool_fulltext_search(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_fulltext_search(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -157,7 +164,10 @@ async fn tool_fulltext_search(client: &DakeraApiClient, args: &serde_json::Value
     }
 }
 
-async fn tool_fulltext_delete(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_fulltext_delete(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -177,7 +187,10 @@ async fn tool_fulltext_delete(client: &DakeraApiClient, args: &serde_json::Value
     }
 }
 
-async fn tool_fulltext_stats(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_fulltext_stats(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -197,7 +210,11 @@ async fn tool_hybrid_search(client: &DakeraApiClient, args: &serde_json::Value) 
     };
     let vector = match args.get("vector").and_then(|v| v.as_array()) {
         Some(v) if !v.is_empty() => v,
-        _ => return CallToolResult::error("Missing or empty required parameter: vector".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: vector".to_string(),
+            )
+        }
     };
     let text = match require_string(args, "text") {
         Ok(v) => v,

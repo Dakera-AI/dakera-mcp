@@ -71,7 +71,10 @@ async fn tool_agent_stats(client: &DakeraApiClient, args: &serde_json::Value) ->
     }
 }
 
-async fn tool_agent_memories(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_agent_memories(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -86,7 +89,10 @@ async fn tool_agent_memories(client: &DakeraApiClient, args: &serde_json::Value)
     }
 }
 
-async fn tool_agent_sessions(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_agent_sessions(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,

@@ -115,7 +115,11 @@ async fn tool_upsert_text(client: &DakeraApiClient, args: &serde_json::Value) ->
     };
     let documents = match args.get("documents").and_then(|v| v.as_array()) {
         Some(d) if !d.is_empty() => d,
-        _ => return CallToolResult::error("Missing or empty required parameter: documents".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: documents".to_string(),
+            )
+        }
     };
     let mut body = json!({
         "documents": documents,
@@ -131,14 +135,21 @@ async fn tool_upsert_text(client: &DakeraApiClient, args: &serde_json::Value) ->
     }
 }
 
-async fn tool_batch_query_text(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_batch_query_text(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let queries = match args.get("queries").and_then(|v| v.as_array()) {
         Some(q) if !q.is_empty() => q,
-        _ => return CallToolResult::error("Missing or empty required parameter: queries".to_string()),
+        _ => {
+            return CallToolResult::error(
+                "Missing or empty required parameter: queries".to_string(),
+            )
+        }
     };
     let top_k = args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10);
     let include_vectors = args.get("include_vectors").and_then(|v| v.as_bool()).unwrap_or(false);

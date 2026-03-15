@@ -63,7 +63,10 @@ pub async fn execute(
     }
 }
 
-async fn tool_knowledge_graph(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_knowledge_graph(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -84,14 +87,21 @@ async fn tool_knowledge_graph(client: &DakeraApiClient, args: &serde_json::Value
     }
 }
 
-async fn tool_knowledge_summarize(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_knowledge_summarize(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
         Err(e) => return e,
     };
     let memory_ids = match args.get("memory_ids").and_then(|v| v.as_array()) {
         Some(arr) if arr.len() >= 2 => arr,
-        Some(_) => return CallToolResult::error("memory_ids must contain at least 2 IDs".to_string()),
+        Some(_) => {
+            return CallToolResult::error(
+                "memory_ids must contain at least 2 IDs".to_string(),
+            )
+        }
         None => return CallToolResult::error("memory_ids array is required".to_string()),
     };
     let mut body = json!({
@@ -107,7 +117,10 @@ async fn tool_knowledge_summarize(client: &DakeraApiClient, args: &serde_json::V
     }
 }
 
-async fn tool_knowledge_deduplicate(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_knowledge_deduplicate(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let body = json!({
         "agent_id": args.get("agent_id").and_then(|v| v.as_str()).unwrap_or(""),
         "threshold": args.get("threshold").and_then(|v| v.as_f64()).unwrap_or(0.9),
