@@ -4,9 +4,7 @@
 # Lightweight stdio-based MCP binary. No RocksDB, no embedding models.
 #
 # Build:
-#   docker compose --profile mcp build dakera-mcp
-#   # or standalone:
-#   docker build -t dakera-mcp:latest -f crates/mcp/Dockerfile .
+#   docker build -t dakera-mcp:latest .
 #
 # Run (stdio mode for MCP clients):
 #   docker run -i --rm \
@@ -40,51 +38,34 @@ ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
 
 WORKDIR /app
 
-# Copy workspace manifests first for layer caching
-COPY Cargo.toml Cargo.lock ./
-COPY crates/mcp/Cargo.toml crates/mcp/Cargo.toml
-COPY crates/common/Cargo.toml crates/common/Cargo.toml
-COPY crates/storage/Cargo.toml crates/storage/Cargo.toml
-COPY crates/engine/Cargo.toml crates/engine/Cargo.toml
-COPY crates/inference/Cargo.toml crates/inference/Cargo.toml
-COPY crates/api/Cargo.toml crates/api/Cargo.toml
-COPY crates/client/Cargo.toml crates/client/Cargo.toml
-COPY crates/cli/Cargo.toml crates/cli/Cargo.toml
-COPY crates/dashboard/Cargo.toml crates/dashboard/Cargo.toml
+# Copy manifests first for dependency layer caching
+COPY Cargo.toml ./
+COPY Cargo.lock* ./
 
-# Create stub files so cargo can resolve the workspace
-RUN mkdir -p crates/mcp/src && echo 'fn main() {}' > crates/mcp/src/main.rs && \
-    mkdir -p crates/common/src && echo '' > crates/common/src/lib.rs && \
-    mkdir -p crates/storage/src && echo '' > crates/storage/src/lib.rs && \
-    mkdir -p crates/engine/src && echo '' > crates/engine/src/lib.rs && \
-    mkdir -p crates/inference/src && echo '' > crates/inference/src/lib.rs && \
-    mkdir -p crates/api/src && echo 'fn main() {}' > crates/api/src/main.rs && \
-    mkdir -p crates/client/src && echo '' > crates/client/src/lib.rs && \
-    mkdir -p crates/cli/src && echo 'fn main() {}' > crates/cli/src/main.rs && \
-    mkdir -p crates/dashboard/src && echo '' > crates/dashboard/src/lib.rs
+# Create stub main so cargo can fetch and compile dependencies
+RUN mkdir -p src && echo 'fn main() {}' > src/main.rs
 
-# Compile dependencies with stubs (cached until Cargo.toml/lock change)
+# Compile dependencies (cached until Cargo.toml/lock change)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    CARGO_BUILD_JOBS=2 cargo build --release --bin dakera-mcp 2>&1 || true
+    cargo build --release 2>&1 || true
 
 # ---------------------------------------------------------------------------
-# Layer 2: Real source compilation (only mcp + common recompile)
+# Layer 2: Real source compilation
 # ---------------------------------------------------------------------------
 
 # Copy real source
-COPY crates/common/ crates/common/
-COPY crates/mcp/ crates/mcp/
+COPY src/ src/
 
 # Touch source files to ensure cargo detects them as newer than stubs
-RUN find crates/mcp crates/common -name "*.rs" -exec touch {} +
+RUN find src -name "*.rs" -exec touch {} +
 
 # Build release binary with real source
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    CARGO_BUILD_JOBS=2 cargo build --release --bin dakera-mcp && \
+    cargo build --release --bin dakera-mcp && \
     cp /app/target/release/dakera-mcp /usr/local/bin/dakera-mcp
 
 # ---------------------------------------------------------------------------
