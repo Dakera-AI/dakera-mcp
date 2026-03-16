@@ -27,15 +27,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy custom CA certificates (for corporate proxy/Netskope)
-COPY certs/netskope-ca.crt /tmp/netskope-ca.crt
-RUN mkdir -p /usr/local/share/ca-certificates/netskope && \
-    cd /tmp && \
-    csplit -f netskope-cert- -b '%02d.crt' netskope-ca.crt '/-----BEGIN CERTIFICATE-----/' '{*}' && \
-    rm -f netskope-cert-00.crt && \
-    mv netskope-cert-*.crt /usr/local/share/ca-certificates/netskope/ && \
-    update-ca-certificates
-
 # Set SSL cert environment variables for cargo
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_DIR=/etc/ssl/certs
