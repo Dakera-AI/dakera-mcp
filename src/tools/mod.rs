@@ -162,6 +162,114 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_require_string_present() {
+        let args = json!({"agent_id": "test-agent"});
+        assert_eq!(require_string(&args, "agent_id").unwrap(), "test-agent");
+    }
+
+    #[test]
+    fn test_require_string_missing_field() {
+        let args = json!({});
+        let err = require_string(&args, "agent_id").unwrap_err();
+        assert_eq!(err.is_error, Some(true));
+        assert!(err.content[0].text.contains("agent_id"));
+    }
+
+    #[test]
+    fn test_require_string_wrong_type_number() {
+        let args = json!({"count": 42});
+        let err = require_string(&args, "count").unwrap_err();
+        assert_eq!(err.is_error, Some(true));
+        assert!(err.content[0].text.contains("count"));
+    }
+
+    #[test]
+    fn test_require_string_wrong_type_bool() {
+        let args = json!({"flag": true});
+        let err = require_string(&args, "flag").unwrap_err();
+        assert_eq!(err.is_error, Some(true));
+    }
+
+    #[test]
+    fn test_require_string_null_value() {
+        let args = json!({"key": null});
+        let err = require_string(&args, "key").unwrap_err();
+        assert_eq!(err.is_error, Some(true));
+    }
+
+    #[test]
+    fn test_ok_json_text_is_pretty() {
+        let value = json!({"key": "value", "num": 1});
+        let result = ok_json(&value);
+        assert!(result.is_error.is_none());
+        let text = &result.content[0].text;
+        assert!(text.contains('\n'), "Expected pretty-printed JSON with newlines");
+        assert!(text.contains("\"key\""));
+    }
+
+    #[test]
+    fn test_ok_json_empty_object() {
+        let result = ok_json(&json!({}));
+        assert!(result.is_error.is_none());
+        assert!(!result.content[0].text.is_empty());
+    }
+
+    #[test]
+    fn test_tool_definitions_not_empty() {
+        let defs = tool_definitions();
+        assert!(!defs.is_empty());
+    }
+
+    #[test]
+    fn test_tool_definitions_have_unique_names() {
+        let defs = tool_definitions();
+        let mut seen = std::collections::HashSet::new();
+        for def in &defs {
+            assert!(
+                seen.insert(def.name.clone()),
+                "Duplicate tool name: {}",
+                def.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_tool_definitions_all_have_descriptions() {
+        for def in tool_definitions() {
+            assert!(!def.name.is_empty(), "Tool has empty name");
+            assert!(
+                !def.description.is_empty(),
+                "Tool '{}' has empty description",
+                def.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_tool_definitions_contain_expected_tools() {
+        let defs = tool_definitions();
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert!(names.contains("dakera_store"));
+        assert!(names.contains("dakera_recall"));
+        assert!(names.contains("dakera_session_start"));
+        assert!(names.contains("dakera_session_end"));
+    }
+
+    #[tokio::test]
+    async fn test_unknown_tool_returns_error() {
+        let client = DakeraApiClient::new("http://localhost:9999".to_string(), None);
+        let result = execute_tool(&client, "nonexistent_tool_xyz", &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("nonexistent_tool_xyz"));
+    }
+}
+
 /// Execute a tool call by dispatching to the appropriate module.
 pub async fn execute_tool(
     client: &DakeraApiClient,
