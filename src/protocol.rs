@@ -111,3 +111,108 @@ impl CallToolResult {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_success_response_fields() {
+        let resp = JsonRpcResponse::success(Some(json!(1)), json!({"ok": true}));
+        assert_eq!(resp.jsonrpc, "2.0");
+        assert!(resp.result.is_some());
+        assert!(resp.error.is_none());
+        assert_eq!(resp.id, Some(json!(1)));
+    }
+
+    #[test]
+    fn test_success_serializes_without_error_field() {
+        let resp = JsonRpcResponse::success(Some(json!(42)), json!({}));
+        let s = serde_json::to_string(&resp).unwrap();
+        assert!(s.contains("\"result\""));
+        assert!(!s.contains("\"error\""));
+    }
+
+    #[test]
+    fn test_error_response_fields() {
+        let resp = JsonRpcResponse::error(Some(json!(2)), -32600, "Invalid Request".to_string());
+        assert_eq!(resp.jsonrpc, "2.0");
+        assert!(resp.result.is_none());
+        let err = resp.error.unwrap();
+        assert_eq!(err.code, -32600);
+        assert_eq!(err.message, "Invalid Request");
+        assert!(err.data.is_none());
+    }
+
+    #[test]
+    fn test_error_serializes_without_result_field() {
+        let resp = JsonRpcResponse::error(None, -32600, "bad".to_string());
+        let s = serde_json::to_string(&resp).unwrap();
+        assert!(s.contains("\"error\""));
+        assert!(!s.contains("\"result\""));
+    }
+
+    #[test]
+    fn test_method_not_found_code_and_message() {
+        let resp = JsonRpcResponse::method_not_found(Some(json!("abc")), "foo/bar");
+        let err = resp.error.unwrap();
+        assert_eq!(err.code, -32601);
+        assert!(err.message.contains("foo/bar"));
+    }
+
+    #[test]
+    fn test_null_id_response() {
+        let resp = JsonRpcResponse::success(None, json!(null));
+        assert!(resp.id.is_none());
+    }
+
+    #[test]
+    fn test_call_tool_result_text() {
+        let r = CallToolResult::text("hello world".to_string());
+        assert!(r.is_error.is_none());
+        assert_eq!(r.content.len(), 1);
+        assert_eq!(r.content[0].content_type, "text");
+        assert_eq!(r.content[0].text, "hello world");
+    }
+
+    #[test]
+    fn test_call_tool_result_error() {
+        let r = CallToolResult::error("something failed".to_string());
+        assert_eq!(r.is_error, Some(true));
+        assert_eq!(r.content.len(), 1);
+        assert_eq!(r.content[0].text, "something failed");
+    }
+
+    #[test]
+    fn test_call_tool_result_error_serializes_is_error() {
+        let r = CallToolResult::error("oops".to_string());
+        let s = serde_json::to_string(&r).unwrap();
+        assert!(s.contains("\"isError\""));
+    }
+
+    #[test]
+    fn test_call_tool_result_text_omits_is_error() {
+        let r = CallToolResult::text("ok".to_string());
+        let s = serde_json::to_string(&r).unwrap();
+        assert!(!s.contains("isError"));
+    }
+
+    #[test]
+    fn test_request_deserialization_with_params() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"foo"}}"#;
+        let req: JsonRpcRequest = serde_json::from_str(raw).unwrap();
+        assert_eq!(req.method, "tools/call");
+        assert_eq!(req.id, Some(json!(1)));
+        assert_eq!(req.params["name"], "foo");
+    }
+
+    #[test]
+    fn test_request_deserialization_without_params() {
+        let raw = r#"{"jsonrpc":"2.0","id":null,"method":"ping"}"#;
+        let req: JsonRpcRequest = serde_json::from_str(raw).unwrap();
+        assert_eq!(req.method, "ping");
+        // params defaults to null when absent
+        assert!(req.params.is_null());
+    }
+}
