@@ -162,6 +162,39 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs
 }
 
+/// Execute a tool call by dispatching to the appropriate module.
+pub async fn execute_tool(
+    client: &DakeraApiClient,
+    name: &str,
+    arguments: &serde_json::Value,
+) -> CallToolResult {
+    if let Some(result) = memory::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = sessions::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = agents::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = knowledge::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = namespaces::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = vectors::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = inference::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = fulltext::execute(client, name, arguments).await {
+        return result;
+    }
+    CallToolResult::error(format!("Unknown tool: {}", name))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,7 +242,10 @@ mod tests {
         let result = ok_json(&value);
         assert!(result.is_error.is_none());
         let text = &result.content[0].text;
-        assert!(text.contains('\n'), "Expected pretty-printed JSON with newlines");
+        assert!(
+            text.contains('\n'),
+            "Expected pretty-printed JSON with newlines"
+        );
         assert!(text.contains("\"key\""));
     }
 
@@ -268,37 +304,4 @@ mod tests {
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("nonexistent_tool_xyz"));
     }
-}
-
-/// Execute a tool call by dispatching to the appropriate module.
-pub async fn execute_tool(
-    client: &DakeraApiClient,
-    name: &str,
-    arguments: &serde_json::Value,
-) -> CallToolResult {
-    if let Some(result) = memory::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = sessions::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = agents::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = knowledge::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = namespaces::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = vectors::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = inference::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = fulltext::execute(client, name, arguments).await {
-        return result;
-    }
-    CallToolResult::error(format!("Unknown tool: {}", name))
 }
