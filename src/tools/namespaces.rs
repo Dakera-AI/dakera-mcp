@@ -212,12 +212,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_configure_dispatches() {
         // Passes validation but hits unreachable server — verifies dispatch not validation.
-        let result = execute(
-            &dummy_client(),
-            "dakera_namespace_configure",
-            &json!({}),
-        )
-        .await;
+        let result = execute(&dummy_client(), "dakera_namespace_configure", &json!({})).await;
         // Returns Some (dispatched) and is_error because namespace param is missing.
         assert!(result.is_some());
         let r = result.unwrap();
