@@ -164,3 +164,58 @@ async fn tool_namespace_configure(
         Err(e) => CallToolResult::error(e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::DakeraApiClient;
+    use serde_json::json;
+
+    fn dummy_client() -> DakeraApiClient {
+        // Port 9 is discard — connections are refused immediately, so no actual
+        // network traffic occurs.  These tests return before reaching the HTTP
+        // call, so the URL is irrelevant.
+        DakeraApiClient::new("http://127.0.0.1:9".to_string(), None)
+    }
+
+    // --- tool_namespace_configure input validation (v0.2.2) ---
+
+    #[tokio::test]
+    async fn test_configure_missing_namespace_returns_error() {
+        let result = tool_namespace_configure(&dummy_client(), &json!({"dimension": 4})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("namespace"));
+    }
+
+    #[tokio::test]
+    async fn test_configure_missing_dimension_returns_error() {
+        let result =
+            tool_namespace_configure(&dummy_client(), &json!({"namespace": "test-ns"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("dimension"));
+    }
+
+    #[tokio::test]
+    async fn test_configure_empty_args_returns_error() {
+        let result = tool_namespace_configure(&dummy_client(), &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+    }
+
+    // --- execute dispatch ---
+
+    #[tokio::test]
+    async fn test_execute_unknown_tool_returns_none() {
+        let result = execute(&dummy_client(), "not_a_namespace_tool", &json!({})).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_execute_configure_dispatches() {
+        // Passes validation but hits unreachable server — verifies dispatch not validation.
+        let result = execute(&dummy_client(), "dakera_namespace_configure", &json!({})).await;
+        // Returns Some (dispatched) and is_error because namespace param is missing.
+        assert!(result.is_some());
+        let r = result.unwrap();
+        assert_eq!(r.is_error, Some(true));
+    }
+}

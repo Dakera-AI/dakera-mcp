@@ -295,6 +295,15 @@ mod tests {
         assert!(names.contains("dakera_recall"));
         assert!(names.contains("dakera_session_start"));
         assert!(names.contains("dakera_session_end"));
+        // v0.2.2 tools
+        assert!(
+            names.contains("dakera_namespace_configure"),
+            "dakera_namespace_configure missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_knowledge_network_cross_agent"),
+            "dakera_knowledge_network_cross_agent missing from tool definitions"
+        );
     }
 
     #[tokio::test]
