@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-03-21
+
+### Added
+
+- `dakera_namespace_configure` — create-or-update (upsert) a namespace via `PUT /v1/namespaces/:namespace`.
+  Added in dakera server v0.6.0. Requires Write scope.
+- `dakera_knowledge_network_cross_agent` — build a cross-agent memory similarity network via
+  `POST /v1/knowledge/network/cross-agent`. Added in dakera server v0.4.0 (DASH-A). Requires Admin scope.
+
 ## [0.2.1] - 2026-03-20
 
 ### Fixed
