@@ -8,7 +8,7 @@
 #
 # Run (stdio mode for MCP clients):
 #   docker run -i --rm \
-#     -e DAKERA_API_URL=http://host.docker.internal:3000 \
+#     -e DAKERA_API_URL=http://host.docker.internal:3300 \
 #     -e DAKERA_API_KEY=your-key \
 #     dakera-mcp:latest
 # =============================================================================
