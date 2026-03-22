@@ -133,6 +133,31 @@ impl DakeraApiClient {
             Err(format!("API error ({}): {}", status, text))
         }
     }
+
+    pub async fn delete_with_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::DELETE, path)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
 }
 
 /// Helper to extract a required string parameter, returning an error CallToolResult on failure.
@@ -303,6 +328,15 @@ mod tests {
         assert!(
             names.contains("dakera_knowledge_network_cross_agent"),
             "dakera_knowledge_network_cross_agent missing from tool definitions"
+        );
+        // v0.3.0 CE-2 tools
+        assert!(
+            names.contains("dakera_batch_recall"),
+            "dakera_batch_recall missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_batch_forget"),
+            "dakera_batch_forget missing from tool definitions"
         );
     }
 

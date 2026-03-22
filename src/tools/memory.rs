@@ -1,4 +1,4 @@
-//! Memory tools — store, recall, get, forget, update, importance, search, consolidate
+//! Memory tools — store, recall, get, forget, batch_recall, batch_forget, update, importance, search, consolidate
 
 use serde_json::json;
 
@@ -46,6 +46,42 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "agent_id": { "type": "string", "description": "Agent identifier" },
                     "memory_ids": { "type": "array", "items": { "type": "string" }, "description": "Specific memory IDs to delete" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Delete memories with these tags" }
+                },
+                "required": ["agent_id"]
+            }),
+        },
+        ToolDefinition {
+            name: "dakera_batch_recall".into(),
+            description: "Filter-based bulk recall without semantic search (CE-2). Returns memories matching all specified predicates. Requires at least one filter.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "All-match tag filter — only memories with ALL listed tags are returned" },
+                    "min_importance": { "type": "number", "description": "Minimum importance threshold (inclusive)" },
+                    "max_importance": { "type": "number", "description": "Maximum importance threshold (inclusive)" },
+                    "created_after": { "type": "integer", "description": "Return memories created after this Unix timestamp" },
+                    "created_before": { "type": "integer", "description": "Return memories created before this Unix timestamp" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" },
+                    "session_id": { "type": "string", "description": "Filter by session ID" }
+                },
+                "required": ["agent_id"]
+            }),
+        },
+        ToolDefinition {
+            name: "dakera_batch_forget".into(),
+            description: "Filter-based bulk delete (CE-2). Deletes all memories matching the predicates. At least one filter is required — the API enforces this to prevent accidental full-namespace wipe.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Delete memories that have ALL of these tags" },
+                    "min_importance": { "type": "number", "description": "Delete memories at or above this importance" },
+                    "max_importance": { "type": "number", "description": "Delete memories at or below this importance" },
+                    "created_after": { "type": "integer", "description": "Delete memories created after this Unix timestamp" },
+                    "created_before": { "type": "integer", "description": "Delete memories created before this Unix timestamp" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Delete memories of this type" },
+                    "session_id": { "type": "string", "description": "Delete memories belonging to this session" }
                 },
                 "required": ["agent_id"]
             }),
@@ -139,6 +175,8 @@ pub async fn execute(
         "dakera_store" => Some(tool_store(client, args).await),
         "dakera_recall" => Some(tool_recall(client, args).await),
         "dakera_forget" => Some(tool_forget(client, args).await),
+        "dakera_batch_recall" => Some(tool_batch_recall(client, args).await),
+        "dakera_batch_forget" => Some(tool_batch_forget(client, args).await),
         "dakera_search" => Some(tool_search(client, args).await),
         "dakera_consolidate" => Some(tool_consolidate(client, args).await),
         "dakera_memory_get" => Some(tool_memory_get(client, args).await),
@@ -220,6 +258,83 @@ async fn tool_forget(client: &DakeraApiClient, args: &serde_json::Value) -> Call
     }
 
     match client.post_json("/v1/memory/forget", &body).await {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
+async fn tool_batch_recall(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let mut body = serde_json::Map::new();
+    body.insert("agent_id".into(), json!(agent_id));
+    if let Some(v) = args.get("tags") {
+        body.insert("tags".into(), v.clone());
+    }
+    if let Some(v) = args.get("min_importance") {
+        body.insert("min_importance".into(), v.clone());
+    }
+    if let Some(v) = args.get("max_importance") {
+        body.insert("max_importance".into(), v.clone());
+    }
+    if let Some(v) = args.get("created_after") {
+        body.insert("created_after".into(), v.clone());
+    }
+    if let Some(v) = args.get("created_before") {
+        body.insert("created_before".into(), v.clone());
+    }
+    if let Some(v) = args.get("memory_type") {
+        body.insert("memory_type".into(), v.clone());
+    }
+    if let Some(v) = args.get("session_id") {
+        body.insert("session_id".into(), v.clone());
+    }
+    match client
+        .post_json("/v1/memories/recall/batch", &serde_json::Value::Object(body))
+        .await
+    {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
+async fn tool_batch_forget(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let mut body = serde_json::Map::new();
+    body.insert("agent_id".into(), json!(agent_id));
+    if let Some(v) = args.get("tags") {
+        body.insert("tags".into(), v.clone());
+    }
+    if let Some(v) = args.get("min_importance") {
+        body.insert("min_importance".into(), v.clone());
+    }
+    if let Some(v) = args.get("max_importance") {
+        body.insert("max_importance".into(), v.clone());
+    }
+    if let Some(v) = args.get("created_after") {
+        body.insert("created_after".into(), v.clone());
+    }
+    if let Some(v) = args.get("created_before") {
+        body.insert("created_before".into(), v.clone());
+    }
+    if let Some(v) = args.get("memory_type") {
+        body.insert("memory_type".into(), v.clone());
+    }
+    if let Some(v) = args.get("session_id") {
+        body.insert("session_id".into(), v.clone());
+    }
+    match client
+        .delete_with_json(
+            "/v1/memories/forget/batch",
+            &serde_json::Value::Object(body),
+        )
+        .await
+    {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-22
+
+### Added
+
+- `dakera_batch_recall` — filter-based bulk recall without semantic search (CE-2, dakera server v0.7.0).
+  Accepts `tags`, `min_importance`, `max_importance`, `created_after`, `created_before`, `memory_type`,
+  and `session_id` predicates. Calls `POST /v1/memories/recall/batch`.
+- `dakera_batch_forget` — filter-based bulk delete (CE-2, dakera server v0.7.0).
+  Same predicate set as `dakera_batch_recall`. The server enforces at least one filter to prevent
+  accidental full-namespace wipe. Calls `DELETE /v1/memories/forget/batch` with a JSON body.
+- `delete_with_json` internal API client method to support DELETE requests carrying a JSON body.
+
 ## [0.2.2] - 2026-03-21
 
 ### Added
