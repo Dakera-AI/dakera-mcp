@@ -292,7 +292,10 @@ async fn tool_batch_recall(client: &DakeraApiClient, args: &serde_json::Value) -
         body.insert("session_id".into(), v.clone());
     }
     match client
-        .post_json("/v1/memories/recall/batch", &serde_json::Value::Object(body))
+        .post_json(
+            "/v1/memories/recall/batch",
+            &serde_json::Value::Object(body),
+        )
         .await
     {
         Ok(result) => ok_json(&result),
