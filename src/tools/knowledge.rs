@@ -169,3 +169,105 @@ async fn tool_knowledge_network_cross_agent(
         Err(e) => CallToolResult::error(e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::DakeraApiClient;
+    use serde_json::json;
+
+    fn dummy_client() -> DakeraApiClient {
+        // Port 9 is discard — connections are refused immediately, so no actual
+        // network traffic occurs.  Validation-path tests return before any HTTP call.
+        DakeraApiClient::new("http://127.0.0.1:9".to_string(), None)
+    }
+
+    // --- tool_knowledge_graph input validation ---
+
+    #[tokio::test]
+    async fn test_knowledge_graph_missing_agent_id_returns_error() {
+        let result =
+            tool_knowledge_graph(&dummy_client(), &json!({"memory_id": "mem_abc"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_graph_missing_memory_id_returns_error() {
+        let result =
+            tool_knowledge_graph(&dummy_client(), &json!({"agent_id": "qa"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("memory_id"));
+    }
+
+    // --- tool_knowledge_summarize input validation ---
+
+    #[tokio::test]
+    async fn test_knowledge_summarize_missing_agent_id_returns_error() {
+        let result = tool_knowledge_summarize(
+            &dummy_client(),
+            &json!({"memory_ids": ["mem_1", "mem_2"]}),
+        )
+        .await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_summarize_missing_memory_ids_returns_error() {
+        let result =
+            tool_knowledge_summarize(&dummy_client(), &json!({"agent_id": "qa"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("memory_ids"));
+    }
+
+    #[tokio::test]
+    async fn test_knowledge_summarize_too_few_ids_returns_error() {
+        let result = tool_knowledge_summarize(
+            &dummy_client(),
+            &json!({"agent_id": "qa", "memory_ids": ["mem_1"]}),
+        )
+        .await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("at least 2"));
+    }
+
+    // --- execute dispatch ---
+
+    #[tokio::test]
+    async fn test_execute_unknown_tool_returns_none() {
+        let result = execute(&dummy_client(), "not_a_knowledge_tool", &json!({})).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_execute_knowledge_graph_dispatches() {
+        // Missing agent_id — validates dispatch returns Some(is_error), not None.
+        let result = execute(&dummy_client(), "dakera_knowledge_graph", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_execute_knowledge_summarize_dispatches() {
+        // Missing agent_id — validates dispatch returns Some(is_error), not None.
+        let result = execute(&dummy_client(), "dakera_knowledge_summarize", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_execute_knowledge_deduplicate_dispatches() {
+        // No required fields — will hit unreachable server and error, but dispatch is verified.
+        let result = execute(&dummy_client(), "dakera_knowledge_deduplicate", &json!({})).await;
+        assert!(result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_execute_cross_agent_network_dispatches() {
+        // No required fields — will hit unreachable server and error, but dispatch is verified.
+        let result =
+            execute(&dummy_client(), "dakera_knowledge_network_cross_agent", &json!({})).await;
+        assert!(result.is_some());
+    }
+}
