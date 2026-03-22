@@ -481,3 +481,52 @@ async fn tool_memory_importance(
 
     ok_json(&json!({ "updated": results.len() }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::DakeraApiClient;
+    use serde_json::json;
+
+    fn dummy_client() -> DakeraApiClient {
+        // Port 9 is discard — connections are refused immediately, so no actual
+        // network traffic occurs.  Validation-path tests return before any HTTP call.
+        DakeraApiClient::new("http://127.0.0.1:9".to_string(), None)
+    }
+
+    // --- tool_batch_recall input validation ---
+
+    #[tokio::test]
+    async fn test_batch_recall_missing_agent_id_returns_error() {
+        let result = tool_batch_recall(&dummy_client(), &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
+    }
+
+    // --- tool_batch_forget input validation ---
+
+    #[tokio::test]
+    async fn test_batch_forget_missing_agent_id_returns_error() {
+        let result = tool_batch_forget(&dummy_client(), &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
+    }
+
+    // --- execute dispatch ---
+
+    #[tokio::test]
+    async fn test_execute_batch_recall_dispatches() {
+        // Missing agent_id — validates dispatch returns Some(is_error), not None.
+        let result = execute(&dummy_client(), "dakera_batch_recall", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_forget_dispatches() {
+        // Missing agent_id — validates dispatch returns Some(is_error), not None.
+        let result = execute(&dummy_client(), "dakera_batch_forget", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
+    }
+}
