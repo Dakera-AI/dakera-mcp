@@ -82,7 +82,7 @@ jobs:
           echo "Extracted: $(ls -lh ./dakera-mcp)"
 
       - name: Upload binary to server
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1.0.0  # ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
@@ -91,7 +91,7 @@ jobs:
           target: "/tmp/"
 
       - name: Install binary on server
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.0.3  # 029f5b4aeeeb58fdfe1410a5d17f967dacf36262
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
