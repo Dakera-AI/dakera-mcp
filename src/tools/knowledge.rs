@@ -186,16 +186,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_knowledge_graph_missing_agent_id_returns_error() {
-        let result =
-            tool_knowledge_graph(&dummy_client(), &json!({"memory_id": "mem_abc"})).await;
+        let result = tool_knowledge_graph(&dummy_client(), &json!({"memory_id": "mem_abc"})).await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("agent_id"));
     }
 
     #[tokio::test]
     async fn test_knowledge_graph_missing_memory_id_returns_error() {
-        let result =
-            tool_knowledge_graph(&dummy_client(), &json!({"agent_id": "qa"})).await;
+        let result = tool_knowledge_graph(&dummy_client(), &json!({"agent_id": "qa"})).await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("memory_id"));
     }
@@ -204,19 +202,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_knowledge_summarize_missing_agent_id_returns_error() {
-        let result = tool_knowledge_summarize(
-            &dummy_client(),
-            &json!({"memory_ids": ["mem_1", "mem_2"]}),
-        )
-        .await;
+        let result =
+            tool_knowledge_summarize(&dummy_client(), &json!({"memory_ids": ["mem_1", "mem_2"]}))
+                .await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("agent_id"));
     }
 
     #[tokio::test]
     async fn test_knowledge_summarize_missing_memory_ids_returns_error() {
-        let result =
-            tool_knowledge_summarize(&dummy_client(), &json!({"agent_id": "qa"})).await;
+        let result = tool_knowledge_summarize(&dummy_client(), &json!({"agent_id": "qa"})).await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("memory_ids"));
     }
@@ -266,8 +261,12 @@ mod tests {
     #[tokio::test]
     async fn test_execute_cross_agent_network_dispatches() {
         // No required fields — will hit unreachable server and error, but dispatch is verified.
-        let result =
-            execute(&dummy_client(), "dakera_knowledge_network_cross_agent", &json!({})).await;
+        let result = execute(
+            &dummy_client(),
+            "dakera_knowledge_network_cross_agent",
+            &json!({}),
+        )
+        .await;
         assert!(result.is_some());
     }
 }
