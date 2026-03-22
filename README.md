@@ -28,20 +28,42 @@ The binary is at `target/release/dakera-mcp`.
 
 ### Docker
 
+Pull from GitHub Container Registry (recommended):
+
+```bash
+docker pull ghcr.io/dakera-ai/dakera-mcp:latest
+```
+
+Or build from source:
+
 ```bash
 docker build -t dakera-mcp .
+```
 
+Run (macOS / Windows — `host.docker.internal` resolves natively):
+
+```bash
 docker run -i --rm \
-  -e DAKERA_API_URL=http://host.docker.internal:3000 \
+  -e DAKERA_API_URL=http://host.docker.internal:3300 \
   -e DAKERA_API_KEY=your-key \
-  dakera-mcp
+  ghcr.io/dakera-ai/dakera-mcp
+```
+
+Run (Linux — `host.docker.internal` requires `--add-host`):
+
+```bash
+docker run -i --rm \
+  --add-host=host.docker.internal:host-gateway \
+  -e DAKERA_API_URL=http://host.docker.internal:3300 \
+  -e DAKERA_API_KEY=your-key \
+  ghcr.io/dakera-ai/dakera-mcp
 ```
 
 ## Configuration
 
 | Variable | Description | Default |
 |---|---|---|
-| `DAKERA_API_URL` | Dakera API base URL | `http://localhost:3000` |
+| `DAKERA_API_URL` | Dakera API base URL | `http://localhost:3300` |
 | `DAKERA_API_KEY` | API key for authentication (optional) | none |
 | `RUST_LOG` | Log level (`dakera_mcp=debug`, etc.) | `dakera_mcp=info` |
 
@@ -57,7 +79,7 @@ Add to your `claude_desktop_config.json`:
     "dakera": {
       "command": "/path/to/dakera-mcp",
       "env": {
-        "DAKERA_API_URL": "http://localhost:3000",
+        "DAKERA_API_URL": "http://localhost:3300",
         "DAKERA_API_KEY": "your-api-key"
       }
     }
@@ -75,7 +97,7 @@ Add to your `.claude/settings.json`:
     "dakera": {
       "command": "/path/to/dakera-mcp",
       "env": {
-        "DAKERA_API_URL": "http://localhost:3000",
+        "DAKERA_API_URL": "http://localhost:3300",
         "DAKERA_API_KEY": "your-api-key"
       }
     }
@@ -93,7 +115,7 @@ Add to your Cursor MCP settings:
     "dakera": {
       "command": "/path/to/dakera-mcp",
       "env": {
-        "DAKERA_API_URL": "http://localhost:3000",
+        "DAKERA_API_URL": "http://localhost:3300",
         "DAKERA_API_KEY": "your-api-key"
       }
     }
@@ -103,7 +125,7 @@ Add to your Cursor MCP settings:
 
 ### Docker with MCP clients
 
-Point the command to Docker instead of a local binary:
+Point the command to Docker instead of a local binary. Use `--add-host` to make `host.docker.internal` resolvable on Linux (it is a no-op on macOS and Windows):
 
 ```json
 {
@@ -111,9 +133,10 @@ Point the command to Docker instead of a local binary:
     "dakera": {
       "command": "docker",
       "args": ["run", "-i", "--rm",
-        "-e", "DAKERA_API_URL=http://host.docker.internal:3000",
+        "--add-host=host.docker.internal:host-gateway",
+        "-e", "DAKERA_API_URL=http://host.docker.internal:3300",
         "-e", "DAKERA_API_KEY=your-api-key",
-        "dakera-mcp"
+        "ghcr.io/dakera-ai/dakera-mcp"
       ]
     }
   }
