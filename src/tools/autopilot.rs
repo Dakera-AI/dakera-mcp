@@ -56,7 +56,10 @@ async fn tool_autopilot_status(client: &DakeraApiClient) -> CallToolResult {
     }
 }
 
-async fn tool_autopilot_trigger(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_autopilot_trigger(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let action = match args.get("action").and_then(|v| v.as_str()) {
         Some(a) if matches!(a, "dedup" | "consolidate" | "all") => a,
         Some(a) => {
@@ -90,7 +93,11 @@ mod tests {
     #[test]
     fn test_autopilot_definitions_have_descriptions() {
         for def in definitions() {
-            assert!(!def.description.is_empty(), "'{}' has no description", def.name);
+            assert!(
+                !def.description.is_empty(),
+                "'{}' has no description",
+                def.name
+            );
         }
     }
 
