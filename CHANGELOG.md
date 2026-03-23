@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-03-23
+
+### Added
+
+- `dakera_autopilot_status` — returns the live AutoPilot configuration plus last-run statistics
+  (timestamps, memories deduped, clusters consolidated). Wraps `GET /admin/autopilot/status`
+  (Admin scope). Implements PILOT-4.
+- `dakera_autopilot_trigger` — forces an immediate AutoPilot cycle. Accepts `action` of `dedup`,
+  `consolidate`, or `all`. Wraps `POST /admin/autopilot/trigger` (Admin scope). Implements PILOT-4.
+
+### Tests
+
+- Unit tests for `dakera_autopilot_trigger` covering invalid action, missing action, and unknown
+  tool dispatch; and for `dakera_autopilot_status` / `dakera_autopilot_trigger` definitions.
+
 ## [0.3.1] - 2026-03-22
 
 ### Added

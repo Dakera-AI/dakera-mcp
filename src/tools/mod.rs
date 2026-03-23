@@ -4,6 +4,7 @@
 //! calling the Dakera API for each tool invocation.
 
 pub mod agents;
+pub mod autopilot;
 pub mod fulltext;
 pub mod inference;
 pub mod knowledge;
@@ -184,6 +185,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(vectors::definitions());
     defs.extend(inference::definitions());
     defs.extend(fulltext::definitions());
+    defs.extend(autopilot::definitions());
     defs
 }
 
@@ -215,6 +217,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = fulltext::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = autopilot::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -337,6 +342,15 @@ mod tests {
         assert!(
             names.contains("dakera_batch_forget"),
             "dakera_batch_forget missing from tool definitions"
+        );
+        // v0.3.2 PILOT-4 tools
+        assert!(
+            names.contains("dakera_autopilot_status"),
+            "dakera_autopilot_status missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_autopilot_trigger"),
+            "dakera_autopilot_trigger missing from tool definitions"
         );
     }
 
