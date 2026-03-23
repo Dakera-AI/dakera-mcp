@@ -74,24 +74,24 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_hybrid_search".into(),
-            description: "Hybrid search combining vector similarity and full-text BM25 search. Returns results scored by weighted combination of both signals.".into(),
+            description: "Hybrid search combining vector similarity and full-text BM25 search. Returns results scored by weighted combination of both signals. If vector is omitted, falls back to fulltext-only BM25 (vector_weight is ignored).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace to search in" },
                     "vector": {
                         "type": "array",
-                        "description": "Query vector for similarity search",
+                        "description": "Query vector for similarity search. Optional — omit to use fulltext-only BM25.",
                         "items": { "type": "number" }
                     },
                     "text": { "type": "string", "description": "Text query for full-text search" },
                     "top_k": { "type": "integer", "description": "Number of results to return", "default": 10 },
-                    "vector_weight": { "type": "number", "description": "Weight for vector score (0.0-1.0). Text weight is 1-vector_weight.", "default": 0.5 },
+                    "vector_weight": { "type": "number", "description": "Weight for vector score (0.0-1.0). Text weight is 1-vector_weight. Ignored when vector is omitted.", "default": 0.5 },
                     "include_metadata": { "type": "boolean", "description": "Include metadata in results", "default": true },
                     "include_vectors": { "type": "boolean", "description": "Include vectors in results", "default": false },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
-                "required": ["namespace", "vector", "text"]
+                "required": ["namespace", "text"]
             }),
         },
     ]
@@ -205,12 +205,6 @@ async fn tool_hybrid_search(client: &DakeraApiClient, args: &serde_json::Value) 
         Ok(v) => v,
         Err(e) => return e,
     };
-    let vector = match args.get("vector").and_then(|v| v.as_array()) {
-        Some(v) if !v.is_empty() => v,
-        _ => {
-            return CallToolResult::error("Missing or empty required parameter: vector".to_string())
-        }
-    };
     let text = match require_string(args, "text") {
         Ok(v) => v,
         Err(e) => return e,
@@ -230,13 +224,18 @@ async fn tool_hybrid_search(client: &DakeraApiClient, args: &serde_json::Value) 
         .unwrap_or(false);
 
     let mut body = json!({
-        "vector": vector,
         "text": text,
         "top_k": top_k,
         "vector_weight": vector_weight,
         "include_metadata": include_metadata,
         "include_vectors": include_vectors,
     });
+    // vector is optional — omit from body when not provided so the backend falls back to BM25-only
+    if let Some(v) = args.get("vector").and_then(|v| v.as_array()) {
+        if !v.is_empty() {
+            body["vector"] = json!(v);
+        }
+    }
     if let Some(filter) = args.get("filter") {
         body["filter"] = filter.clone();
     }
