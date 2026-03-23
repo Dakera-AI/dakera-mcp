@@ -97,9 +97,7 @@ async fn tool_decay_config_set(
     // Validate min_importance if provided
     if let Some(min_imp) = args.get("min_importance").and_then(|v| v.as_f64()) {
         if !(0.0..=1.0).contains(&min_imp) {
-            return CallToolResult::error(
-                "min_importance must be between 0.0 and 1.0".to_string(),
-            );
+            return CallToolResult::error("min_importance must be between 0.0 and 1.0".to_string());
         }
     }
 
