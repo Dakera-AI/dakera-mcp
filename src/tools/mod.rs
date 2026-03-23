@@ -5,6 +5,7 @@
 
 pub mod agents;
 pub mod autopilot;
+pub mod decay;
 pub mod fulltext;
 pub mod inference;
 pub mod knowledge;
@@ -186,6 +187,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(inference::definitions());
     defs.extend(fulltext::definitions());
     defs.extend(autopilot::definitions());
+    defs.extend(decay::definitions());
     defs
 }
 
@@ -220,6 +222,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = autopilot::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = decay::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -351,6 +356,19 @@ mod tests {
         assert!(
             names.contains("dakera_autopilot_trigger"),
             "dakera_autopilot_trigger missing from tool definitions"
+        );
+        // v0.4.0 DECAY tools
+        assert!(
+            names.contains("dakera_decay_config_get"),
+            "dakera_decay_config_get missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_decay_config_set"),
+            "dakera_decay_config_set missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_decay_stats"),
+            "dakera_decay_stats missing from tool definitions"
         );
     }
 
