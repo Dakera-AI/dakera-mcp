@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange)](https://www.rust-lang.org/)
 
-MCP (Model Context Protocol) server that gives AI agents persistent memory through the [Dakera](https://dakera.ai) vector database. Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client to store, recall, and search memories across sessions.
+MCP (Model Context Protocol) server that gives AI agents persistent memory through [Dakera](https://dakera.ai) — the AI agent memory platform. Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client to store, recall, and search memories across sessions.
 
 ## Features
 
@@ -259,7 +259,7 @@ The server communicates over **stdio** using the MCP JSON-RPC protocol. Each too
 
 | Repository | Description |
 |------------|-------------|
-| [dakera](https://github.com/dakera-ai/dakera) | Core vector database engine (Rust) |
+| [dakera](https://github.com/dakera-ai/dakera) | Core AI agent memory engine (Rust) |
 | [dakera-py](https://github.com/dakera-ai/dakera-py) | Python SDK |
 | [dakera-js](https://github.com/dakera-ai/dakera-js) | TypeScript/JavaScript SDK |
 | [dakera-go](https://github.com/dakera-ai/dakera-go) | Go SDK |
