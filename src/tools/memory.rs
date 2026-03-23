@@ -18,7 +18,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Type of memory", "default": "episodic" },
                     "importance": { "type": "number", "description": "Importance score 0.0-1.0", "default": 0.5 },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization", "default": [] },
-                    "session_id": { "type": "string", "description": "Optional session ID to associate with" }
+                    "session_id": { "type": "string", "description": "Optional session ID to associate with" },
+                    "expires_at": { "type": "integer", "description": "Optional explicit expiry Unix timestamp (seconds). Takes precedence over ttl_seconds. On expiry the memory is hard-deleted by the decay engine." }
                 },
                 "required": ["agent_id", "content"]
             }),
@@ -195,7 +196,7 @@ async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallT
         Ok(v) => v,
         Err(e) => return e,
     };
-    let body = json!({
+    let mut body = json!({
         "agent_id": agent_id,
         "content": content,
         "memory_type": args.get("memory_type").and_then(|v| v.as_str()).unwrap_or("episodic"),
@@ -203,6 +204,9 @@ async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallT
         "tags": args.get("tags").cloned().unwrap_or(json!([])),
         "session_id": args.get("session_id"),
     });
+    if let Some(exp) = args.get("expires_at") {
+        body["expires_at"] = exp.clone();
+    }
     match client.post_json("/v1/memory/store", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

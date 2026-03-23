@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-23
+
+### Added
+
+- `dakera_decay_config_get` — returns the current memory-decay configuration (`strategy`,
+  `half_life_hours`, `min_importance`). Wraps `GET /admin/decay/config` (Admin scope). Implements DECAY-1.
+- `dakera_decay_config_set` — updates decay settings at runtime without a server restart.
+  Accepts optional `strategy` (`exponential` | `linear` | `step`), `half_life_hours` (> 0), and
+  `min_importance` (0.0–1.0). Wraps `PUT /admin/decay/config` (Admin scope). Implements DECAY-1.
+- `dakera_decay_stats` — returns cumulative decay counters (`total_decayed`, `total_deleted`,
+  `cycles_run`, `last_run_at`) plus per-cycle detail for the most recent run.
+  Wraps `GET /admin/decay/stats` (Admin scope). Implements DECAY-2.
+- `dakera_store` schema updated — new optional `expires_at` parameter (Unix timestamp in seconds).
+  Takes precedence over `ttl_seconds`; on expiry the memory is hard-deleted by the decay engine.
+
+### Tests
+
+- Unit tests for `dakera_decay_config_set` covering invalid strategy, zero/negative `half_life_hours`,
+  and out-of-range `min_importance`; coverage for definitions length, non-empty descriptions, and
+  unknown tool dispatch for the decay module.
+
 ## [0.3.2] - 2026-03-23
 
 ### Added
