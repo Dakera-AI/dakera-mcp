@@ -166,7 +166,8 @@ mod tests {
 
     #[test]
     fn test_definitions_names() {
-        let names: Vec<_> = definitions().iter().map(|d| d.name.as_str()).collect();
+        let defs = definitions();
+        let names: Vec<_> = defs.iter().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"dakera_auto_tag"));
         assert!(names.contains(&"dakera_entity_types_set"));
         assert!(names.contains(&"dakera_memory_entities"));
@@ -181,18 +182,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_entity_types_set_missing_namespace() {
-        let result =
-            tool_entity_types_set(&dummy_client(), &json!({"extract_entities": true, "entity_types": []}))
-                .await;
+        let result = tool_entity_types_set(
+            &dummy_client(),
+            &json!({"extract_entities": true, "entity_types": []}),
+        )
+        .await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("namespace"));
     }
 
     #[tokio::test]
     async fn test_entity_types_set_missing_extract_entities() {
-        let result =
-            tool_entity_types_set(&dummy_client(), &json!({"namespace": "ns", "entity_types": []}))
-                .await;
+        let result = tool_entity_types_set(
+            &dummy_client(),
+            &json!({"namespace": "ns", "entity_types": []}),
+        )
+        .await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("extract_entities"));
     }
