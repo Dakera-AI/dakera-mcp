@@ -6,6 +6,7 @@
 pub mod agents;
 pub mod autopilot;
 pub mod decay;
+pub mod entities;
 pub mod fulltext;
 pub mod inference;
 pub mod knowledge;
@@ -160,6 +161,31 @@ impl DakeraApiClient {
             Err(format!("API error ({}): {}", status, text))
         }
     }
+
+    pub async fn patch_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::PATCH, path)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
 }
 
 /// Helper to extract a required string parameter, returning an error CallToolResult on failure.
@@ -188,6 +214,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(fulltext::definitions());
     defs.extend(autopilot::definitions());
     defs.extend(decay::definitions());
+    defs.extend(entities::definitions());
     defs
 }
 
@@ -225,6 +252,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = decay::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = entities::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -369,6 +399,19 @@ mod tests {
         assert!(
             names.contains("dakera_decay_stats"),
             "dakera_decay_stats missing from tool definitions"
+        );
+        // v0.5.0 MCP-4 / CE-4 entity tools
+        assert!(
+            names.contains("dakera_auto_tag"),
+            "dakera_auto_tag missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_entity_types_set"),
+            "dakera_entity_types_set missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_memory_entities"),
+            "dakera_memory_entities missing from tool definitions"
         );
     }
 
