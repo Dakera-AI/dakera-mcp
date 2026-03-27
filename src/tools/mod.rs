@@ -4,6 +4,7 @@
 //! calling the Dakera API for each tool invocation.
 
 pub mod agents;
+pub mod audit;
 pub mod autopilot;
 pub mod decay;
 pub mod entities;
@@ -217,6 +218,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(decay::definitions());
     defs.extend(entities::definitions());
     defs.extend(graph::definitions());
+    defs.extend(audit::definitions());
     defs
 }
 
@@ -260,6 +262,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = graph::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = audit::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -438,6 +443,11 @@ mod tests {
         assert!(
             names.contains("dakera_graph_export"),
             "dakera_graph_export missing from tool definitions"
+        );
+        // v0.7.0 OBS-1 audit tool
+        assert!(
+            names.contains("dakera_audit_query"),
+            "dakera_audit_query missing from tool definitions"
         );
     }
 
