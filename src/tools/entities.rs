@@ -52,6 +52,20 @@ pub fn definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "dakera_entity_types_get".into(),
+            description: "Get the current entity extraction configuration for a namespace — whether automatic tagging is enabled and which entity types are configured.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "namespace": {
+                        "type": "string",
+                        "description": "Namespace to retrieve entity configuration for"
+                    }
+                },
+                "required": ["namespace"]
+            }),
+        },
+        ToolDefinition {
             name: "dakera_memory_entities".into(),
             description: "Retrieve the structured entity tags that were extracted and stored when a memory was written. Returns entity type, value, and confidence score for each entity.".into(),
             input_schema: json!({
@@ -76,6 +90,7 @@ pub async fn execute(
     match name {
         "dakera_auto_tag" => Some(tool_auto_tag(client, args).await),
         "dakera_entity_types_set" => Some(tool_entity_types_set(client, args).await),
+        "dakera_entity_types_get" => Some(tool_entity_types_get(client, args).await),
         "dakera_memory_entities" => Some(tool_memory_entities(client, args).await),
         _ => None,
     }
@@ -134,6 +149,22 @@ async fn tool_entity_types_set(
     }
 }
 
+async fn tool_entity_types_get(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let encoded = urlencoding::encode(&namespace);
+    let path = format!("/v1/namespaces/{}/config", encoded);
+    match client.get_json(&path).await {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
 async fn tool_memory_entities(
     client: &DakeraApiClient,
     args: &serde_json::Value,
@@ -161,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_definitions_count() {
-        assert_eq!(definitions().len(), 3);
+        assert_eq!(definitions().len(), 4);
     }
 
     #[test]
@@ -170,6 +201,7 @@ mod tests {
         let names: Vec<_> = defs.iter().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"dakera_auto_tag"));
         assert!(names.contains(&"dakera_entity_types_set"));
+        assert!(names.contains(&"dakera_entity_types_get"));
         assert!(names.contains(&"dakera_memory_entities"));
     }
 
@@ -200,6 +232,20 @@ mod tests {
         .await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("extract_entities"));
+    }
+
+    #[tokio::test]
+    async fn test_entity_types_get_missing_namespace() {
+        let result = tool_entity_types_get(&dummy_client(), &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("namespace"));
+    }
+
+    #[tokio::test]
+    async fn test_entity_types_get_dispatches() {
+        let result = execute(&dummy_client(), "dakera_entity_types_get", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true)); // missing namespace param
     }
 
     #[tokio::test]

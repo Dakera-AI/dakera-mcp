@@ -415,6 +415,10 @@ mod tests {
             "dakera_entity_types_set missing from tool definitions"
         );
         assert!(
+            names.contains("dakera_entity_types_get"),
+            "dakera_entity_types_get missing from tool definitions"
+        );
+        assert!(
             names.contains("dakera_memory_entities"),
             "dakera_memory_entities missing from tool definitions"
         );
