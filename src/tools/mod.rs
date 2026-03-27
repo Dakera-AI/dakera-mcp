@@ -8,6 +8,7 @@ pub mod autopilot;
 pub mod decay;
 pub mod entities;
 pub mod fulltext;
+pub mod graph;
 pub mod inference;
 pub mod knowledge;
 pub mod memory;
@@ -215,6 +216,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(autopilot::definitions());
     defs.extend(decay::definitions());
     defs.extend(entities::definitions());
+    defs.extend(graph::definitions());
     defs
 }
 
@@ -255,6 +257,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = entities::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = graph::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -412,6 +417,23 @@ mod tests {
         assert!(
             names.contains("dakera_memory_entities"),
             "dakera_memory_entities missing from tool definitions"
+        );
+        // v0.6.0 MCP-4 / CE-5 graph tools
+        assert!(
+            names.contains("dakera_graph_traverse"),
+            "dakera_graph_traverse missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_graph_path"),
+            "dakera_graph_path missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_graph_link_memory"),
+            "dakera_graph_link_memory missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_graph_export"),
+            "dakera_graph_export missing from tool definitions"
         );
     }
 
