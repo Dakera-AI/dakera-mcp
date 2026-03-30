@@ -7,7 +7,9 @@ pub mod agents;
 pub mod audit;
 pub mod autopilot;
 pub mod decay;
+pub mod encryption;
 pub mod entities;
+pub mod extractor;
 pub mod feedback;
 pub mod fulltext;
 pub mod graph;
@@ -284,6 +286,8 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(audit::definitions());
     defs.extend(transfer::definitions());
     defs.extend(feedback::definitions());
+    defs.extend(extractor::definitions());
+    defs.extend(encryption::definitions());
     defs
 }
 
@@ -339,6 +343,12 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = feedback::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = extractor::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = encryption::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
