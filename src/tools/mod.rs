@@ -18,6 +18,7 @@ pub mod knowledge;
 pub mod memory;
 pub mod namespace_keys;
 pub mod namespaces;
+pub mod ode;
 pub mod sessions;
 pub mod transfer;
 pub mod vectors;
@@ -288,6 +289,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(feedback::definitions());
     defs.extend(extractor::definitions());
     defs.extend(encryption::definitions());
+    defs.extend(ode::definitions());
     defs
 }
 
@@ -349,6 +351,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = encryption::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = ode::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -532,6 +537,11 @@ mod tests {
         assert!(
             names.contains("dakera_audit_query"),
             "dakera_audit_query missing from tool definitions"
+        );
+        // v0.9.0 ODE-2 entity extraction tool
+        assert!(
+            names.contains("dakera_extract_entities"),
+            "dakera_extract_entities missing from tool definitions"
         );
     }
 
