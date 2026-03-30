@@ -1,0 +1,70 @@
+name: Re-Manifest (manual recovery)
+
+# Use this workflow to rebuild a multi-arch manifest when the release workflow's
+# manifest step fails (e.g. provenance attestation digest in artifact, 403, etc.)
+# The per-platform images must already be pushed to GHCR by digest.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Image tag to create (e.g. 0.8.0)'
+        required: true
+      amd64_digest:
+        description: 'amd64 image digest (sha256:...)'
+        required: true
+      arm64_digest:
+        description: 'arm64 image digest (sha256:...)'
+        required: true
+      tag_latest:
+        description: 'Also update :latest tag'
+        required: false
+        default: 'true'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: dakera-ai/dakera-mcp
+
+jobs:
+  remanifest:
+    name: Create Multi-Arch Manifest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify digests are accessible
+        run: |
+          echo "Checking amd64: ${{ inputs.amd64_digest }}"
+          docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ inputs.amd64_digest }}"
+          echo "Checking arm64: ${{ inputs.arm64_digest }}"
+          docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ inputs.arm64_digest }}"
+
+      - name: Create versioned manifest
+        run: |
+          docker buildx imagetools create \
+            -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ inputs.amd64_digest }}" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ inputs.arm64_digest }}"
+
+      - name: Update latest tag
+        if: ${{ inputs.tag_latest == 'true' }}
+        run: |
+          docker buildx imagetools create \
+            -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ inputs.amd64_digest }}" \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ inputs.arm64_digest }}"
+
+      - name: Inspect final manifest
+        run: |
+          docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
