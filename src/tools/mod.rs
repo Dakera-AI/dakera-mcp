@@ -4,16 +4,20 @@
 //! calling the Dakera API for each tool invocation.
 
 pub mod agents;
+pub mod audit;
 pub mod autopilot;
 pub mod decay;
 pub mod entities;
+pub mod feedback;
 pub mod fulltext;
 pub mod graph;
 pub mod inference;
 pub mod knowledge;
 pub mod memory;
+pub mod namespace_keys;
 pub mod namespaces;
 pub mod sessions;
+pub mod transfer;
 pub mod vectors;
 
 use crate::protocol::{CallToolResult, ToolDefinition};
@@ -187,6 +191,65 @@ impl DakeraApiClient {
             Err(format!("API error ({}): {}", status, text))
         }
     }
+
+    /// GET a resource and return the raw response body as a String (for export endpoints
+    /// that return non-JSON content like JSONL, CSV, etc.).
+    pub async fn get_text(&self, path: &str) -> Result<String, String> {
+        let resp = self
+            .request(reqwest::Method::GET, path)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            Ok(text)
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
+
+    /// POST a plain-text body as a multipart/form-data request with a single `file` field.
+    /// Used for the DX-1 import endpoint which expects multipart data.
+    pub async fn post_multipart_text(
+        &self,
+        path: &str,
+        text: &str,
+    ) -> Result<serde_json::Value, String> {
+        let part = reqwest::multipart::Part::text(text.to_string())
+            .file_name("import.jsonl")
+            .mime_str("application/octet-stream")
+            .map_err(|e| format!("Multipart build failed: {}", e))?;
+        let form = reqwest::multipart::Form::new().part("file", part);
+
+        let url = format!("{}{}", self.base_url, path);
+        let mut req = self.client.post(&url).multipart(form);
+        if let Some(ref key) = self.api_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+        let status = resp.status();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+
+        if status.is_success() {
+            serde_json::from_str(&body).map_err(|e| format!("JSON parse failed: {}", e))
+        } else {
+            Err(format!("API error ({}): {}", status, body))
+        }
+    }
 }
 
 /// Helper to extract a required string parameter, returning an error CallToolResult on failure.
@@ -210,6 +273,7 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(agents::definitions());
     defs.extend(knowledge::definitions());
     defs.extend(namespaces::definitions());
+    defs.extend(namespace_keys::definitions());
     defs.extend(vectors::definitions());
     defs.extend(inference::definitions());
     defs.extend(fulltext::definitions());
@@ -217,6 +281,9 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(decay::definitions());
     defs.extend(entities::definitions());
     defs.extend(graph::definitions());
+    defs.extend(audit::definitions());
+    defs.extend(transfer::definitions());
+    defs.extend(feedback::definitions());
     defs
 }
 
@@ -260,6 +327,18 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = graph::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = audit::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = namespace_keys::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = transfer::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = feedback::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -438,6 +517,11 @@ mod tests {
         assert!(
             names.contains("dakera_graph_export"),
             "dakera_graph_export missing from tool definitions"
+        );
+        // v0.7.0 OBS-1 audit tool
+        assert!(
+            names.contains("dakera_audit_query"),
+            "dakera_audit_query missing from tool definitions"
         );
     }
 

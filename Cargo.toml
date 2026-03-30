@@ -1,6 +1,6 @@
 [package]
 name = "dakera-mcp"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 description = "Dakera MCP Server - Model Context Protocol server for AI agent memory"
@@ -19,7 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # HTTP client for calling Dakera API
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls-native-roots"] }
 
 # Error handling
 thiserror = "1.0"
