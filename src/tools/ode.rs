@@ -69,8 +69,8 @@ async fn tool_extract_entities(args: &serde_json::Value) -> CallToolResult {
         Err(e) => return e,
     };
 
-    let ode_url = std::env::var("DAKERA_ODE_URL")
-        .unwrap_or_else(|_| "http://localhost:8080".to_string());
+    let ode_url =
+        std::env::var("DAKERA_ODE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
     let ode_url = ode_url.trim_end_matches('/');
     let api_key = std::env::var("DAKERA_API_KEY").ok();
 
@@ -93,9 +93,7 @@ async fn tool_extract_entities(args: &serde_json::Value) -> CallToolResult {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    let mut req = http
-        .post(format!("{}/ode/extract", ode_url))
-        .json(&body);
+    let mut req = http.post(format!("{}/ode/extract", ode_url)).json(&body);
 
     if let Some(key) = api_key {
         req = req.header("Authorization", format!("Bearer {}", key));
