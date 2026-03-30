@@ -60,7 +60,10 @@ async fn tool_rotate_key(client: &DakeraApiClient, args: &serde_json::Value) -> 
         body["namespace"] = json!(ns);
     }
 
-    match client.post_json("/admin/encryption/rotate-key", &body).await {
+    match client
+        .post_json("/admin/encryption/rotate-key", &body)
+        .await
+    {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }
@@ -99,12 +102,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rotate_key_missing_new_key() {
-        let result = execute(
-            &dummy_client(),
-            "dakera_encryption_rotate_key",
-            &json!({}),
-        )
-        .await;
+        let result = execute(&dummy_client(), "dakera_encryption_rotate_key", &json!({})).await;
         assert!(result.is_some());
         let r = result.unwrap();
         assert_eq!(r.is_error, Some(true));
