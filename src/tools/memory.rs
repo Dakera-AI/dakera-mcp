@@ -26,14 +26,15 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Recall memories by semantic query. Returns the most relevant memories for the given query text.".into(),
+            description: "Recall memories by semantic query. Returns the most relevant memories for the given query text. Set include_associated=true to also surface KG-linked memories (COG-2 associative recall).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "agent_id": { "type": "string", "description": "Agent identifier" },
                     "query": { "type": "string", "description": "Semantic query text" },
                     "top_k": { "type": "integer", "description": "Number of results to return", "default": 5 },
-                    "min_importance": { "type": "number", "description": "Minimum importance threshold", "default": 0.0 }
+                    "min_importance": { "type": "number", "description": "Minimum importance threshold", "default": 0.0 },
+                    "include_associated": { "type": "boolean", "description": "COG-2: traverse KG depth-1 from recalled memories and include associatively linked memories in associated_memories field", "default": false }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -222,12 +223,15 @@ async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> Call
         Ok(v) => v,
         Err(e) => return e,
     };
-    let body = json!({
+    let mut body = json!({
         "agent_id": agent_id,
         "query": query,
         "top_k": args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(5),
         "min_importance": args.get("min_importance").and_then(|v| v.as_f64()).unwrap_or(0.0),
     });
+    if let Some(true) = args.get("include_associated").and_then(|v| v.as_bool()) {
+        body["include_associated"] = json!(true);
+    }
     match client.post_json("/v1/memory/recall", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
