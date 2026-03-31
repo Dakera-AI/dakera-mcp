@@ -84,6 +84,7 @@ jobs:
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
+          overwrite: true
 
   # ---------------------------------------------------------------------------
   # Merge per-platform digests into a multi-arch manifest
