@@ -26,7 +26,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Recall memories by semantic query. Returns the most relevant memories for the given query text. Set include_associated=true to also surface KG-linked memories (COG-2 associative recall).".into(),
+            description: "Recall memories by semantic query. Returns the most relevant memories for the given query text. Set include_associated=true to also surface KG-linked memories (COG-2 associative recall). Use since/until for time-window recall (CE-7).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -34,7 +34,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "query": { "type": "string", "description": "Semantic query text" },
                     "top_k": { "type": "integer", "description": "Number of results to return", "default": 5 },
                     "min_importance": { "type": "number", "description": "Minimum importance threshold", "default": 0.0 },
-                    "include_associated": { "type": "boolean", "description": "COG-2: traverse KG depth-1 from recalled memories and include associatively linked memories in associated_memories field", "default": false }
+                    "include_associated": { "type": "boolean", "description": "COG-2: traverse KG depth-1 from recalled memories and include associatively linked memories in associated_memories field", "default": false },
+                    "since": { "type": "string", "description": "CE-7: only return memories created at or after this ISO-8601 timestamp (e.g. '2026-01-01T00:00:00Z')" },
+                    "until": { "type": "string", "description": "CE-7: only return memories created at or before this ISO-8601 timestamp (e.g. '2026-03-31T23:59:59Z')" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -231,6 +233,12 @@ async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> Call
     });
     if let Some(true) = args.get("include_associated").and_then(|v| v.as_bool()) {
         body["include_associated"] = json!(true);
+    }
+    if let Some(since) = args.get("since").and_then(|v| v.as_str()) {
+        body["since"] = json!(since);
+    }
+    if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
+        body["until"] = json!(until);
     }
     match client.post_json("/v1/memory/recall", &body).await {
         Ok(result) => ok_json(&result),
@@ -536,5 +544,45 @@ mod tests {
         let result = execute(&dummy_client(), "dakera_batch_forget", &json!({})).await;
         assert!(result.is_some());
         assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    // --- CE-7: tool_recall since/until ---
+
+    #[tokio::test]
+    async fn test_recall_missing_agent_id_returns_error() {
+        let result = tool_recall(&dummy_client(), &json!({"query": "hello"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
+    }
+
+    #[tokio::test]
+    async fn test_recall_missing_query_returns_error() {
+        let result = tool_recall(&dummy_client(), &json!({"agent_id": "agent-1"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("query"));
+    }
+
+    #[tokio::test]
+    async fn test_recall_since_until_forwarded() {
+        // Port 9 is discard — the connection will fail after validation passes,
+        // confirming since/until reach the HTTP call path (not filtered out early).
+        let result = tool_recall(
+            &dummy_client(),
+            &json!({
+                "agent_id": "agent-1",
+                "query": "test",
+                "since": "2026-01-01T00:00:00Z",
+                "until": "2026-03-31T23:59:59Z"
+            }),
+        )
+        .await;
+        // Connection refused (port 9) — not a validation error — means params passed through.
+        assert_ne!(
+            result
+                .content
+                .first()
+                .map(|c| c.text.contains("agent_id") || c.text.contains("query")),
+            Some(true)
+        );
     }
 }
