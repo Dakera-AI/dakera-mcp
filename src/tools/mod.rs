@@ -543,6 +543,19 @@ mod tests {
             names.contains("dakera_extract_entities"),
             "dakera_extract_entities missing from tool definitions"
         );
+        // v0.9.6 KG-2 graph query tools
+        assert!(
+            names.contains("dakera_kg_traverse"),
+            "dakera_kg_traverse missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_kg_query"),
+            "dakera_kg_query missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_kg_export"),
+            "dakera_kg_export missing from tool definitions"
+        );
     }
 
     #[tokio::test]
