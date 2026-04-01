@@ -118,6 +118,33 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
+      - name: Validate digests are accessible in GHCR
+        # GHCR has propagation latency after push-by-digest. This step verifies
+        # each digest is resolvable before manifest creation, preventing the
+        # "sha256:...: not found" race condition (DAK-1374, DAK-1453).
+        run: |
+          set -euo pipefail
+          MAX_ATTEMPTS=10
+          SLEEP_SECONDS=15
+          for digest_file in /tmp/digests/*; do
+            digest="sha256:$(basename "$digest_file")"
+            ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
+            echo "Verifying: $ref"
+            for attempt in $(seq 1 $MAX_ATTEMPTS); do
+              if docker buildx imagetools inspect "$ref" > /dev/null 2>&1; then
+                echo "  ✅ accessible (attempt $attempt)"
+                break
+              fi
+              if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+                echo "  ❌ not accessible after $MAX_ATTEMPTS attempts — aborting"
+                exit 1
+              fi
+              echo "  ⏳ not yet accessible (attempt $attempt/$MAX_ATTEMPTS), retrying in ${SLEEP_SECONDS}s..."
+              sleep $SLEEP_SECONDS
+            done
+          done
+          echo "All digests verified ✅"
+
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
