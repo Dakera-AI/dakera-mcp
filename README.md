@@ -1,10 +1,11 @@
 # Dakera MCP Server
 
 [![CI](https://github.com/dakera-ai/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dakera-ai/dakera-mcp/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/dakera--mcp-v0.9.1-blue)](https://github.com/dakera-ai/dakera-mcp/releases/tag/v0.9.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange)](https://www.rust-lang.org/)
 
-MCP (Model Context Protocol) server that gives AI agents persistent memory through [Dakera](https://dakera.ai) — the AI agent memory platform. Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client to store, recall, and search memories across sessions.
+MCP (Model Context Protocol) server that gives AI agents persistent memory through [Dakera](https://dakera.ai) — the AI agent memory platform. Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client to store, recall, and search memories across sessions. **83 tools** covering memory, knowledge graphs, vectors, full-text search, sessions, namespaces, entity extraction, decay engine, AutoPilot, audit, and more.
 
 ## Features
 
@@ -145,7 +146,9 @@ Point the command to Docker instead of a local binary. Use `--add-host` to make 
 
 ## Available Tools
 
-### Memory (8 tools)
+83 tools across 15 categories. See the [full MCP Reference](https://github.com/dakera-ai/dakera-docs/blob/main/docs/mcp.md) for detailed parameters and examples.
+
+### Memory (11 tools)
 
 | Tool | Description |
 |---|---|
@@ -157,6 +160,9 @@ Point the command to Docker instead of a local binary. Use `--add-host` to make 
 | `dakera_memory_importance` | Batch-update importance scores for multiple memories |
 | `dakera_forget` | Delete memories by ID or tag filter |
 | `dakera_consolidate` | Consolidate related memories into a single summary |
+| `dakera_batch_recall` | Filter-based bulk recall — return all memories matching tags, type, time range, and importance without semantic search |
+| `dakera_batch_forget` | Bulk-delete memories matching a filter |
+| `dakera_recall_associated` | Associative recall — return memories linked to a seed memory via the knowledge graph (deep recall) |
 
 ### Sessions (5 tools)
 
@@ -168,23 +174,43 @@ Point the command to Docker instead of a local binary. Use `--add-host` to make 
 | `dakera_session_get` | Get session details including metadata and summary |
 | `dakera_session_memories` | List all memories associated with a session |
 
-### Agents (3 tools)
+### Agents (4 tools)
 
 | Tool | Description |
 |---|---|
 | `dakera_agent_stats` | Get agent statistics: memory count, session count, storage usage, top tags |
 | `dakera_agent_memories` | List all memories for an agent with pagination |
 | `dakera_agent_sessions` | List all sessions for an agent |
+| `dakera_agent_feedback_summary` | Get aggregated feedback statistics for an agent's memories |
 
-### Knowledge (3 tools)
+### Knowledge Graph (11 tools)
 
 | Tool | Description |
 |---|---|
 | `dakera_knowledge_graph` | Build a knowledge graph from a seed memory via embedding similarity |
 | `dakera_knowledge_summarize` | Summarize multiple memories into a consolidated memory |
 | `dakera_knowledge_deduplicate` | Find and optionally merge duplicate memories |
+| `dakera_knowledge_network_cross_agent` | Build a cross-agent knowledge network showing connections between agent memories |
+| `dakera_kg_query` | Query the knowledge graph with filter and depth parameters |
+| `dakera_kg_export` | Export the full knowledge graph for an agent as JSON |
+| `dakera_kg_traverse` | Traverse the knowledge graph from a starting memory node |
+| `dakera_graph_traverse` | Traverse the memory relationship graph by following typed edges |
+| `dakera_graph_path` | Find the shortest relationship path between two memories |
+| `dakera_graph_link_memory` | Manually create a typed relationship edge between two memories |
+| `dakera_graph_export` | Export the full relationship graph for a namespace or agent |
 
-### Namespaces (4 tools)
+### Memory Lifecycle (6 tools)
+
+| Tool | Description |
+|---|---|
+| `dakera_memory_policy_get` | Get the memory lifecycle policy for a namespace (max age, max count, importance floor) |
+| `dakera_memory_policy_set` | Set or update the memory lifecycle policy for a namespace |
+| `dakera_memory_export` | Export all memories for an agent to a portable JSON format |
+| `dakera_memory_import` | Import memories from a portable JSON export (DX-1 format) |
+| `dakera_memory_feedback` | Submit relevance feedback on a memory (thumbs up/down with comment) |
+| `dakera_memory_feedback_get` | Get feedback history for a specific memory |
+
+### Namespaces (5 tools)
 
 | Tool | Description |
 |---|---|
@@ -192,6 +218,16 @@ Point the command to Docker instead of a local binary. Use `--add-host` to make 
 | `dakera_namespace_get` | Get namespace details (vector count, dimensions, index stats) |
 | `dakera_namespace_create` | Create a namespace with dimensions and distance metric (cosine/euclidean/dot) |
 | `dakera_namespace_delete` | Delete a namespace and all its vectors |
+| `dakera_namespace_configure` | Update namespace settings (index type, cache policy, rate limits) |
+
+### Namespace Keys (4 tools)
+
+| Tool | Description |
+|---|---|
+| `dakera_namespace_key_create` | Create a scoped API key for a namespace (SEC-1 per-namespace auth) |
+| `dakera_namespace_key_delete` | Revoke a namespace-scoped API key |
+| `dakera_namespace_key_list` | List all API keys for a namespace |
+| `dakera_namespace_key_usage` | Get usage statistics for a namespace API key |
 
 ### Vectors (14 tools)
 
@@ -230,6 +266,46 @@ Point the command to Docker instead of a local binary. Use `--add-host` to make 
 | `dakera_upsert_text` | Upsert text documents with automatic embedding generation |
 | `dakera_batch_query_text` | Batch query using multiple text queries with automatic embedding |
 
+### Entity Extraction (8 tools)
+
+| Tool | Description |
+|---|---|
+| `dakera_extract` | Extract structured data from text using the configured extraction provider |
+| `dakera_extract_entities` | Extract named entities from text (requires dakera-ode sidecar) |
+| `dakera_extractor_get` | Get the current extraction provider configuration |
+| `dakera_extractor_set` | Set the extraction provider (e.g. GLiNER via dakera-ode) |
+| `dakera_entity_types_get` | Get the configured named entity types for extraction |
+| `dakera_entity_types_set` | Set the named entity types to extract |
+| `dakera_auto_tag` | Automatically tag a memory using entity extraction |
+| `dakera_memory_entities` | Get the extracted entities stored on a memory |
+
+### AutoPilot (2 tools)
+
+| Tool | Description |
+|---|---|
+| `dakera_autopilot_status` | Get the current AutoPilot configuration and last-run statistics (dedup/consolidation cycle info). Requires Admin scope. |
+| `dakera_autopilot_trigger` | Force an immediate AutoPilot cycle: `dedup`, `consolidate`, or `all`. Requires Admin scope. |
+
+### Decay Engine (3 tools)
+
+| Tool | Description |
+|---|---|
+| `dakera_decay_config_get` | Get the current memory-decay configuration (strategy, half-life hours, minimum importance threshold). Requires Admin scope. |
+| `dakera_decay_config_set` | Update memory-decay settings at runtime without restart. Requires Admin scope. |
+| `dakera_decay_stats` | Get decay statistics: memories decayed, importance distribution, last cycle time. Requires Admin scope. |
+
+### Encryption (1 tool)
+
+| Tool | Description |
+|---|---|
+| `dakera_encryption_rotate_key` | Rotate the at-rest encryption key for a namespace (SEC-3). Requires Admin scope. |
+
+### Audit (1 tool)
+
+| Tool | Description |
+|---|---|
+| `dakera_audit_query` | Query the audit log for API operations — filter by agent, action, time range. Requires Admin scope. |
+
 ## Architecture
 
 ```
@@ -248,7 +324,7 @@ Point the command to Docker instead of a local binary. Use `--add-host` to make 
                                                 │        │         │
                                                 │  ┌─────▼──────┐  │     HTTP/REST
                                                 │  │   Tools     │  │◄──────────────►  Dakera API
-                                                │  │  (45 tools) │  │
+                                                │  │  (83 tools) │  │
                                                 │  └────────────┘  │
                                                 └──────────────────┘
 ```
