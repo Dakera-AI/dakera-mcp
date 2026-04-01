@@ -64,6 +64,44 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "required": ["namespace", "dimension"]
             }),
         },
+        ToolDefinition {
+            name: "dakera_memory_policy_get".into(),
+            description: "Get the memory lifecycle policy for a namespace (COG-1). Returns TTLs, decay curves, spaced repetition config, consolidation settings (COG-3), and rate limit config (SEC-5). Requires Read scope.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "namespace": { "type": "string", "description": "Namespace name" }
+                },
+                "required": ["namespace"]
+            }),
+        },
+        ToolDefinition {
+            name: "dakera_memory_policy_set".into(),
+            description: "Update the memory lifecycle policy for a namespace (COG-1). All fields are optional — only provided fields overwrite the current policy; all others are preserved via GET+merge+PUT. Requires Write scope.\n\nSettable fields: working_ttl_seconds, episodic_ttl_seconds, semantic_ttl_seconds, procedural_ttl_seconds, working_decay, episodic_decay, semantic_decay, procedural_decay (values: exponential|linear|step|power_law|logarithmic|flat), spaced_repetition_factor, spaced_repetition_base_interval_seconds, consolidation_enabled, consolidation_threshold (0.85–0.99), consolidation_interval_hours, rate_limit_enabled, rate_limit_stores_per_minute, rate_limit_recalls_per_minute.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "namespace": { "type": "string", "description": "Namespace name" },
+                    "working_ttl_seconds": { "type": "integer", "description": "TTL for working memories in seconds (default: 14400 = 4h)" },
+                    "episodic_ttl_seconds": { "type": "integer", "description": "TTL for episodic memories in seconds (default: 2592000 = 30d)" },
+                    "semantic_ttl_seconds": { "type": "integer", "description": "TTL for semantic memories in seconds (default: 31536000 = 365d)" },
+                    "procedural_ttl_seconds": { "type": "integer", "description": "TTL for procedural memories in seconds (default: 63072000 = 730d)" },
+                    "working_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for working memories" },
+                    "episodic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for episodic memories" },
+                    "semantic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for semantic memories" },
+                    "procedural_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for procedural memories" },
+                    "spaced_repetition_factor": { "type": "number", "description": "Multiplier for TTL extension per recall (0.0 disables, default: 1.0)" },
+                    "spaced_repetition_base_interval_seconds": { "type": "integer", "description": "Base interval in seconds for spaced repetition TTL extension (default: 86400 = 1d)" },
+                    "consolidation_enabled": { "type": "boolean", "description": "COG-3: enable background DBSCAN deduplication (default: false)" },
+                    "consolidation_threshold": { "type": "number", "description": "COG-3: cosine similarity threshold for merging (0.85–0.99, default: 0.92)" },
+                    "consolidation_interval_hours": { "type": "integer", "description": "COG-3: how often the consolidation job runs in hours (default: 24)" },
+                    "rate_limit_enabled": { "type": "boolean", "description": "SEC-5: master rate-limit switch (default: false)" },
+                    "rate_limit_stores_per_minute": { "type": "integer", "description": "SEC-5: max store ops/min for this namespace (null = unlimited)" },
+                    "rate_limit_recalls_per_minute": { "type": "integer", "description": "SEC-5: max recall ops/min for this namespace (null = unlimited)" }
+                },
+                "required": ["namespace"]
+            }),
+        },
     ]
 }
 
@@ -78,6 +116,8 @@ pub async fn execute(
         "dakera_namespace_create" => Some(tool_namespace_create(client, args).await),
         "dakera_namespace_delete" => Some(tool_namespace_delete(client, args).await),
         "dakera_namespace_configure" => Some(tool_namespace_configure(client, args).await),
+        "dakera_memory_policy_get" => Some(tool_memory_policy_get(client, args).await),
+        "dakera_memory_policy_set" => Some(tool_memory_policy_set(client, args).await),
         _ => None,
     }
 }
@@ -165,6 +205,70 @@ async fn tool_namespace_configure(
     }
 }
 
+async fn tool_memory_policy_get(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let encoded = urlencoding::encode(&namespace);
+    let path = format!("/v1/namespaces/{}/memory_policy", encoded);
+    match client.get_json(&path).await {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
+async fn tool_memory_policy_set(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let encoded = urlencoding::encode(&namespace);
+    let policy_path = format!("/v1/namespaces/{}/memory_policy", encoded);
+
+    // GET current policy so we only overwrite provided fields (safe partial update).
+    let mut policy = match client.get_json(&policy_path).await {
+        Ok(p) => p,
+        Err(e) => return CallToolResult::error(e),
+    };
+
+    // Merge provided fields over the fetched policy.
+    let fields = [
+        "working_ttl_seconds",
+        "episodic_ttl_seconds",
+        "semantic_ttl_seconds",
+        "procedural_ttl_seconds",
+        "working_decay",
+        "episodic_decay",
+        "semantic_decay",
+        "procedural_decay",
+        "spaced_repetition_factor",
+        "spaced_repetition_base_interval_seconds",
+        "consolidation_enabled",
+        "consolidation_threshold",
+        "consolidation_interval_hours",
+        "rate_limit_enabled",
+        "rate_limit_stores_per_minute",
+        "rate_limit_recalls_per_minute",
+    ];
+    for field in &fields {
+        if let Some(v) = args.get(*field) {
+            policy[*field] = v.clone();
+        }
+    }
+
+    match client.put_json(&policy_path, &policy).await {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,5 +321,37 @@ mod tests {
         assert!(result.is_some());
         let r = result.unwrap();
         assert_eq!(r.is_error, Some(true));
+    }
+
+    // --- MCP-5: dakera_memory_policy_get ---
+
+    #[tokio::test]
+    async fn test_memory_policy_get_missing_namespace_returns_error() {
+        let result = tool_memory_policy_get(&dummy_client(), &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("namespace"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_memory_policy_get_dispatches() {
+        let result = execute(&dummy_client(), "dakera_memory_policy_get", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    // --- MCP-5: dakera_memory_policy_set ---
+
+    #[tokio::test]
+    async fn test_memory_policy_set_missing_namespace_returns_error() {
+        let result = tool_memory_policy_set(&dummy_client(), &json!({})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("namespace"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_memory_policy_set_dispatches() {
+        let result = execute(&dummy_client(), "dakera_memory_policy_set", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
     }
 }
