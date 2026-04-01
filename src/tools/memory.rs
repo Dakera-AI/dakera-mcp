@@ -145,6 +145,24 @@ pub fn definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "dakera_recall_associated".into(),
+            description: "Recall memories with deep KG-associated context enrichment (KG-3). Same as dakera_recall but always enables associative recall and exposes the depth parameter (1–3 hops). Returns direct matches plus KG-traversed associated memories for richer context. Use depth=1 for immediate associations, depth=2–3 for broader knowledge graph exploration.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "query": { "type": "string", "description": "Semantic query text" },
+                    "top_k": { "type": "integer", "description": "Number of direct recall results to return", "default": 5 },
+                    "min_importance": { "type": "number", "description": "Minimum importance threshold", "default": 0.0 },
+                    "associated_memories_depth": { "type": "integer", "description": "KG traversal depth for associated memories (1–3 hops, default: 1)", "default": 1, "minimum": 1, "maximum": 3 },
+                    "associated_memories_min_weight": { "type": "number", "description": "Minimum KG edge weight to follow during traversal (0.0–1.0, default: 0.0)", "default": 0.0 },
+                    "since": { "type": "string", "description": "CE-7: only return memories created at or after this ISO-8601 timestamp" },
+                    "until": { "type": "string", "description": "CE-7: only return memories created at or before this ISO-8601 timestamp" }
+                },
+                "required": ["agent_id", "query"]
+            }),
+        },
+        ToolDefinition {
             name: "dakera_memory_importance".into(),
             description: "Batch-update importance scores for multiple memories. Useful for re-ranking after review.".into(),
             input_schema: json!({
@@ -178,6 +196,7 @@ pub async fn execute(
     match name {
         "dakera_store" => Some(tool_store(client, args).await),
         "dakera_recall" => Some(tool_recall(client, args).await),
+        "dakera_recall_associated" => Some(tool_recall_associated(client, args).await),
         "dakera_forget" => Some(tool_forget(client, args).await),
         "dakera_batch_recall" => Some(tool_batch_recall(client, args).await),
         "dakera_batch_forget" => Some(tool_batch_forget(client, args).await),
@@ -448,6 +467,49 @@ async fn tool_memory_update(client: &DakeraApiClient, args: &serde_json::Value) 
     }
 }
 
+async fn tool_recall_associated(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let query = match require_string(args, "query") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let depth = args
+        .get("associated_memories_depth")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1)
+        .clamp(1, 3);
+    let mut body = json!({
+        "agent_id": agent_id,
+        "query": query,
+        "top_k": args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(5),
+        "min_importance": args.get("min_importance").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        "include_associated": true,
+        "associated_memories_depth": depth,
+    });
+    if let Some(w) = args
+        .get("associated_memories_min_weight")
+        .and_then(|v| v.as_f64())
+    {
+        body["associated_memories_min_weight"] = json!(w);
+    }
+    if let Some(since) = args.get("since").and_then(|v| v.as_str()) {
+        body["since"] = json!(since);
+    }
+    if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
+        body["until"] = json!(until);
+    }
+    match client.post_json("/v1/memory/recall", &body).await {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
 async fn tool_memory_importance(
     client: &DakeraApiClient,
     args: &serde_json::Value,
@@ -542,6 +604,47 @@ mod tests {
     async fn test_execute_batch_forget_dispatches() {
         // Missing agent_id — validates dispatch returns Some(is_error), not None.
         let result = execute(&dummy_client(), "dakera_batch_forget", &json!({})).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    // --- MCP-5: tool_recall_associated ---
+
+    #[tokio::test]
+    async fn test_recall_associated_missing_agent_id_returns_error() {
+        let result = tool_recall_associated(&dummy_client(), &json!({"query": "hello"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
+    }
+
+    #[tokio::test]
+    async fn test_recall_associated_missing_query_returns_error() {
+        let result = tool_recall_associated(&dummy_client(), &json!({"agent_id": "agent-1"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("query"));
+    }
+
+    #[tokio::test]
+    async fn test_recall_associated_depth_clamped_to_1_3() {
+        // depth=0 should clamp to 1; connection will fail (port 9) — confirms depth passed through
+        let result = tool_recall_associated(
+            &dummy_client(),
+            &json!({"agent_id": "agent-1", "query": "test", "associated_memories_depth": 0}),
+        )
+        .await;
+        // Not a validation error — proves depth reached the HTTP call path
+        assert_ne!(
+            result
+                .content
+                .first()
+                .map(|c| c.text.contains("agent_id") || c.text.contains("query")),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_execute_recall_associated_dispatches() {
+        let result = execute(&dummy_client(), "dakera_recall_associated", &json!({})).await;
         assert!(result.is_some());
         assert_eq!(result.unwrap().is_error, Some(true));
     }

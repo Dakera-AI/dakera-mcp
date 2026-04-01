@@ -556,6 +556,19 @@ mod tests {
             names.contains("dakera_kg_export"),
             "dakera_kg_export missing from tool definitions"
         );
+        // v0.9.2 MCP-5 cognitive tools
+        assert!(
+            names.contains("dakera_memory_policy_get"),
+            "dakera_memory_policy_get missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_memory_policy_set"),
+            "dakera_memory_policy_set missing from tool definitions"
+        );
+        assert!(
+            names.contains("dakera_recall_associated"),
+            "dakera_recall_associated missing from tool definitions"
+        );
     }
 
     #[tokio::test]
