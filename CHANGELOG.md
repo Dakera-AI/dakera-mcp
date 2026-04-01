@@ -5,6 +5,156 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v0.9.2
+
+> **Pre-release** — Code merged to main 2026-04-01 (PR#39). Releases 2026-04-02.
+
+### Added
+
+**MCP-5 — Cognitive MCP Tools** (server `v0.9.6+` / `v0.9.9+`)
+
+Three new tools for managing per-namespace memory policies and Deep Associative Recall directly from
+MCP clients:
+
+- `dakera_memory_policy_get` — read the `MemoryPolicy` for a namespace. Returns all COG-1, COG-3,
+  and SEC-5 policy fields (differential TTLs, per-type decay curves, spaced-repetition settings,
+  consolidation config, and rate limits). Wraps `GET /v1/namespaces/:namespace/memory_policy`.
+  Requires Read scope. Server `v0.9.6+`.
+- `dakera_memory_policy_set` — partial-update the `MemoryPolicy` for a namespace. Performs a
+  GET-then-PUT merge internally so omitted fields are preserved; no need to supply the full schema.
+  Wraps `PUT /v1/namespaces/:namespace/memory_policy`. Requires Write scope. Server `v0.9.6+`
+  (SEC-5 rate-limit fields require `v0.9.9+`).
+- `dakera_recall_associated` — dedicated Deep Associative Recall (KG-3). Wraps
+  `POST /v1/memory/recall` with `include_associated: true` and exposes the KG-3 parameters
+  directly: `associated_memories_depth` (1–3 hops, default 1) and
+  `associated_memories_min_weight` (0.0–1.0, default 0.0). Response includes `memories` (primary
+  hits) and `associated_memories` (KG neighbours, each with a `depth` field). Requires Read scope.
+  Server `v0.9.8+`.
+
+Total MCP tool count: **80 → 83**.
+
+---
+
+## [0.9.1] - 2026-04-01
+
+### Changed
+
+- `dakera_recall`: added `include_associated` boolean parameter (default `false`) — when `true`,
+  the server traverses the knowledge graph from each primary result and includes neighbouring
+  memories in the response. Backed by COG-2 (server `v0.9.6+`). (PR#36)
+- `dakera_recall`: added `since` and `until` ISO-8601 string parameters for time-window recall.
+  Both are optional and can be combined with other filters. Backed by CE-7 (server `v0.9.7+`).
+  (PR#38)
+
+---
+
+## [0.9.0] - 2026-03-31
+
+### Added
+
+**ODE-2 — dakera-ode Entity Extraction Sidecar**
+
+- `dakera_extract_entities` — run entity extraction via the dakera-ode sidecar. Calls
+  `POST /ode/extract` on `DAKERA_ODE_URL` (default: `http://localhost:8080`). Accepts `content`,
+  `agent_id`, and optional `memory_id` / `entity_types` filters. Returns
+  `{ entities: [{text, label, start, end, score}], model, processing_time_ms }`.
+  Requires `DAKERA_ODE_URL` to be configured. (PR#33)
+
+**KG-2 — Knowledge Graph Query & Export** (server `v0.9.8+`, backed by `/v1/knowledge/*`)
+
+- `dakera_kg_traverse` — BFS traversal from a root memory. Accepts `edge_type`, `min_weight`,
+  `max_depth` (default 3), and `limit` filters. (PR#34)
+- `dakera_kg_query` — filter-based graph query without requiring a root node; useful for
+  neighbourhood exploration across an agent's full graph. (PR#34)
+- `dakera_kg_export` — export the knowledge graph as `json` (structured edges) or `graphml`
+  (XML compatible with Gephi / Cytoscape / yEd). (PR#34)
+
+Total MCP tool count: **76 → 79 → 80** (KG-2 → v0.9.1 params, no new tools).
+
+---
+
+## [0.8.0] - 2026-03-30
+
+### Added
+
+**EXT-1 — Pluggable Extraction Providers** (server `v0.9.x+`)
+
+- `dakera_extract` — run extraction via the full provider hierarchy (per-request override →
+  namespace default → server default → GLiNER local). Supports `gliner`, `openai`, `anthropic`,
+  `openrouter`, `ollama`, `none`. Wraps `POST /v1/extract`. (PR#29)
+- `dakera_extractor_get` — read the namespace-level default extractor configuration.
+  Wraps `GET /v1/namespaces/:ns/extractor`. (PR#29)
+- `dakera_extractor_set` — set or clear the namespace default extractor.
+  Wraps `PATCH /v1/namespaces/:ns/extractor`. (PR#29)
+
+**SEC-3 — AES-256-GCM Encryption Key Rotation** (server `v0.9.x+`)
+
+- `dakera_encryption_rotate_key` — zero-downtime key rotation; re-encrypts all memories under
+  the new key in a single pass. Accepts an optional namespace filter. Requires SuperAdmin scope.
+  Wraps `POST /admin/encryption/rotate-key`. (PR#29)
+
+Total MCP tool count: **72 → 76**.
+
+---
+
+## [0.7.0] - 2026-03-30
+
+### Added
+
+**MCP-4 (CE-4) — Entity Extraction Tools** (server `v0.9.x+`)
+
+- `dakera_auto_tag` — extract named entities from text via the GLiNER NER pipeline (with a
+  rule-based pre-pass). Wraps `POST /v1/memories/extract`. (PR#25)
+- `dakera_entity_types_set` — enable entity extraction and configure entity types per namespace.
+  Wraps `PATCH /v1/namespaces/:ns/config`. (PR#25)
+- `dakera_memory_entities` — retrieve the entity tags stored on a memory at write time.
+  Wraps `GET /v1/memory/entities/:id`. (PR#25)
+
+**MCP-4 (CE-5) — Memory Knowledge Graph** (server `v0.9.x+`)
+
+- `dakera_graph_traverse` — BFS traversal from a memory node with configurable depth (1–5,
+  default 3). Wraps `GET /v1/memories/:id/graph`. (PR#26)
+- `dakera_graph_path` — shortest path between two memories.
+  Wraps `GET /v1/memories/:id/path`. (PR#26)
+- `dakera_graph_link_memory` — create an explicit `linked_by` edge between two memories.
+  Wraps `POST /v1/memories/:id/links`. (PR#26)
+- `dakera_graph_export` — export the full knowledge graph for an agent.
+  Wraps `GET /v1/agents/:id/graph/export`. (PR#26)
+
+**DX-1 — Memory Import / Export**
+
+- `dakera_memory_export` — export agent memories to JSONL, CSV, Mem0, or Zep format.
+  Wraps `GET /v1/agents/:id/memories/export`. (PR#28)
+- `dakera_memory_import` — import memories from any supported format (auto-detected).
+  Wraps `POST /v1/agents/:id/memories/import`. (PR#28)
+
+**SEC-1 — Namespace-Scoped API Keys**
+
+- `dakera_namespace_key_create` — create an API key scoped to a specific namespace. (PR#28)
+- `dakera_namespace_key_list` — list keys with access to a namespace. (PR#28)
+- `dakera_namespace_key_delete` — revoke a namespace key. (PR#28)
+- `dakera_namespace_key_usage` — get usage statistics for a namespace key. (PR#28)
+
+**INT-1 — Memory Feedback**
+
+- `dakera_memory_feedback` — upvote, downvote, or flag a memory for quality signals. (PR#28)
+- `dakera_memory_feedback_get` — retrieve the feedback history for a specific memory. (PR#28)
+- `dakera_agent_feedback_summary` — aggregate feedback summary across all memories for an agent.
+  (PR#28)
+
+Total MCP tool count: **54 → 72** (16 CE-4/CE-5 tools from internal v0.5.0/v0.6.0 + DX-1/SEC-1/INT-1).
+
+---
+
+## [0.4.1] - 2026-03-23
+
+### Fixed
+
+- `dakera_hybrid_search`: `vector` parameter is now optional, enabling BM25-only full-text
+  (BM25) search without requiring a pre-computed embedding vector. Fixes DAK-679. (PR#20)
+
+---
+
 ## [0.4.0] - 2026-03-23
 
 ### Added
