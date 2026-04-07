@@ -5,9 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.9.2
-
-> **Pre-release** — Code merged to main 2026-04-01 (PR#39). Releases 2026-04-02.
+## [0.9.3] - 2026-04-08
 
 ### Added
 
@@ -32,6 +30,17 @@ MCP clients:
   Server `v0.9.8+`.
 
 Total MCP tool count: **80 → 83**.
+
+### Changed
+
+- Updated `README.md` to reflect open-core model and current product positioning. (PR#43)
+- Docs: expanded Available Tools reference from 45 → 83 tools with version badge. (PR#41)
+- Docs: filled changelog history gap v0.4.1 → v0.9.1. (PR#40)
+
+### CI
+
+- Release workflow: added GHCR propagation validation step before manifest creation to prevent
+  partial-push releases. (PR#42)
 
 ---
 
