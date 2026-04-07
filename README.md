@@ -1,351 +1,76 @@
-# Dakera MCP Server
+# ⚡ dakera-mcp
 
-[![CI](https://github.com/dakera-ai/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dakera-ai/dakera-mcp/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/dakera--mcp-v0.9.1-blue)](https://github.com/dakera-ai/dakera-mcp/releases/tag/v0.9.1)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/Rust-1.75+-orange)](https://www.rust-lang.org/)
+MCP server for Dakera AI. 83 tools. Gives any MCP-compatible AI agent persistent, queryable memory in minutes.
 
-MCP (Model Context Protocol) server that gives AI agents persistent memory through [Dakera](https://dakera.ai) — the AI agent memory platform. Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible client to store, recall, and search memories across sessions. **83 tools** covering memory, knowledge graphs, vectors, full-text search, sessions, namespaces, entity extraction, decay engine, AutoPilot, audit, and more.
+Works with Claude, Claude Code, and any MCP-compatible framework.
 
-## Features
+Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
-- **Agent Memory** -- Store, recall, search, and consolidate semantic memories with importance scoring and tagging
-- **Vector Operations** -- Full vector CRUD with similarity search, batch queries, multi-vector search, aggregations, and hybrid ranking
-- **Full-Text Search** -- BM25-scored document search with hybrid vector+text mode
-- **Knowledge Graph** -- Build relationship graphs from memories, summarize, and deduplicate
-- **Session Management** -- Group related memories into sessions with metadata and summaries
-- **Inference** -- Upsert and query using natural language text with server-side embedding
-- **Namespace Isolation** -- Create and manage isolated vector collections with configurable dimensions and distance metrics
+---
 
-## Installation
-
-### From source
+## Install
 
 ```bash
-cargo build --release
+cargo install dakera-mcp
 ```
 
-The binary is at `target/release/dakera-mcp`.
-
-### Docker
-
-Pull from GitHub Container Registry (recommended):
+Or with Docker:
 
 ```bash
 docker pull ghcr.io/dakera-ai/dakera-mcp:latest
 ```
 
-Or build from source:
+## Connect
 
-```bash
-docker build -t dakera-mcp .
-```
-
-Run (macOS / Windows — `host.docker.internal` resolves natively):
-
-```bash
-docker run -i --rm \
-  -e DAKERA_API_URL=http://host.docker.internal:3300 \
-  -e DAKERA_API_KEY=your-key \
-  ghcr.io/dakera-ai/dakera-mcp
-```
-
-Run (Linux — `host.docker.internal` requires `--add-host`):
-
-```bash
-docker run -i --rm \
-  --add-host=host.docker.internal:host-gateway \
-  -e DAKERA_API_URL=http://host.docker.internal:3300 \
-  -e DAKERA_API_KEY=your-key \
-  ghcr.io/dakera-ai/dakera-mcp
-```
-
-## Configuration
-
-| Variable | Description | Default |
-|---|---|---|
-| `DAKERA_API_URL` | Dakera API base URL | `http://localhost:3300` |
-| `DAKERA_API_KEY` | API key for authentication (optional) | none |
-| `RUST_LOG` | Log level (`dakera_mcp=debug`, etc.) | `dakera_mcp=info` |
-
-## Usage
-
-### Claude Desktop
-
-Add to your `claude_desktop_config.json`:
+Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop):
 
 ```json
 {
   "mcpServers": {
     "dakera": {
-      "command": "/path/to/dakera-mcp",
+      "command": "dakera-mcp",
       "env": {
         "DAKERA_API_URL": "http://localhost:3300",
-        "DAKERA_API_KEY": "your-api-key"
+        "DAKERA_API_KEY": "your-key"
       }
     }
   }
 }
 ```
 
-### Claude Code
+## What You Get
 
-Add to your `.claude/settings.json`:
+83 tools across 15 categories:
 
-```json
-{
-  "mcpServers": {
-    "dakera": {
-      "command": "/path/to/dakera-mcp",
-      "env": {
-        "DAKERA_API_URL": "http://localhost:3300",
-        "DAKERA_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
+- **Memory** — store, recall, search, decay, importance scoring
+- **Sessions** — create and manage agent sessions
+- **Agents** — namespaces, stats, memory health
+- **Knowledge** — graph construction, entity extraction, clustering, cross-agent network
+- **Vectors** — upsert, query, hybrid search, batch operations
+- **Full-Text** — BM25 index, search, stats
+- **Operations** — health, metrics, backup, audit
 
-### Cursor
+## Why This Exists
 
-Add to your Cursor MCP settings:
+AI agents forget everything when the session ends. Dakera fixes that. This MCP server gives your agent a persistent memory layer with zero infrastructure overhead — point it at a Dakera instance and it works.
 
-```json
-{
-  "mcpServers": {
-    "dakera": {
-      "command": "/path/to/dakera-mcp",
-      "env": {
-        "DAKERA_API_URL": "http://localhost:3300",
-        "DAKERA_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
+→ [dakera.ai](https://dakera.ai) for hosted instance  
+→ Self-host with [dakera-deploy](https://github.com/dakera-ai/dakera-deploy)
 
-### Docker with MCP clients
+## Documentation
 
-Point the command to Docker instead of a local binary. Use `--add-host` to make `host.docker.internal` resolvable on Linux (it is a no-op on macOS and Windows):
+→ [Full docs](https://dakera.ai/docs)  
+→ [MCP reference](https://dakera.ai/docs/mcp)
 
-```json
-{
-  "mcpServers": {
-    "dakera": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm",
-        "--add-host=host.docker.internal:host-gateway",
-        "-e", "DAKERA_API_URL=http://host.docker.internal:3300",
-        "-e", "DAKERA_API_KEY=your-api-key",
-        "ghcr.io/dakera-ai/dakera-mcp"
-      ]
-    }
-  }
-}
-```
+## Related
 
-## Available Tools
-
-83 tools across 15 categories. See the [full MCP Reference](https://github.com/dakera-ai/dakera-docs/blob/main/docs/mcp.md) for detailed parameters and examples.
-
-### Memory (11 tools)
-
-| Tool | Description |
+| Repo | What it is |
 |---|---|
-| `dakera_store` | Store a memory with content, type (episodic/semantic/procedural/working), importance score, and tags |
-| `dakera_recall` | Recall memories by semantic similarity to a query |
-| `dakera_search` | Advanced memory search with tag and type filters |
-| `dakera_memory_get` | Retrieve a specific memory by ID |
-| `dakera_memory_update` | Update a memory's content, importance, or tags (re-embeds on content change) |
-| `dakera_memory_importance` | Batch-update importance scores for multiple memories |
-| `dakera_forget` | Delete memories by ID or tag filter |
-| `dakera_consolidate` | Consolidate related memories into a single summary |
-| `dakera_batch_recall` | Filter-based bulk recall — return all memories matching tags, type, time range, and importance without semantic search |
-| `dakera_batch_forget` | Bulk-delete memories matching a filter |
-| `dakera_recall_associated` | Associative recall — return memories linked to a seed memory via the knowledge graph (deep recall) |
-
-### Sessions (5 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_session_start` | Start a new session for an agent with optional metadata |
-| `dakera_session_end` | End a session with an optional summary |
-| `dakera_session_list` | List sessions for an agent, optionally active-only |
-| `dakera_session_get` | Get session details including metadata and summary |
-| `dakera_session_memories` | List all memories associated with a session |
-
-### Agents (4 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_agent_stats` | Get agent statistics: memory count, session count, storage usage, top tags |
-| `dakera_agent_memories` | List all memories for an agent with pagination |
-| `dakera_agent_sessions` | List all sessions for an agent |
-| `dakera_agent_feedback_summary` | Get aggregated feedback statistics for an agent's memories |
-
-### Knowledge Graph (11 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_knowledge_graph` | Build a knowledge graph from a seed memory via embedding similarity |
-| `dakera_knowledge_summarize` | Summarize multiple memories into a consolidated memory |
-| `dakera_knowledge_deduplicate` | Find and optionally merge duplicate memories |
-| `dakera_knowledge_network_cross_agent` | Build a cross-agent knowledge network showing connections between agent memories |
-| `dakera_kg_query` | Query the knowledge graph with filter and depth parameters |
-| `dakera_kg_export` | Export the full knowledge graph for an agent as JSON |
-| `dakera_kg_traverse` | Traverse the knowledge graph from a starting memory node |
-| `dakera_graph_traverse` | Traverse the memory relationship graph by following typed edges |
-| `dakera_graph_path` | Find the shortest relationship path between two memories |
-| `dakera_graph_link_memory` | Manually create a typed relationship edge between two memories |
-| `dakera_graph_export` | Export the full relationship graph for a namespace or agent |
-
-### Memory Lifecycle (6 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_memory_policy_get` | Get the memory lifecycle policy for a namespace (max age, max count, importance floor) |
-| `dakera_memory_policy_set` | Set or update the memory lifecycle policy for a namespace |
-| `dakera_memory_export` | Export all memories for an agent to a portable JSON format |
-| `dakera_memory_import` | Import memories from a portable JSON export (DX-1 format) |
-| `dakera_memory_feedback` | Submit relevance feedback on a memory (thumbs up/down with comment) |
-| `dakera_memory_feedback_get` | Get feedback history for a specific memory |
-
-### Namespaces (5 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_namespace_list` | List all namespaces |
-| `dakera_namespace_get` | Get namespace details (vector count, dimensions, index stats) |
-| `dakera_namespace_create` | Create a namespace with dimensions and distance metric (cosine/euclidean/dot) |
-| `dakera_namespace_delete` | Delete a namespace and all its vectors |
-| `dakera_namespace_configure` | Update namespace settings (index type, cache policy, rate limits) |
-
-### Namespace Keys (4 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_namespace_key_create` | Create a scoped API key for a namespace (SEC-1 per-namespace auth) |
-| `dakera_namespace_key_delete` | Revoke a namespace-scoped API key |
-| `dakera_namespace_key_list` | List all API keys for a namespace |
-| `dakera_namespace_key_usage` | Get usage statistics for a namespace API key |
-
-### Vectors (14 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_vector_upsert` | Upsert vectors with IDs, float arrays, and optional metadata |
-| `dakera_vector_upsert_columns` | Upsert vectors in column format for efficient batch operations |
-| `dakera_vector_query` | Query by similarity, returning nearest neighbors |
-| `dakera_vector_batch_query` | Run multiple similarity searches in parallel |
-| `dakera_vector_multi_search` | Multi-vector search with positive/negative vectors, MMR diversity, and score thresholds |
-| `dakera_vector_unified_query` | Unified query with flexible ranking (vector ANN, text BM25, attribute ordering, combined) |
-| `dakera_vector_delete` | Delete vectors by ID |
-| `dakera_vector_bulk_update` | Update metadata on vectors matching a filter |
-| `dakera_vector_bulk_delete` | Delete all vectors matching a filter |
-| `dakera_vector_count` | Count vectors in a namespace with optional filter |
-| `dakera_vector_export` | Export vectors with pagination |
-| `dakera_vector_aggregate` | Compute aggregations (Count, Sum, Avg, Min, Max) with optional grouping |
-| `dakera_vector_explain` | Explain a query execution plan with cost estimates and optimization hints |
-| `dakera_vector_warm` | Pre-load vectors into cache for faster queries |
-
-### Full-Text Search (5 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_fulltext_index` | Index documents for full-text search |
-| `dakera_fulltext_search` | Search documents with BM25 scoring |
-| `dakera_fulltext_delete` | Delete documents from the full-text index |
-| `dakera_fulltext_stats` | Get index statistics (document count, unique terms, avg doc length) |
-| `dakera_hybrid_search` | Hybrid search combining vector similarity and BM25 with configurable weighting |
-
-### Inference (3 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_text_query` | Query using natural language text (server-side embedding) |
-| `dakera_upsert_text` | Upsert text documents with automatic embedding generation |
-| `dakera_batch_query_text` | Batch query using multiple text queries with automatic embedding |
-
-### Entity Extraction (8 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_extract` | Extract structured data from text using the configured extraction provider |
-| `dakera_extract_entities` | Extract named entities from text (requires dakera-ode sidecar) |
-| `dakera_extractor_get` | Get the current extraction provider configuration |
-| `dakera_extractor_set` | Set the extraction provider (e.g. GLiNER via dakera-ode) |
-| `dakera_entity_types_get` | Get the configured named entity types for extraction |
-| `dakera_entity_types_set` | Set the named entity types to extract |
-| `dakera_auto_tag` | Automatically tag a memory using entity extraction |
-| `dakera_memory_entities` | Get the extracted entities stored on a memory |
-
-### AutoPilot (2 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_autopilot_status` | Get the current AutoPilot configuration and last-run statistics (dedup/consolidation cycle info). Requires Admin scope. |
-| `dakera_autopilot_trigger` | Force an immediate AutoPilot cycle: `dedup`, `consolidate`, or `all`. Requires Admin scope. |
-
-### Decay Engine (3 tools)
-
-| Tool | Description |
-|---|---|
-| `dakera_decay_config_get` | Get the current memory-decay configuration (strategy, half-life hours, minimum importance threshold). Requires Admin scope. |
-| `dakera_decay_config_set` | Update memory-decay settings at runtime without restart. Requires Admin scope. |
-| `dakera_decay_stats` | Get decay statistics: memories decayed, importance distribution, last cycle time. Requires Admin scope. |
-
-### Encryption (1 tool)
-
-| Tool | Description |
-|---|---|
-| `dakera_encryption_rotate_key` | Rotate the at-rest encryption key for a namespace (SEC-3). Requires Admin scope. |
-
-### Audit (1 tool)
-
-| Tool | Description |
-|---|---|
-| `dakera_audit_query` | Query the audit log for API operations — filter by agent, action, time range. Requires Admin scope. |
-
-## Architecture
-
-```
-┌─────────────────────┐    stdio (JSON-RPC)    ┌──────────────────┐
-│   MCP Client        │◄──────────────────────►│  dakera-mcp      │
-│ (Claude, Cursor...) │                         │                  │
-└─────────────────────┘                         │  ┌────────────┐  │
-                                                │  │ Protocol   │  │
-                                                │  │ (JSON-RPC) │  │
-                                                │  └─────┬──────┘  │
-                                                │        │         │
-                                                │  ┌─────▼──────┐  │
-                                                │  │  Server     │  │
-                                                │  │  (dispatch) │  │
-                                                │  └─────┬──────┘  │
-                                                │        │         │
-                                                │  ┌─────▼──────┐  │     HTTP/REST
-                                                │  │   Tools     │  │◄──────────────►  Dakera API
-                                                │  │  (83 tools) │  │
-                                                │  └────────────┘  │
-                                                └──────────────────┘
-```
-
-The server communicates over **stdio** using the MCP JSON-RPC protocol. Each tool call translates to one or more HTTP requests against the Dakera REST API. No local state is kept -- the Dakera API is the single source of truth.
-
-## Related Repositories
-
-| Repository | Description |
-|------------|-------------|
-| [dakera](https://github.com/dakera-ai/dakera) | Core AI agent memory engine (Rust) |
 | [dakera-py](https://github.com/dakera-ai/dakera-py) | Python SDK |
-| [dakera-js](https://github.com/dakera-ai/dakera-js) | TypeScript/JavaScript SDK |
-| [dakera-go](https://github.com/dakera-ai/dakera-go) | Go SDK |
-| [dakera-rs](https://github.com/dakera-ai/dakera-rs) | Rust SDK |
-| [dakera-cli](https://github.com/dakera-ai/dakera-cli) | Command-line interface |
-| [dakera-dashboard](https://github.com/dakera-ai/dakera-dashboard) | Admin dashboard (Leptos/WASM) |
-| [dakera-docs](https://github.com/dakera-ai/dakera-docs) | Documentation |
-| [dakera-deploy](https://github.com/dakera-ai/dakera-deploy) | Deployment configs and Docker Compose |
-| [dakera-cortex](https://github.com/dakera-ai/dakera-cortex) | Flagship demo with AI agents |
+| [dakera-js](https://github.com/dakera-ai/dakera-js) | TypeScript SDK |
+| [dakera-cli](https://github.com/dakera-ai/dakera-cli) | CLI |
+| [dakera-deploy](https://github.com/dakera-ai/dakera-deploy) | Self-host Dakera |
 
-## License
+---
 
-MIT -- see [LICENSE](LICENSE).
+*Part of the Dakera AI open core. The engine is proprietary. The tools are yours.*
