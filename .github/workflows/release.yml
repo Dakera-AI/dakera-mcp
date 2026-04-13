@@ -52,7 +52,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Extract metadata
         id: meta
@@ -78,7 +78,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           path: /tmp/digests/*
@@ -98,7 +98,7 @@ jobs:
       packages: write
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digests-*
@@ -112,7 +112,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Extract version from tag
         id: version
@@ -121,11 +121,14 @@ jobs:
       - name: Validate digests are accessible in GHCR
         # GHCR has propagation latency after push-by-digest. This step verifies
         # each digest is resolvable before manifest creation, preventing the
-        # "sha256:...: not found" race condition (DAK-1374, DAK-1453).
+        # "sha256:...: not found" race condition (DAK-1374, DAK-1453, DAK-1832).
+        # Root cause of DAK-1832: arm64 digest pushed from self-hosted runner
+        # took >2.5min (>10×15s) to propagate in GHCR; amd64 was immediate.
+        # Window extended to 20×30s=600s to cover self-hosted upload latency.
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=10
-          SLEEP_SECONDS=15
+          MAX_ATTEMPTS=20
+          SLEEP_SECONDS=30
           for digest_file in /tmp/digests/*; do
             digest="sha256:$(basename "$digest_file")"
             ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
