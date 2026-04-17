@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-04-17
+
+### CI
+
+- Extended GHCR digest retry window and upgraded to Node.js 24 actions.
+  ([#45](https://github.com/Dakera-AI/dakera-mcp/pull/45))
+
+### Dependencies
+
+- Bumped `rand` from 0.9.2 to 0.9.4.
+  ([#46](https://github.com/Dakera-AI/dakera-mcp/pull/46))
+- **Security — rustls-webpki CVE patch**: Updated to `rustls-webpki 0.103.12` addressing
+  GHSA-xgp8-3hg3-c2mh and GHSA-965h-392x-2mh5 (CVSS 2.2 LOW).
+  ([#48](https://github.com/Dakera-AI/dakera-mcp/pull/48))
+
 ## [0.9.3] - 2026-04-08
 
 ### Added
