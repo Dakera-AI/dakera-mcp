@@ -118,37 +118,10 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
-      - name: Validate digests are accessible in GHCR
-        # GHCR has propagation latency after push-by-digest. This step verifies
-        # each digest is resolvable before manifest creation, preventing the
-        # "sha256:...: not found" race condition (DAK-1374, DAK-1453, DAK-1832).
-        # Root cause of DAK-1832: arm64 digest pushed from self-hosted runner
-        # took >2.5min (>10×15s) to propagate in GHCR; amd64 was immediate.
-        # Window extended to 20×30s=600s to cover self-hosted upload latency.
-        run: |
-          set -euo pipefail
-          MAX_ATTEMPTS=20
-          SLEEP_SECONDS=30
-          for digest_file in /tmp/digests/*; do
-            digest="sha256:$(basename "$digest_file")"
-            ref="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
-            echo "Verifying: $ref"
-            for attempt in $(seq 1 $MAX_ATTEMPTS); do
-              if docker buildx imagetools inspect "$ref" > /dev/null 2>&1; then
-                echo "  ✅ accessible (attempt $attempt)"
-                break
-              fi
-              if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
-                echo "  ❌ not accessible after $MAX_ATTEMPTS attempts — aborting"
-                exit 1
-              fi
-              echo "  ⏳ not yet accessible (attempt $attempt/$MAX_ATTEMPTS), retrying in ${SLEEP_SECONDS}s..."
-              sleep $SLEEP_SECONDS
-            done
-          done
-          echo "All digests verified ✅"
 
       - name: Create manifest list and push
+        # Digests are pushed by the build jobs above. imagetools create
+        # will fail naturally if any digest is not accessible (DAK-2005).
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
