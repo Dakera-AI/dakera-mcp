@@ -1,29 +1,31 @@
 //! MCP Server implementation
 //!
-//! Reads JSON-RPC messages from stdin, processes them, and writes responses to stdout.
-//! This implements the MCP protocol over stdio transport.
+//! Reads JSON-RPC messages from stdin, processes them concurrently,
+//! and writes responses to stdout with proper locking.
 
+use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::Mutex;
 
 use crate::protocol::{JsonRpcRequest, JsonRpcResponse};
 use crate::tools::{self, DakeraApiClient};
 
 /// MCP Server that communicates over stdio
 pub struct McpServer {
-    client: DakeraApiClient,
+    client: Arc<DakeraApiClient>,
 }
 
 impl McpServer {
     pub fn new(api_url: String, api_key: Option<String>) -> Self {
         Self {
-            client: DakeraApiClient::new(api_url, api_key),
+            client: Arc::new(DakeraApiClient::new(api_url, api_key)),
         }
     }
 
     /// Run the MCP server, reading from stdin and writing to stdout
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         let stdin = tokio::io::stdin();
-        let mut stdout = tokio::io::stdout();
+        let stdout = Arc::new(Mutex::new(tokio::io::stdout()));
         let reader = BufReader::new(stdin);
         let mut lines = reader.lines();
 
@@ -39,39 +41,51 @@ impl McpServer {
                 Ok(req) => req,
                 Err(e) => {
                     let resp = JsonRpcResponse::error(None, -32700, format!("Parse error: {}", e));
-                    let out = serde_json::to_string(&resp)? + "\n";
-                    stdout.write_all(out.as_bytes()).await?;
-                    stdout.flush().await?;
+                    Self::write_response(&stdout, &resp).await;
                     continue;
                 }
             };
 
-            let response = self.handle_request(&request).await;
-            let out = serde_json::to_string(&response)? + "\n";
-            stdout.write_all(out.as_bytes()).await?;
-            stdout.flush().await?;
+            // MCP notifications don't get responses per JSON-RPC 2.0 spec
+            if request.method.starts_with("notifications/") {
+                tracing::debug!(method = %request.method, "Received notification");
+                continue;
+            }
+
+            let client = Arc::clone(&self.client);
+            let writer = Arc::clone(&stdout);
+            tokio::spawn(async move {
+                let response = handle_request(&client, &request).await;
+                Self::write_response(&writer, &response).await;
+            });
         }
 
         Ok(())
     }
 
-    async fn handle_request(&self, request: &JsonRpcRequest) -> JsonRpcResponse {
-        match request.method.as_str() {
-            "initialize" => self.handle_initialize(request),
-            "notifications/initialized" => {
-                // Client acknowledgement, no response needed for notifications
-                // but since we read it as a line, return empty success
-                JsonRpcResponse::success(request.id.clone(), serde_json::json!({}))
+    async fn write_response(stdout: &Arc<Mutex<tokio::io::Stdout>>, response: &JsonRpcResponse) {
+        let out = match serde_json::to_string(response) {
+            Ok(s) => s + "\n",
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to serialize JSON-RPC response");
+                return;
             }
-            "tools/list" => self.handle_tools_list(request),
-            "tools/call" => self.handle_tools_call(request).await,
-            "ping" => JsonRpcResponse::success(request.id.clone(), serde_json::json!({})),
-            _ => JsonRpcResponse::method_not_found(request.id.clone(), &request.method),
+        };
+
+        let mut lock = stdout.lock().await;
+        if let Err(e) = lock.write_all(out.as_bytes()).await {
+            tracing::error!(error = %e, "stdout write failed");
+            return;
+        }
+        if let Err(e) = lock.flush().await {
+            tracing::error!(error = %e, "stdout flush failed");
         }
     }
+}
 
-    fn handle_initialize(&self, request: &JsonRpcRequest) -> JsonRpcResponse {
-        JsonRpcResponse::success(
+async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) -> JsonRpcResponse {
+    match request.method.as_str() {
+        "initialize" => JsonRpcResponse::success(
             request.id.clone(),
             serde_json::json!({
                 "protocolVersion": "2024-11-05",
@@ -83,61 +97,61 @@ impl McpServer {
                     "version": "0.2.0"
                 }
             }),
-        )
+        ),
+        "tools/list" => {
+            let tool_defs = tools::tool_definitions();
+            JsonRpcResponse::success(
+                request.id.clone(),
+                serde_json::json!({ "tools": tool_defs }),
+            )
+        }
+        "tools/call" => handle_tools_call(client, request).await,
+        "ping" => JsonRpcResponse::success(request.id.clone(), serde_json::json!({})),
+        _ => JsonRpcResponse::method_not_found(request.id.clone(), &request.method),
     }
+}
 
-    fn handle_tools_list(&self, request: &JsonRpcRequest) -> JsonRpcResponse {
-        let tool_defs = tools::tool_definitions();
-        JsonRpcResponse::success(
-            request.id.clone(),
-            serde_json::json!({
-                "tools": tool_defs
-            }),
-        )
-    }
+async fn handle_tools_call(client: &DakeraApiClient, request: &JsonRpcRequest) -> JsonRpcResponse {
+    let tool_name = request
+        .params
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
-    async fn handle_tools_call(&self, request: &JsonRpcRequest) -> JsonRpcResponse {
-        let tool_name = request
-            .params
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+    let arguments = request
+        .params
+        .get("arguments")
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
 
-        let arguments = request
-            .params
-            .get("arguments")
-            .cloned()
-            .unwrap_or(serde_json::json!({}));
+    tracing::info!(tool = %tool_name, "Executing tool");
 
-        tracing::info!(tool = %tool_name, "Executing tool");
+    let result = match tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        tools::execute_tool(client, tool_name, &arguments).await
+    })
+    .await
+    {
+        Ok(r) => r,
+        Err(_) => {
+            tracing::error!(tool = %tool_name, "Tool execution timed out after 60s");
+            crate::protocol::CallToolResult::error(format!(
+                "Tool '{}' timed out after 60s",
+                tool_name
+            ))
+        }
+    };
 
-        let result = match tokio::time::timeout(std::time::Duration::from_secs(60), async {
-            tools::execute_tool(&self.client, tool_name, &arguments).await
-        })
-        .await
-        {
-            Ok(r) => r,
-            Err(_) => {
-                tracing::error!(tool = %tool_name, "Tool execution timed out after 60s");
-                crate::protocol::CallToolResult::error(format!(
-                    "Tool '{}' timed out after 60s",
-                    tool_name
-                ))
-            }
-        };
+    let response_value = match serde_json::to_value(&result) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(
+                tool = %tool_name,
+                error = %e,
+                "Failed to serialize tool result"
+            );
+            serde_json::json!({"error": format!("serialization failed: {}", e)})
+        }
+    };
 
-        let response_value = match serde_json::to_value(&result) {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!(
-                    tool = %tool_name,
-                    error = %e,
-                    "Failed to serialize tool result"
-                );
-                serde_json::json!({"error": format!("serialization failed: {}", e)})
-            }
-        };
-
-        JsonRpcResponse::success(request.id.clone(), response_value)
-    }
+    JsonRpcResponse::success(request.id.clone(), response_value)
 }
