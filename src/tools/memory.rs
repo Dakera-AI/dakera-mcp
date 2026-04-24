@@ -303,29 +303,31 @@ async fn tool_batch_recall(client: &DakeraApiClient, args: &serde_json::Value) -
         Ok(v) => v,
         Err(e) => return e,
     };
-    let mut body = serde_json::Map::new();
-    body.insert("agent_id".into(), json!(agent_id));
+    let mut filter = serde_json::Map::new();
     if let Some(v) = args.get("tags") {
-        body.insert("tags".into(), v.clone());
+        filter.insert("tags".into(), v.clone());
     }
     if let Some(v) = args.get("min_importance") {
-        body.insert("min_importance".into(), v.clone());
+        filter.insert("min_importance".into(), v.clone());
     }
     if let Some(v) = args.get("max_importance") {
-        body.insert("max_importance".into(), v.clone());
+        filter.insert("max_importance".into(), v.clone());
     }
     if let Some(v) = args.get("created_after") {
-        body.insert("created_after".into(), v.clone());
+        filter.insert("created_after".into(), v.clone());
     }
     if let Some(v) = args.get("created_before") {
-        body.insert("created_before".into(), v.clone());
+        filter.insert("created_before".into(), v.clone());
     }
     if let Some(v) = args.get("memory_type") {
-        body.insert("memory_type".into(), v.clone());
+        filter.insert("memory_type".into(), v.clone());
     }
     if let Some(v) = args.get("session_id") {
-        body.insert("session_id".into(), v.clone());
+        filter.insert("session_id".into(), v.clone());
     }
+    let mut body = serde_json::Map::new();
+    body.insert("agent_id".into(), json!(agent_id));
+    body.insert("filter".into(), serde_json::Value::Object(filter));
     match client
         .post_json(
             "/v1/memories/recall/batch",
@@ -343,29 +345,31 @@ async fn tool_batch_forget(client: &DakeraApiClient, args: &serde_json::Value) -
         Ok(v) => v,
         Err(e) => return e,
     };
-    let mut body = serde_json::Map::new();
-    body.insert("agent_id".into(), json!(agent_id));
+    let mut filter = serde_json::Map::new();
     if let Some(v) = args.get("tags") {
-        body.insert("tags".into(), v.clone());
+        filter.insert("tags".into(), v.clone());
     }
     if let Some(v) = args.get("min_importance") {
-        body.insert("min_importance".into(), v.clone());
+        filter.insert("min_importance".into(), v.clone());
     }
     if let Some(v) = args.get("max_importance") {
-        body.insert("max_importance".into(), v.clone());
+        filter.insert("max_importance".into(), v.clone());
     }
     if let Some(v) = args.get("created_after") {
-        body.insert("created_after".into(), v.clone());
+        filter.insert("created_after".into(), v.clone());
     }
     if let Some(v) = args.get("created_before") {
-        body.insert("created_before".into(), v.clone());
+        filter.insert("created_before".into(), v.clone());
     }
     if let Some(v) = args.get("memory_type") {
-        body.insert("memory_type".into(), v.clone());
+        filter.insert("memory_type".into(), v.clone());
     }
     if let Some(v) = args.get("session_id") {
-        body.insert("session_id".into(), v.clone());
+        filter.insert("session_id".into(), v.clone());
     }
+    let mut body = serde_json::Map::new();
+    body.insert("agent_id".into(), json!(agent_id));
+    body.insert("filter".into(), serde_json::Value::Object(filter));
     match client
         .delete_with_json(
             "/v1/memories/forget/batch",
