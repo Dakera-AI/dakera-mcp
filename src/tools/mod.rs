@@ -25,6 +25,9 @@ pub mod vectors;
 
 use crate::protocol::{CallToolResult, ToolDefinition};
 
+const MAX_RETRIES: u32 = 3;
+const RETRY_DELAYS_MS: [u64; 3] = [100, 500, 2000];
+
 /// API client for calling Dakera endpoints
 pub struct DakeraApiClient {
     base_url: String,
@@ -32,10 +35,22 @@ pub struct DakeraApiClient {
     client: reqwest::Client,
 }
 
+fn is_retryable_error(err: &reqwest::Error) -> bool {
+    err.is_connect() || err.is_timeout() || err.is_request()
+}
+
+fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 502 | 503 | 504 | 408 | 429)
+}
+
 impl DakeraApiClient {
     pub fn new(base_url: String, api_key: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_max_idle_per_host(4)
+            .tcp_keepalive(std::time::Duration::from_secs(60))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -55,49 +70,83 @@ impl DakeraApiClient {
         req
     }
 
-    pub async fn post_json(
+    async fn send_with_retry(
         &self,
+        method: reqwest::Method,
         path: &str,
-        body: &serde_json::Value,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(reqwest::StatusCode, String), String> {
+        let mut last_err = String::new();
+        for attempt in 0..=MAX_RETRIES {
+            if attempt > 0 {
+                let delay = RETRY_DELAYS_MS
+                    .get((attempt - 1) as usize)
+                    .copied()
+                    .unwrap_or(2000);
+                tracing::warn!(attempt, delay_ms = delay, path, "Retrying request");
+                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+            }
+
+            let mut req = self.request(method.clone(), path);
+            if let Some(b) = body {
+                req = req.json(b);
+            }
+
+            match req.send().await {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if is_retryable_status(status) && attempt < MAX_RETRIES {
+                        let text = resp.text().await.unwrap_or_default();
+                        last_err = format!("API error ({}): {}", status, text);
+                        tracing::warn!(attempt, status = %status, path, "Retryable status");
+                        continue;
+                    }
+                    let text = resp
+                        .text()
+                        .await
+                        .map_err(|e| format!("Read body failed: {}", e))?;
+                    return Ok((status, text));
+                }
+                Err(e) => {
+                    if is_retryable_error(&e) && attempt < MAX_RETRIES {
+                        last_err = format!("HTTP request failed: {}", e);
+                        tracing::warn!(attempt, error = %e, path, "Retryable error");
+                        continue;
+                    }
+                    return Err(format!("HTTP request failed: {}", e));
+                }
+            }
+        }
+        Err(last_err)
+    }
+
+    fn parse_json_response(
+        status: reqwest::StatusCode,
+        text: &str,
     ) -> Result<serde_json::Value, String> {
-        let resp = self
-            .request(reqwest::Method::POST, path)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
         if status.is_success() {
-            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
+            serde_json::from_str(text).map_err(|e| format!("JSON parse failed: {}", e))
         } else {
             Err(format!("API error ({}): {}", status, text))
         }
     }
 
+    pub async fn post_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::POST, path, Some(body))
+            .await?;
+        Self::parse_json_response(status, &text)
+    }
+
     pub async fn get_json(&self, path: &str) -> Result<serde_json::Value, String> {
-        let resp = self
-            .request(reqwest::Method::GET, path)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
-        if status.is_success() {
-            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
-        } else {
-            Err(format!("API error ({}): {}", status, text))
-        }
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::GET, path, None)
+            .await?;
+        Self::parse_json_response(status, &text)
     }
 
     pub async fn put_json(
@@ -105,44 +154,17 @@ impl DakeraApiClient {
         path: &str,
         body: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        let resp = self
-            .request(reqwest::Method::PUT, path)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
-        if status.is_success() {
-            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
-        } else {
-            Err(format!("API error ({}): {}", status, text))
-        }
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::PUT, path, Some(body))
+            .await?;
+        Self::parse_json_response(status, &text)
     }
 
     pub async fn delete_json(&self, path: &str) -> Result<serde_json::Value, String> {
-        let resp = self
-            .request(reqwest::Method::DELETE, path)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
-        if status.is_success() {
-            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
-        } else {
-            Err(format!("API error ({}): {}", status, text))
-        }
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::DELETE, path, None)
+            .await?;
+        Self::parse_json_response(status, &text)
     }
 
     pub async fn delete_with_json(
@@ -150,24 +172,10 @@ impl DakeraApiClient {
         path: &str,
         body: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        let resp = self
-            .request(reqwest::Method::DELETE, path)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
-        if status.is_success() {
-            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
-        } else {
-            Err(format!("API error ({}): {}", status, text))
-        }
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::DELETE, path, Some(body))
+            .await?;
+        Self::parse_json_response(status, &text)
     }
 
     pub async fn patch_json(
@@ -175,41 +183,16 @@ impl DakeraApiClient {
         path: &str,
         body: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        let resp = self
-            .request(reqwest::Method::PATCH, path)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
-        if status.is_success() {
-            serde_json::from_str(&text).map_err(|e| format!("JSON parse failed: {}", e))
-        } else {
-            Err(format!("API error ({}): {}", status, text))
-        }
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::PATCH, path, Some(body))
+            .await?;
+        Self::parse_json_response(status, &text)
     }
 
-    /// GET a resource and return the raw response body as a String (for export endpoints
-    /// that return non-JSON content like JSONL, CSV, etc.).
     pub async fn get_text(&self, path: &str) -> Result<String, String> {
-        let resp = self
-            .request(reqwest::Method::GET, path)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP request failed: {}", e))?;
-
-        let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| format!("Read body failed: {}", e))?;
-
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::GET, path, None)
+            .await?;
         if status.is_success() {
             Ok(text)
         } else {
@@ -217,8 +200,6 @@ impl DakeraApiClient {
         }
     }
 
-    /// POST a plain-text body as a multipart/form-data request with a single `file` field.
-    /// Used for the DX-1 import endpoint which expects multipart data.
     pub async fn post_multipart_text(
         &self,
         path: &str,
@@ -247,11 +228,7 @@ impl DakeraApiClient {
             .await
             .map_err(|e| format!("Read body failed: {}", e))?;
 
-        if status.is_success() {
-            serde_json::from_str(&body).map_err(|e| format!("JSON parse failed: {}", e))
-        } else {
-            Err(format!("API error ({}): {}", status, body))
-        }
+        Self::parse_json_response(status, &body)
     }
 }
 
