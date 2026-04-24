@@ -111,7 +111,20 @@ impl McpServer {
 
         tracing::info!(tool = %tool_name, "Executing tool");
 
-        let result = tools::execute_tool(&self.client, tool_name, &arguments).await;
+        let result = match tokio::time::timeout(std::time::Duration::from_secs(60), async {
+            tools::execute_tool(&self.client, tool_name, &arguments).await
+        })
+        .await
+        {
+            Ok(r) => r,
+            Err(_) => {
+                tracing::error!(tool = %tool_name, "Tool execution timed out after 60s");
+                crate::protocol::CallToolResult::error(format!(
+                    "Tool '{}' timed out after 60s",
+                    tool_name
+                ))
+            }
+        };
 
         let response_value = match serde_json::to_value(&result) {
             Ok(v) => v,
