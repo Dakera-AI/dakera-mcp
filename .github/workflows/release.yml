@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: release-docker
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: dakera-ai/dakera-mcp
@@ -119,9 +123,15 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
 
+      - name: List downloaded digests
+        working-directory: /tmp/digests
+        run: |
+          echo "Digests found:"
+          ls -la
+          echo "Will reference:"
+          for f in *; do echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:$f"; done
+
       - name: Create manifest list and push
-        # Digests are pushed by the build jobs above. imagetools create
-        # will fail naturally if any digest is not accessible (DAK-2005).
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
