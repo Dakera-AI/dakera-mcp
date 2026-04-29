@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7] - 2026-04-29
+
+### Changed
+
+- Bumped `thiserror` from 1.0.69 to 2.0.18 — internal error handling improvement, no public API
+  change. ([#56](https://github.com/Dakera-AI/dakera-mcp/pull/56))
+- Pinned Rust toolchain to 1.95.0 for reproducible builds.
+  ([#59](https://github.com/Dakera-AI/dakera-mcp/pull/59))
+
+### Fixed
+
+- **Docker multi-arch release builds** — replaced `push-by-digest` with platform-tagged images
+  (`VERSION-amd64`, `VERSION-arm64`) followed by `imagetools create` manifest merge. Self-hosted
+  ARM runners had unreliable digest availability in GHCR, causing all Docker releases since v0.9.2
+  to fail.
+- Added release workflow concurrency control to prevent parallel tag pushes from racing.
+
+### Chore
+
+- Updated Cargo.lock patch dependencies.
+  ([#60](https://github.com/Dakera-AI/dakera-mcp/pull/60))
+- Added Dependabot configuration for Cargo and GitHub Actions.
+
 ## [0.9.6] - 2026-04-29
 
 ### Fixed
