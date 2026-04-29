@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6] - 2026-04-29
+
+### Fixed
+
+- **Concurrent request handling and crash recovery** — wraps `stdout` in `Mutex<Stdout>` and adds
+  `catch_unwind` around tool handlers to prevent a single panicking tool from crashing the MCP
+  process. Critical for Claude Code which issues concurrent tool calls over stdio.
+  ([#54](https://github.com/Dakera-AI/dakera-mcp/pull/54))
+
+### Security
+
+- Bumped `rustls-webpki` from 0.103.12 to 0.103.13 (follow-up security patch).
+  ([#52](https://github.com/Dakera-AI/dakera-mcp/pull/52))
+
+## [0.9.5] - 2026-04-29
+
+### Fixed
+
+- **Retry with exponential backoff, connection pooling, and tool timeout** — prevents transient
+  server errors from surfacing as MCP tool failures. Adds `reqwest` connection pooling for
+  keep-alive reuse and a 60-second per-tool timeout.
+  ([#53](https://github.com/Dakera-AI/dakera-mcp/pull/53))
+- **Nest filter params in `batch_recall` and `batch_forget`** — filters like `tags`,
+  `min_importance`, `created_after` were sent as top-level fields instead of nested under the
+  correct request body structure.
+  ([#51](https://github.com/Dakera-AI/dakera-mcp/pull/51))
+
+### CI
+
+- Removed GHCR digest validation loop from release workflow (DAK-2005).
+  ([#50](https://github.com/Dakera-AI/dakera-mcp/pull/50))
+
 ## [0.9.4] - 2026-04-17
 
 ### CI
