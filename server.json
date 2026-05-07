@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.dakera-ai/dakera",
+  "description": "Agent memory engine — vector search, knowledge graphs, session management. 83 MCP tools, self-hosted, single Rust binary, zero external dependencies.",
+  "repository": {
+    "url": "https://github.com/Dakera-AI/dakera",
+    "source": "github"
+  },
+  "version": "0.11.52",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@dakera-ai/dakera",
+      "version": "0.11.51",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
