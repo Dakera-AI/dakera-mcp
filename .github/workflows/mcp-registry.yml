@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.11.53). Required for manual dispatch — tag triggers use the tag ref automatically."
+        required: false
+        type: string
 
 jobs:
   publish-mcp-registry:
@@ -15,22 +20,42 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Update server.json version
+        id: version
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "$GITHUB_REF" ]; then
-            VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
           fi
-          # Update version and npm package version in server.json
           jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.json.tmp
           mv server.json.tmp server.json
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Publishing version: $VERSION"
           cat server.json
+
+      - name: Create flat publish.json for MCP action
+        # OtherVibes/mcp-publish-action@v1 expects a flat JSON with snake_case fields.
+        # server.json follows the official MCP schema (camelCase, nested transport).
+        # This step transforms the format.
+        run: |
+          jq -n \
+            --arg name    "$(jq -r '.name' server.json)" \
+            --arg desc    "$(jq -r '.description' server.json | cut -c1-100)" \
+            --arg ver     "${{ steps.version.outputs.version }}" \
+            --arg reg     "$(jq -r '.packages[0].registryType // "npm"' server.json)" \
+            --arg id      "$(jq -r '.packages[0].identifier' server.json)" \
+            --arg trans   "$(jq -r '.packages[0].transport.type // "stdio"' server.json)" \
+            '{name:$name, description:$desc, version:$ver, registry_type:$reg, identifier:$id, transport_type:$trans}' \
+          > publish.json
+          echo "publish.json:"
+          cat publish.json
 
       - name: Publish to MCP Registry
         uses: OtherVibes/mcp-publish-action@v1
         with:
-          server-path: server.json
+          server-path: publish.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
