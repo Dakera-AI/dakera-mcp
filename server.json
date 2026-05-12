@@ -1,20 +1,21 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.dakera-ai/dakera",
-  "description": "Agent memory engine — vector search, knowledge graphs, session management. 83 MCP tools, self-hosted, single Rust binary, zero external dependencies.",
+  "name": "io.github.dakera-ai/dakera-mcp",
+  "description": "Persistent, decay-weighted vector memory MCP server for AI agents. 83 tools for store, recall, hybrid BM25+vector search, knowledge graphs, cross-agent memory sharing, and session management. Self-hosted via Docker or cargo install.",
   "repository": {
-    "url": "https://github.com/Dakera-AI/dakera",
+    "url": "https://github.com/Dakera-AI/dakera-mcp",
     "source": "github"
   },
-  "version": "0.11.52",
+  "version": "0.9.7",
   "packages": [
     {
-      "registryType": "npm",
-      "identifier": "@dakera-ai/dakera",
-      "version": "0.11.51",
+      "registryType": "other",
+      "identifier": "dakera-mcp",
+      "version": "0.9.7",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "installationCommand": "cargo install dakera-mcp"
     }
   ]
 }
