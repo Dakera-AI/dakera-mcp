@@ -12,6 +12,32 @@ Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
 ---
 
+## Run Dakera
+
+The MCP server connects to a Dakera memory server. You need one running first:
+
+```bash
+docker run -d \
+  --name dakera \
+  -p 3300:3300 \
+  -e DAKERA_ROOT_API_KEY=dk-mykey \
+  ghcr.io/dakera-ai/dakera:latest
+```
+
+For persistent storage (recommended):
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/Dakera-AI/dakera-deploy/main/docker-compose.yml \
+  -o docker-compose.yml
+DAKERA_API_KEY=dk-mykey docker compose up -d
+
+curl http://localhost:3300/health  # → {"status":"ok"}
+```
+
+Full deployment guide (Docker Compose, Kubernetes, Helm): [dakera-deploy](https://github.com/Dakera-AI/dakera-deploy)
+
+---
+
 ## Install
 
 ```bash
