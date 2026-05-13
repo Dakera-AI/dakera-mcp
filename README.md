@@ -1,5 +1,7 @@
 # ⚡ dakera-mcp
 
+[![CI](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml) [![Crate](https://img.shields.io/crates/v/dakera-mcp?logo=rust)](https://crates.io/crates/dakera-mcp) [![License: MIT](https://img.shields.io/github/license/Dakera-AI/dakera-mcp)](LICENSE) [![Glama](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badge)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp)
+
 MCP server for Dakera AI. 83 tools. Gives any MCP-compatible AI agent persistent, queryable memory in minutes.
 
 Works with Claude, Claude Code, and any MCP-compatible framework.
@@ -7,8 +9,6 @@ Works with Claude, Claude Code, and any MCP-compatible framework.
 Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
 > The Dakera memory engine scores **87.6% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
-
-[![Glama](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badge)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp)
 
 ---
 
