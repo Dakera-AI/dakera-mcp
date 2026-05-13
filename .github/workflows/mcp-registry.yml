@@ -54,8 +54,22 @@ jobs:
           echo "publish.json:"
           cat publish.json
 
+      - name: Set publish vars
+        id: pub
+        run: |
+          echo "name=$(jq -r '.name' publish.json)" >> "$GITHUB_OUTPUT"
+          echo "description=$(jq -r '.description' publish.json)" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r '.version' publish.json)" >> "$GITHUB_OUTPUT"
+          echo "registry_type=$(jq -r '.registry_type' publish.json)" >> "$GITHUB_OUTPUT"
+          echo "identifier=$(jq -r '.identifier' publish.json)" >> "$GITHUB_OUTPUT"
+          echo "transport_type=$(jq -r '.transport_type' publish.json)" >> "$GITHUB_OUTPUT"
+
       - name: Publish to MCP Registry
         uses: OtherVibes/mcp-publish-action@v1
         with:
-          server-path: publish.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ steps.pub.outputs.name }}
+          description: ${{ steps.pub.outputs.description }}
+          version: ${{ steps.pub.outputs.version }}
+          registry_type: ${{ steps.pub.outputs.registry_type }}
+          identifier: ${{ steps.pub.outputs.identifier }}
+          transport_type: ${{ steps.pub.outputs.transport_type }}
