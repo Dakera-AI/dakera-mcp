@@ -41,6 +41,23 @@ jobs:
           echo "Publishing version: $VERSION"
           cat server.json
 
+      - name: Wait for Docker image to be available
+        if: github.event_name == 'push'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IMAGE="ghcr.io/dakera-ai/dakera-mcp:${VERSION}"
+          echo "Waiting for ${IMAGE} to be available on GHCR..."
+          for i in $(seq 1 20); do
+            if docker manifest inspect "${IMAGE}" > /dev/null 2>&1; then
+              echo "✅ Image ${IMAGE} is ready (attempt ${i})"
+              exit 0
+            fi
+            echo "Attempt ${i}/20: image not yet available, retrying in 30s..."
+            sleep 30
+          done
+          echo "❌ Image ${IMAGE} not available after 10 minutes"
+          exit 1
+
       - name: Install mcp-publisher
         run: |
           MCP_VERSION="1.7.9"
