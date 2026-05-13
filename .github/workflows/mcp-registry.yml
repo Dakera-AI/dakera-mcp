@@ -42,7 +42,8 @@ jobs:
           MCP_VERSION="1.7.9"
           OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
           ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
-          URL="https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_VERSION}/mcp-publisher_${MCP_VERSION}_${OS}_${ARCH}.tar.gz"
+          # v1.7.9+ drops the version segment from asset names
+          URL="https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz"
           echo "Downloading mcp-publisher v${MCP_VERSION} from ${URL}"
           curl -sSL "$URL" | tar xz -C /usr/local/bin mcp-publisher
           chmod +x /usr/local/bin/mcp-publisher
