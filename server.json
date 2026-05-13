@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.dakera-ai/dakera-mcp",
+  "name": "io.github.Dakera-AI/dakera-mcp",
   "description": "Decay-weighted vector memory for AI agents — 83 MCP tools: store, recall, search, knowledge graphs.",
   "repository": {
     "url": "https://github.com/Dakera-AI/dakera-mcp",
