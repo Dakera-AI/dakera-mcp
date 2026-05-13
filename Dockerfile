@@ -78,6 +78,9 @@ RUN apt-get update && apt-get install -y \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
+# Required annotation for MCP registry OCI package validation
+LABEL io.modelcontextprotocol.server.name="io.github.Dakera-AI/dakera-mcp"
+
 # Non-root user
 RUN useradd --create-home --shell /bin/false dakera
 USER dakera
