@@ -1,13 +1,13 @@
 name: Publish to MCP Registry
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ["Publish Docker Image"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (e.g. 0.11.53). Required for manual dispatch — tag triggers use the tag ref automatically."
+        description: "Version to publish (e.g. 0.11.53). Leave blank to use latest release."
         required: false
         type: string
 
@@ -15,6 +15,8 @@ jobs:
   publish-mcp-registry:
     name: Publish to MCP Registry
     runs-on: ubuntu-latest
+    # Skip workflow_run triggers where the Docker build failed
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       id-token: write
@@ -23,22 +25,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Update server.json version
+      - name: Resolve version
         id: version
         run: |
           if [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # head_branch for a release-triggered workflow run is the tag name (e.g. "v0.9.8")
+            RAW="${{ github.event.workflow_run.head_branch }}"
+            VERSION="${RAW#v}"
           else
             VERSION="${GITHUB_REF#refs/tags/v}"
           fi
-          # OCI: version goes in identifier tag, not packages[].version field
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION}"
+
+      - name: Verify OCI image exists in GHCR
+        run: |
+          IMAGE="ghcr.io/dakera-ai/dakera-mcp:${{ steps.version.outputs.version }}"
+          echo "Verifying ${IMAGE} is available in GHCR..."
+          for i in $(seq 1 6); do
+            if docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
+              echo "✓ Image confirmed available after ${i} attempt(s)"
+              break
+            fi
+            [ $i -eq 6 ] && { echo "Error: image not found after 6 attempts (3 min)"; exit 1; }
+            echo "Attempt ${i}/6: not yet available, waiting 30s..."
+            sleep 30
+          done
+
+      - name: Update server.json version
+        run: |
           BASE_ID=$(jq -r '.packages[0].identifier | gsub(":[^:]+$";"")' server.json)
-          jq --arg v "$VERSION" --arg id "${BASE_ID}:${VERSION}" \
+          jq --arg v "${{ steps.version.outputs.version }}" \
+             --arg id "${BASE_ID}:${{ steps.version.outputs.version }}" \
             '.version = $v | .packages[0].identifier = $id | del(.packages[0].version)' \
             server.json > server.json.tmp
           mv server.json.tmp server.json
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Publishing version: $VERSION"
+          echo "Updated server.json:"
           cat server.json
 
       - name: Install mcp-publisher
@@ -46,7 +70,6 @@ jobs:
           MCP_VERSION="1.7.9"
           OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
           ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
-          # v1.7.9+ drops the version segment from asset names
           URL="https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_VERSION}/mcp-publisher_${OS}_${ARCH}.tar.gz"
           echo "Downloading mcp-publisher v${MCP_VERSION} from ${URL}"
           curl -sSL "$URL" | tar xz -C /usr/local/bin mcp-publisher
