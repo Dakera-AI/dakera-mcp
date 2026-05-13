@@ -37,39 +37,21 @@ jobs:
           echo "Publishing version: $VERSION"
           cat server.json
 
-      - name: Create flat publish.json for MCP action
-        # OtherVibes/mcp-publish-action@v1 expects a flat JSON with snake_case fields.
-        # server.json follows the official MCP schema (camelCase, nested transport).
-        # This step transforms the format.
+      - name: Install mcp-publisher
         run: |
-          jq -n \
-            --arg name    "$(jq -r '.name' server.json)" \
-            --arg desc    "$(jq -r '.description' server.json | cut -c1-100)" \
-            --arg ver     "${{ steps.version.outputs.version }}" \
-            --arg reg     "$(jq -r '.packages[0].registryType // "npm"' server.json)" \
-            --arg id      "$(jq -r '.packages[0].identifier' server.json)" \
-            --arg trans   "$(jq -r '.packages[0].transport.type // "stdio"' server.json)" \
-            '{name:$name, description:$desc, version:$ver, registry_type:$reg, identifier:$id, transport_type:$trans}' \
-          > publish.json
-          echo "publish.json:"
-          cat publish.json
-
-      - name: Set publish vars
-        id: pub
-        run: |
-          echo "name=$(jq -r '.name' publish.json)" >> "$GITHUB_OUTPUT"
-          echo "description=$(jq -r '.description' publish.json)" >> "$GITHUB_OUTPUT"
-          echo "version=$(jq -r '.version' publish.json)" >> "$GITHUB_OUTPUT"
-          echo "registry_type=$(jq -r '.registry_type' publish.json)" >> "$GITHUB_OUTPUT"
-          echo "identifier=$(jq -r '.identifier' publish.json)" >> "$GITHUB_OUTPUT"
-          echo "transport_type=$(jq -r '.transport_type' publish.json)" >> "$GITHUB_OUTPUT"
+          MCP_VERSION="1.7.9"
+          OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          URL="https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_VERSION}/mcp-publisher_${MCP_VERSION}_${OS}_${ARCH}.tar.gz"
+          echo "Downloading mcp-publisher v${MCP_VERSION} from ${URL}"
+          curl -sSL "$URL" | tar xz -C /usr/local/bin mcp-publisher
+          chmod +x /usr/local/bin/mcp-publisher
+          mcp-publisher --version
 
       - name: Publish to MCP Registry
-        uses: OtherVibes/mcp-publish-action@v1
-        with:
-          name: ${{ steps.pub.outputs.name }}
-          description: ${{ steps.pub.outputs.description }}
-          version: ${{ steps.pub.outputs.version }}
-          registry_type: ${{ steps.pub.outputs.registry_type }}
-          identifier: ${{ steps.pub.outputs.identifier }}
-          transport_type: ${{ steps.pub.outputs.transport_type }}
+        env:
+          REGISTRY_URL: https://registry.modelcontextprotocol.io
+        run: |
+          mcp-publisher login github-oidc --registry="$REGISTRY_URL"
+          mcp-publisher publish --registry="$REGISTRY_URL" server.json
+          echo "Published dakera-mcp version ${{ steps.version.outputs.version }}"
