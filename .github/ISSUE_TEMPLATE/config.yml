@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: mailto:security@dakera.ai
+    about: Please report security vulnerabilities via email, not GitHub Issues.
+  - name: Dakera Documentation
+    url: https://dakera.ai/docs
+    about: Check the docs before opening an issue.
+
