@@ -1,0 +1,5 @@
+# Default — Core Engine agent owns MCP server code
+* @dakera-ai/core-engine
+
+# CI/CD workflows — Platform agent
+/.github/workflows/ @dakera-ai/platform
