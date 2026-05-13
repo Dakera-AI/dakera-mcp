@@ -31,7 +31,11 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/v}"
           fi
-          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.json.tmp
+          # OCI: version goes in identifier tag, not packages[].version field
+          BASE_ID=$(jq -r '.packages[0].identifier | gsub(":[^:]+$";"")' server.json)
+          jq --arg v "$VERSION" --arg id "${BASE_ID}:${VERSION}" \
+            '.version = $v | .packages[0].identifier = $id | del(.packages[0].version)' \
+            server.json > server.json.tmp
           mv server.json.tmp server.json
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Publishing version: $VERSION"
