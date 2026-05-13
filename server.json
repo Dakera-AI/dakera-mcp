@@ -9,7 +9,7 @@
   "version": "0.9.7",
   "packages": [
     {
-      "registryType": "other",
+      "registryType": "mcpb",
       "identifier": "dakera-mcp",
       "version": "0.9.7",
       "transport": {
