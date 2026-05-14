@@ -21,3 +21,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Secrets — private keys and credentials
+*.key
+*.pem
+*.p12
+credentials.json
