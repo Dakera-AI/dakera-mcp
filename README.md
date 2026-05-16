@@ -1,6 +1,10 @@
+[![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
 # ⚡ dakera-mcp
 
+
+
 [![CI](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml) [![Crate](https://img.shields.io/crates/v/dakera-mcp?logo=rust)](https://crates.io/crates/dakera-mcp) [![License: MIT](https://img.shields.io/github/license/Dakera-AI/dakera-mcp)](LICENSE) [![Glama](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badge)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp)
+[![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
 
 MCP server for Dakera AI. 83 tools. Gives any MCP-compatible AI agent persistent, queryable memory in minutes.
 
