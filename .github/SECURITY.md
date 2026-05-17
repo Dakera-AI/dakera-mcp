@@ -8,9 +8,9 @@ If you discover a security vulnerability in this project, please report it respo
 
 ### How to Report
 
-Email: security@dakera.ai
+Please report security vulnerabilities via [GitHub Security Advisories](https://github.com/dakera-ai/dakera-mcp/security/advisories/new).
 
-Please include:
+Include:
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -28,4 +28,4 @@ We actively maintain the latest release. Security patches are applied to the mos
 
 ## Scope
 
-This policy applies to vulnerabilities in this repository's code. For the hosted Dakera service, please use the same reporting channel above.
+This policy applies to vulnerabilities in this repository's code. For the hosted Dakera service, please use [GitHub Security Advisories](https://github.com/dakera-ai/dakera-mcp/security/advisories/new) as well.
