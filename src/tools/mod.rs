@@ -3,7 +3,9 @@
 //! Defines the tools exposed by the Dakera MCP server and handles
 //! calling the Dakera API for each tool invocation.
 
+pub mod admin;
 pub mod agents;
+pub mod analytics;
 pub mod audit;
 pub mod autopilot;
 pub mod decay;
@@ -13,13 +15,16 @@ pub mod extractor;
 pub mod feedback;
 pub mod fulltext;
 pub mod graph;
+pub mod health;
 pub mod inference;
 pub mod knowledge;
 pub mod memory;
 pub mod namespace_keys;
 pub mod namespaces;
 pub mod ode;
+pub mod ops;
 pub mod sessions;
+pub mod streaming;
 pub mod transfer;
 pub mod vectors;
 
@@ -267,6 +272,11 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
     defs.extend(extractor::definitions());
     defs.extend(encryption::definitions());
     defs.extend(ode::definitions());
+    defs.extend(admin::definitions());
+    defs.extend(analytics::definitions());
+    defs.extend(health::definitions());
+    defs.extend(ops::definitions());
+    defs.extend(streaming::definitions());
     defs
 }
 
@@ -331,6 +341,21 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = ode::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = admin::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = analytics::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = health::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = ops::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = streaming::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
