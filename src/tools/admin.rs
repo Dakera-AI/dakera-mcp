@@ -449,7 +449,9 @@ pub async fn execute(
                 .map(|v| ok_json(&v))
                 .unwrap_or_else(CallToolResult::error),
         ),
-        "dakera_delete_namespace_admin" => Some(tool_delete_namespace_admin(client, args).await),
+        "dakera_delete_namespace_admin" => {
+            Some(tool_delete_namespace_admin(client, args).await)
+        }
         "dakera_optimize_namespace" => Some(tool_optimize_namespace(client, args).await),
         "dakera_migrate_dimensions" => Some(tool_migrate_dimensions(client, args).await),
         // Indexes / cache / storage
@@ -496,7 +498,9 @@ pub async fn execute(
                 .map(|v| ok_json(&v))
                 .unwrap_or_else(CallToolResult::error),
         ),
-        "dakera_update_server_config" => Some(tool_update_server_config(client, args).await),
+        "dakera_update_server_config" => {
+            Some(tool_update_server_config(client, args).await)
+        }
         // TTL / background
         "dakera_ttl_cleanup" => Some(
             client

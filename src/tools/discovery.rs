@@ -25,12 +25,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Keyword to filter tools by name or description. Case-insensitive substring match."
+                        "description": "Keyword to filter tools by name or description. \
+                            Case-insensitive substring match."
                     },
                     "tier": {
                         "type": "string",
                         "enum": ["core", "power", "admin", "meta", "all"],
-                        "description": "Filter by tier. Omit or use 'all' to search across all tiers."
+                        "description": "Filter by tier. Omit or use 'all' to search all tiers."
                     }
                 },
                 "required": []
@@ -48,7 +49,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "tools": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Tool names to load full schemas for (e.g. [\"dakera_consolidate\", \"dakera_agent_stats\"])",
+                        "description": "Tool names to load full schemas for \
+                            (e.g. [\"dakera_consolidate\", \"dakera_agent_stats\"])",
                         "minItems": 1
                     }
                 },
@@ -131,7 +133,9 @@ fn load_tools(args: &serde_json::Value) -> CallToolResult {
     };
 
     if tool_names.is_empty() {
-        return CallToolResult::error("Parameter 'tools' must contain at least one tool name".to_string());
+        return CallToolResult::error(
+            "Parameter 'tools' must contain at least one tool name".to_string(),
+        );
     }
 
     let catalog = super::full_catalog();
