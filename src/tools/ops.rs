@@ -80,10 +80,7 @@ pub async fn execute(
     }
 }
 
-async fn tool_get_job(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_get_job(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let job_id = match require_string(args, "job_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -108,11 +105,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_returns_none() {
-        assert!(
-            execute(&dummy_client(), "not_ops", &json!({}))
-                .await
-                .is_none()
-        );
+        assert!(execute(&dummy_client(), "not_ops", &json!({}))
+            .await
+            .is_none());
     }
 
     #[tokio::test]

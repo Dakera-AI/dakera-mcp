@@ -14,12 +14,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_discover_tools".into(),
-            description: "Search the full Dakera tool catalog by keyword and/or tier. Returns tool \
+            description:
+                "Search the full Dakera tool catalog by keyword and/or tier. Returns tool \
                 names and one-line descriptions without loading full schemas. Use \
                 dakera_load_tools to fetch complete inputSchema definitions for the tools \
                 you want to call. Tiers: core (12 always-loaded), power (~25 advanced), \
                 admin (namespace/encryption/bulk ops), meta (this tool + dakera_load_tools)."
-                .into(),
+                    .into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -77,10 +78,7 @@ fn discover_tools(args: &serde_json::Value) -> CallToolResult {
         .get("query")
         .and_then(|v| v.as_str())
         .map(|s| s.to_lowercase());
-    let tier_filter = args
-        .get("tier")
-        .and_then(|v| v.as_str())
-        .unwrap_or("all");
+    let tier_filter = args.get("tier").and_then(|v| v.as_str()).unwrap_or("all");
 
     let catalog = super::full_catalog();
     let tools: Vec<serde_json::Value> = catalog
@@ -123,10 +121,7 @@ fn discover_tools(args: &serde_json::Value) -> CallToolResult {
 
 fn load_tools(args: &serde_json::Value) -> CallToolResult {
     let tool_names = match args.get("tools").and_then(|v| v.as_array()) {
-        Some(arr) => arr
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect::<Vec<_>>(),
+        Some(arr) => arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>(),
         None => {
             return CallToolResult::error("Missing required parameter: tools".to_string());
         }
@@ -179,7 +174,11 @@ mod tests {
     #[test]
     fn test_definitions_have_descriptions() {
         for def in definitions() {
-            assert!(!def.description.is_empty(), "{} has empty description", def.name);
+            assert!(
+                !def.description.is_empty(),
+                "{} has empty description",
+                def.name
+            );
         }
     }
 
@@ -190,7 +189,10 @@ mod tests {
         let text = &result.content[0].text;
         let val: serde_json::Value = serde_json::from_str(text).unwrap();
         let count = val["count"].as_u64().unwrap();
-        assert!(count > 12, "Expected more than 12 tools in full catalog, got {count}");
+        assert!(
+            count > 12,
+            "Expected more than 12 tools in full catalog, got {count}"
+        );
     }
 
     #[test]
@@ -198,7 +200,11 @@ mod tests {
         let result = discover_tools(&json!({"tier": "core"}));
         assert!(result.is_error.is_none());
         let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
-        assert_eq!(val["count"].as_u64().unwrap(), 12, "Core tier should have exactly 12 tools");
+        assert_eq!(
+            val["count"].as_u64().unwrap(),
+            12,
+            "Core tier should have exactly 12 tools"
+        );
     }
 
     #[test]
@@ -206,7 +212,11 @@ mod tests {
         let result = discover_tools(&json!({"tier": "meta"}));
         assert!(result.is_error.is_none());
         let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
-        assert_eq!(val["count"].as_u64().unwrap(), 2, "Meta tier should have exactly 2 tools");
+        assert_eq!(
+            val["count"].as_u64().unwrap(),
+            2,
+            "Meta tier should have exactly 2 tools"
+        );
     }
 
     #[test]
@@ -226,7 +236,10 @@ mod tests {
     fn test_discover_tools_response_has_hint() {
         let result = discover_tools(&json!({}));
         let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
-        assert!(val["hint"].as_str().is_some(), "Response should include a hint field");
+        assert!(
+            val["hint"].as_str().is_some(),
+            "Response should include a hint field"
+        );
     }
 
     #[test]
@@ -237,7 +250,10 @@ mod tests {
         let tools = val["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["name"].as_str().unwrap(), "dakera_store");
-        assert!(tools[0]["inputSchema"].is_object(), "Should include inputSchema");
+        assert!(
+            tools[0]["inputSchema"].is_object(),
+            "Should include inputSchema"
+        );
         let not_found = val["not_found"].as_array().unwrap();
         assert!(not_found.is_empty());
     }
@@ -248,7 +264,9 @@ mod tests {
         assert!(result.is_error.is_none());
         let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
         let not_found = val["not_found"].as_array().unwrap();
-        assert!(not_found.iter().any(|v| v.as_str() == Some("dakera_nonexistent_xyz")));
+        assert!(not_found
+            .iter()
+            .any(|v| v.as_str() == Some("dakera_nonexistent_xyz")));
     }
 
     #[test]

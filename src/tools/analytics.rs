@@ -92,11 +92,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_returns_none() {
-        assert!(
-            execute(&dummy_client(), "not_analytics", &json!({}))
-                .await
-                .is_none()
-        );
+        assert!(execute(&dummy_client(), "not_analytics", &json!({}))
+            .await
+            .is_none());
     }
 
     #[tokio::test]

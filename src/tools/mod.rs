@@ -333,12 +333,11 @@ pub fn full_catalog() -> Vec<ToolCatalogEntry> {
 
     raw.into_iter()
         .map(|def| {
-            let tier =
-                if def.name == "dakera_discover_tools" || def.name == "dakera_load_tools" {
-                    ToolTier::Meta
-                } else {
-                    assign_tier(&def.name)
-                };
+            let tier = if def.name == "dakera_discover_tools" || def.name == "dakera_load_tools" {
+                ToolTier::Meta
+            } else {
+                assign_tier(&def.name)
+            };
             ToolCatalogEntry { tier, def }
         })
         .collect()

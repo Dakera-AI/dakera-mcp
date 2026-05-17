@@ -62,10 +62,7 @@ async fn tool_namespace_events(
         Ok(v) => v,
         Err(e) => return e,
     };
-    let path = format!(
-        "/v1/namespaces/{}/events",
-        urlencoding::encode(&namespace)
-    );
+    let path = format!("/v1/namespaces/{}/events", urlencoding::encode(&namespace));
     match client.get_text(&path).await {
         Ok(text) => CallToolResult::text(text),
         Err(e) => CallToolResult::error(e),
@@ -84,11 +81,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_returns_none() {
-        assert!(
-            execute(&dummy_client(), "not_stream", &json!({}))
-                .await
-                .is_none()
-        );
+        assert!(execute(&dummy_client(), "not_stream", &json!({}))
+            .await
+            .is_none());
     }
 
     #[tokio::test]
