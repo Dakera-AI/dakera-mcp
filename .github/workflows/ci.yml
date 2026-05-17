@@ -61,3 +61,43 @@ jobs:
         with:
           shared-key: test
       - run: cargo test --all-targets
+
+  integration-test:
+    name: Integration Tests
+    runs-on: [self-hosted, linux, arm64]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: integration
+      - name: Pull dakera image
+        run: docker pull ghcr.io/dakera-ai/dakera:latest
+      - name: Start dakera container
+        run: |
+          docker run -d \
+            --name dakera-integration-${{ github.run_id }} \
+            -p 3388:3000 \
+            -e DAKERA_ROOT_API_KEY=integration-test-key \
+            ghcr.io/dakera-ai/dakera:latest
+      - name: Wait for dakera health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3388/health/ready; then
+              echo "Dakera healthy"
+              exit 0
+            fi
+            echo "Attempt $i/30 — waiting 3s..."
+            sleep 3
+          done
+          echo "Dakera failed to become healthy"
+          docker logs dakera-integration-${{ github.run_id }}
+          exit 1
+      - name: Run integration tests
+        env:
+          DAKERA_URL: http://localhost:3388
+          DAKERA_API_KEY: integration-test-key
+        run: cargo test --features integration -- --test-threads=1 --nocapture
+      - name: Stop and remove dakera container
+        if: always()
+        run: docker rm -f dakera-integration-${{ github.run_id }} || true

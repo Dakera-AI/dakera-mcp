@@ -5,15 +5,79 @@
 
 [![CI](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml) [![Crate](https://img.shields.io/crates/v/dakera-mcp?logo=rust)](https://crates.io/crates/dakera-mcp) [![License: MIT](https://img.shields.io/github/license/Dakera-AI/dakera-mcp)](LICENSE) [![Glama](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badge)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp)
 [![dakera.ai](https://img.shields.io/badge/dakera.ai-website-22c55e?style=flat-square)](https://dakera.ai) [![Docs](https://img.shields.io/badge/docs-dakera.ai%2Fdocs-3b82f6?style=flat-square)](https://dakera.ai/docs)
-[![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
 
-MCP server for Dakera AI. 83 tools. Gives any MCP-compatible AI agent persistent, queryable memory in minutes.
+MCP server for Dakera AI. Gives any MCP-compatible AI agent persistent, queryable memory — with smart token management built in.
 
 Works with Claude, Claude Code, and any MCP-compatible framework.
 
 Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
 > The Dakera memory engine scores **87.6% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
+
+---
+
+## Architecture: 14 core tools + on-demand discovery
+
+Starting every agent session with 60+ tool schemas wastes ~35K tokens before you write a single message. dakera-mcp solves this with **hybrid tool exposure**:
+
+- **14 tools loaded by default** — the 12 highest-frequency memory operations + 2 meta-discovery tools
+- **On-demand expansion** — use `dakera_discover_tools` and `dakera_load_tools` to fetch additional tool schemas only when you need them
+
+### Default tool set (core profile)
+
+| Tool | Purpose |
+|---|---|
+| `dakera_store` | Store a memory with importance, tags, and type |
+| `dakera_recall` | Semantic recall by query text |
+| `dakera_search` | Advanced memory search with tag/type filters |
+| `dakera_session_start` | Start a session to group related memories |
+| `dakera_session_end` | End a session with optional summary |
+| `dakera_batch_recall` | Bulk filter-based recall (by tags, importance, time) |
+| `dakera_forget` | Delete specific memories by ID |
+| `dakera_hybrid_search` | Combined vector + BM25 search |
+| `dakera_fulltext_search` | BM25 full-text search |
+| `dakera_knowledge_graph` | Build a knowledge graph from a seed memory |
+| `dakera_extract` | Extract entities and structure from free-form text |
+| `dakera_batch_forget` | Bulk delete by tags, type, or time range |
+| `dakera_discover_tools` | Search the full tool catalog by keyword or tier |
+| `dakera_load_tools` | Load full schemas for specific tools on demand |
+
+### Tool tiers
+
+| Tier | Count | When exposed |
+|---|---|---|
+| **core** | 12 | Always (default profile) |
+| **meta** | 2 | Always (alongside core) |
+| **power** | ~25 | `?profile=power` or `DAKERA_MCP_PROFILE=power` |
+| **admin** | ~20 | `?profile=all` or `DAKERA_MCP_PROFILE=all` |
+
+### Accessing additional tools
+
+```
+# In your agent: discover what's available
+dakera_discover_tools(tier="power")
+→ returns names + descriptions, no schemas loaded
+
+# Load schemas for the tools you want
+dakera_load_tools(tools=["dakera_consolidate", "dakera_agent_stats"])
+→ returns full inputSchema for each tool
+```
+
+### Profile selection
+
+The profile controls which tools appear in `tools/list`. Three ways to set it:
+
+**1. Per-request** (in `tools/list` params):
+```json
+{"profile": "power"}
+```
+
+**2. Environment variable** (applies to all requests):
+```bash
+DAKERA_MCP_PROFILE=power
+```
+
+**3. Default**: `core` (14 tools, ~5K tokens)
 
 ---
 
@@ -73,21 +137,28 @@ Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop
 }
 ```
 
-## What You Get
+To start with the power profile (exposes ~37 tools):
 
-83 tools across 15 categories:
-
-- **Memory** — store, recall, search, decay, importance scoring
-- **Sessions** — create and manage agent sessions
-- **Agents** — namespaces, stats, memory health
-- **Knowledge** — graph construction, entity extraction, clustering, cross-agent network
-- **Vectors** — upsert, query, hybrid search, batch operations
-- **Full-Text** — BM25 index, search, stats
-- **Operations** — health, metrics, backup, audit
+```json
+{
+  "mcpServers": {
+    "dakera": {
+      "command": "dakera-mcp",
+      "env": {
+        "DAKERA_API_URL": "http://localhost:3300",
+        "DAKERA_API_KEY": "your-key",
+        "DAKERA_MCP_PROFILE": "power"
+      }
+    }
+  }
+}
+```
 
 ## Why This Exists
 
 AI agents forget everything when the session ends. Dakera fixes that. This MCP server gives your agent a persistent memory layer with zero infrastructure overhead — point it at a Dakera instance and it works.
+
+The 14-tool default keeps your context window lean. The meta-tools let you expand on demand when you need advanced operations like bulk vector upsert, knowledge graph traversal, or memory federation.
 
 → [dakera.ai](https://dakera.ai) for hosted instance  
 → Self-host with [dakera-deploy](https://github.com/dakera-ai/dakera-deploy)
