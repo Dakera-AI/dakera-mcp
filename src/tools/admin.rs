@@ -449,9 +449,7 @@ pub async fn execute(
                 .map(|v| ok_json(&v))
                 .unwrap_or_else(CallToolResult::error),
         ),
-        "dakera_delete_namespace_admin" => {
-            Some(tool_delete_namespace_admin(client, args).await)
-        }
+        "dakera_delete_namespace_admin" => Some(tool_delete_namespace_admin(client, args).await),
         "dakera_optimize_namespace" => Some(tool_optimize_namespace(client, args).await),
         "dakera_migrate_dimensions" => Some(tool_migrate_dimensions(client, args).await),
         // Indexes / cache / storage
@@ -498,9 +496,7 @@ pub async fn execute(
                 .map(|v| ok_json(&v))
                 .unwrap_or_else(CallToolResult::error),
         ),
-        "dakera_update_server_config" => {
-            Some(tool_update_server_config(client, args).await)
-        }
+        "dakera_update_server_config" => Some(tool_update_server_config(client, args).await),
         // TTL / background
         "dakera_ttl_cleanup" => Some(
             client
@@ -641,9 +637,7 @@ async fn tool_migrate_dimensions(
     let new_dimension = match args.get("new_dimension").and_then(|v| v.as_u64()) {
         Some(d) => d,
         None => {
-            return CallToolResult::error(
-                "Missing required parameter: new_dimension".to_string(),
-            )
+            return CallToolResult::error("Missing required parameter: new_dimension".to_string())
         }
     };
     let mut body = json!({ "namespace": namespace, "new_dimension": new_dimension });
@@ -663,11 +657,7 @@ async fn tool_update_server_config(
 ) -> CallToolResult {
     let config = match args.get("config") {
         Some(c) => c.clone(),
-        None => {
-            return CallToolResult::error(
-                "Missing required parameter: config".to_string(),
-            )
-        }
+        None => return CallToolResult::error("Missing required parameter: config".to_string()),
     };
     client
         .put_json("/admin/config", &config)
@@ -708,10 +698,7 @@ async fn tool_set_default_quota(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_get_quota(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_get_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -724,10 +711,7 @@ async fn tool_get_quota(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_set_quota(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_set_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -741,10 +725,7 @@ async fn tool_set_quota(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_delete_quota(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_delete_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -757,10 +738,7 @@ async fn tool_delete_quota(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_check_quota(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_check_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let namespace = match require_string(args, "namespace") {
         Ok(v) => v,
         Err(e) => return e,
@@ -773,10 +751,7 @@ async fn tool_check_quota(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_create_backup(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_create_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let name = match require_string(args, "name") {
         Ok(v) => v,
         Err(e) => return e,
@@ -801,10 +776,7 @@ async fn tool_create_backup(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_get_backup(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_get_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let backup_id = match require_string(args, "backup_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -817,10 +789,7 @@ async fn tool_get_backup(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_delete_backup(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_delete_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let backup_id = match require_string(args, "backup_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -851,10 +820,7 @@ async fn tool_download_backup(
     }
 }
 
-async fn tool_upload_backup(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_upload_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let content = match require_string(args, "content") {
         Ok(v) => v,
         Err(e) => return e,
@@ -896,10 +862,7 @@ async fn tool_set_backup_schedule(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_restore_backup(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_restore_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let backup_id = match require_string(args, "backup_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -921,10 +884,7 @@ async fn tool_restore_backup(
         .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_restore_status(
-    client: &DakeraApiClient,
-    args: &serde_json::Value,
-) -> CallToolResult {
+async fn tool_restore_status(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let restore_id = match require_string(args, "restore_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -975,22 +935,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_unknown_returns_none() {
-        assert!(
-            execute(&dummy_client(), "not_an_admin_tool", &json!({}))
-                .await
-                .is_none()
-        );
+        assert!(execute(&dummy_client(), "not_an_admin_tool", &json!({}))
+            .await
+            .is_none());
     }
 
     #[tokio::test]
     async fn test_delete_namespace_admin_missing_namespace() {
-        let r = execute(
-            &dummy_client(),
-            "dakera_delete_namespace_admin",
-            &json!({}),
-        )
-        .await
-        .unwrap();
+        let r = execute(&dummy_client(), "dakera_delete_namespace_admin", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("namespace"));
     }
@@ -1018,34 +972,48 @@ mod tests {
 
     #[tokio::test]
     async fn test_migrate_dimensions_missing_dimension() {
-        let r = execute(&dummy_client(), "dakera_migrate_dimensions", &json!({"namespace": "ns"})).await.unwrap();
+        let r = execute(
+            &dummy_client(),
+            "dakera_migrate_dimensions",
+            &json!({"namespace": "ns"}),
+        )
+        .await
+        .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("new_dimension"));
     }
 
     #[tokio::test]
     async fn test_get_quota_missing_namespace() {
-        let r = execute(&dummy_client(), "dakera_get_quota", &json!({})).await.unwrap();
+        let r = execute(&dummy_client(), "dakera_get_quota", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
     }
 
     #[tokio::test]
     async fn test_create_backup_missing_name() {
-        let r = execute(&dummy_client(), "dakera_create_backup", &json!({})).await.unwrap();
+        let r = execute(&dummy_client(), "dakera_create_backup", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("name"));
     }
 
     #[tokio::test]
     async fn test_restore_backup_missing_backup_id() {
-        let r = execute(&dummy_client(), "dakera_restore_backup", &json!({})).await.unwrap();
+        let r = execute(&dummy_client(), "dakera_restore_backup", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("backup_id"));
     }
 
     #[tokio::test]
     async fn test_restore_status_missing_restore_id() {
-        let r = execute(&dummy_client(), "dakera_restore_status", &json!({})).await.unwrap();
+        let r = execute(&dummy_client(), "dakera_restore_status", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("restore_id"));
     }

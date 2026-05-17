@@ -364,10 +364,8 @@ pub fn filtered_definitions(profile: &str) -> Vec<ToolDefinition> {
         .collect()
 }
 
-/// Return all tool definitions across every tier.
-///
-/// Used by tests and internal tooling. The MCP `tools/list` handler uses
-/// `filtered_definitions` to apply profile-based filtering.
+/// Return all tool definitions across every tier (test helper).
+#[cfg(test)]
 pub fn tool_definitions() -> Vec<ToolDefinition> {
     full_catalog().into_iter().map(|e| e.def).collect()
 }
