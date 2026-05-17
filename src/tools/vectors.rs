@@ -1,5 +1,5 @@
-//! Vector tools — upsert, query, delete, batch_query, bulk_update, bulk_delete,
-//! count, export, aggregate
+//! Vector tools — upsert, delete, batch_query, bulk_update, bulk_delete,
+//! count, export, aggregate, unified_query
 
 use serde_json::json;
 
@@ -30,20 +30,6 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     }
                 },
                 "required": ["namespace", "vectors"]
-            }),
-        },
-        ToolDefinition {
-            name: "dakera_vector_query".into(),
-            description: "Query vectors by similarity in a namespace. Returns the nearest neighbors to the given vector.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "namespace": { "type": "string", "description": "Namespace to query" },
-                    "vector": { "type": "array", "items": { "type": "number" }, "description": "Query vector" },
-                    "top_k": { "type": "integer", "description": "Number of results", "default": 10 },
-                    "filter": { "type": "object", "description": "Optional metadata filter" }
-                },
-                "required": ["namespace", "vector"]
             }),
         },
         ToolDefinition {
@@ -288,7 +274,6 @@ pub async fn execute(
 ) -> Option<CallToolResult> {
     match name {
         "dakera_vector_upsert" => Some(tool_vector_upsert(client, args).await),
-        "dakera_vector_query" => Some(tool_vector_query(client, args).await),
         "dakera_vector_delete" => Some(tool_vector_delete(client, args).await),
         "dakera_vector_batch_query" => Some(tool_vector_batch_query(client, args).await),
         "dakera_vector_bulk_update" => Some(tool_vector_bulk_update(client, args).await),
@@ -316,34 +301,6 @@ async fn tool_vector_upsert(client: &DakeraApiClient, args: &serde_json::Value) 
     let encoded = urlencoding::encode(&namespace);
     let path = format!("/v1/namespaces/{}/vectors", encoded);
     match client.post_json(&path, &body).await {
-        Ok(result) => ok_json(&result),
-        Err(e) => CallToolResult::error(e),
-    }
-}
-
-async fn tool_vector_query(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") {
-        Ok(v) => v,
-        Err(e) => return e,
-    };
-    let mut body = serde_json::Map::new();
-    body.insert(
-        "vector".into(),
-        args.get("vector").cloned().unwrap_or(json!([])),
-    );
-    body.insert(
-        "top_k".into(),
-        json!(args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10)),
-    );
-    if let Some(filter) = args.get("filter") {
-        body.insert("filter".into(), filter.clone());
-    }
-    let encoded = urlencoding::encode(&namespace);
-    let path = format!("/v1/namespaces/{}/query", encoded);
-    match client
-        .post_json(&path, &serde_json::Value::Object(body))
-        .await
-    {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }

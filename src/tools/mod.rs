@@ -3,9 +3,7 @@
 //! Defines the tools exposed by the Dakera MCP server and handles
 //! calling the Dakera API for each tool invocation.
 
-pub mod admin;
 pub mod agents;
-pub mod analytics;
 pub mod audit;
 pub mod autopilot;
 pub mod decay;
@@ -25,7 +23,6 @@ pub mod namespaces;
 pub mod ode;
 pub mod ops;
 pub mod sessions;
-pub mod streaming;
 pub mod transfer;
 pub mod vectors;
 
@@ -323,11 +320,8 @@ pub fn full_catalog() -> Vec<ToolCatalogEntry> {
     raw.extend(extractor::definitions());
     raw.extend(encryption::definitions());
     raw.extend(ode::definitions());
-    raw.extend(admin::definitions());
-    raw.extend(analytics::definitions());
     raw.extend(health::definitions());
     raw.extend(ops::definitions());
-    raw.extend(streaming::definitions());
     // Meta-tools are always exposed regardless of profile.
     raw.extend(discovery::definitions());
 
@@ -436,19 +430,10 @@ pub async fn execute_tool(
     if let Some(result) = ode::execute(client, name, arguments).await {
         return result;
     }
-    if let Some(result) = admin::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = analytics::execute(client, name, arguments).await {
-        return result;
-    }
     if let Some(result) = health::execute(client, name, arguments).await {
         return result;
     }
     if let Some(result) = ops::execute(client, name, arguments).await {
-        return result;
-    }
-    if let Some(result) = streaming::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -788,19 +773,6 @@ mod tests {
         assert!(
             names.contains("dakera_extract_entities"),
             "dakera_extract_entities missing from tool definitions"
-        );
-        // v0.9.6 KG-2 graph query tools
-        assert!(
-            names.contains("dakera_kg_traverse"),
-            "dakera_kg_traverse missing from tool definitions"
-        );
-        assert!(
-            names.contains("dakera_kg_query"),
-            "dakera_kg_query missing from tool definitions"
-        );
-        assert!(
-            names.contains("dakera_kg_export"),
-            "dakera_kg_export missing from tool definitions"
         );
         // v0.9.2 MCP-5 cognitive tools
         assert!(
