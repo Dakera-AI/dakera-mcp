@@ -99,7 +99,19 @@ async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) -> J
             }),
         ),
         "tools/list" => {
-            let tool_defs = tools::tool_definitions();
+            // Profile selection (MCP-8 hybrid exposure):
+            // 1. Request params: {"profile": "core"|"power"|"all"}
+            // 2. Fallback: DAKERA_MCP_PROFILE env var
+            // 3. Default: "core" (12 core + 2 meta = 14 tools)
+            let profile = request
+                .params
+                .get("profile")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    std::env::var("DAKERA_MCP_PROFILE").unwrap_or_else(|_| "core".to_string())
+                });
+            let tool_defs = tools::filtered_definitions(&profile);
             JsonRpcResponse::success(
                 request.id.clone(),
                 serde_json::json!({ "tools": tool_defs }),

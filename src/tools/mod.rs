@@ -9,6 +9,7 @@ pub mod analytics;
 pub mod audit;
 pub mod autopilot;
 pub mod decay;
+pub mod discovery;
 pub mod encryption;
 pub mod entities;
 pub mod extractor;
@@ -28,7 +29,54 @@ pub mod streaming;
 pub mod transfer;
 pub mod vectors;
 
-use crate::protocol::{CallToolResult, ToolDefinition};
+use crate::protocol::{CallToolResult, ToolDefinition, ToolTier};
+
+/// A tool definition paired with its tier classification (MCP-8).
+pub struct ToolCatalogEntry {
+    pub tier: ToolTier,
+    pub def: ToolDefinition,
+}
+
+/// Assign a tier to a tool by name.
+///
+/// Core (12): high-frequency recall/store/search tools always exposed by default.
+/// Admin: namespace management, encryption, bulk ops, audit — management-plane.
+/// Meta: discovery tools themselves.
+/// Power: everything else (advanced but not surfaced by default).
+fn assign_tier(name: &str) -> ToolTier {
+    // Must remain sorted alphabetically for binary_search.
+    const CORE_TOOLS: &[&str] = &[
+        "dakera_batch_forget",
+        "dakera_batch_recall",
+        "dakera_extract",
+        "dakera_forget",
+        "dakera_fulltext_search",
+        "dakera_hybrid_search",
+        "dakera_knowledge_graph",
+        "dakera_recall",
+        "dakera_search",
+        "dakera_session_end",
+        "dakera_session_start",
+        "dakera_store",
+    ];
+
+    if CORE_TOOLS.binary_search(&name).is_ok() {
+        return ToolTier::Core;
+    }
+
+    if name.starts_with("dakera_namespace")
+        || name.starts_with("dakera_encryption")
+        || name.starts_with("dakera_decay")
+        || name.starts_with("dakera_audit")
+        || name == "dakera_memory_export"
+        || name == "dakera_memory_import"
+        || name.contains("_bulk_")
+    {
+        return ToolTier::Admin;
+    }
+
+    ToolTier::Power
+}
 
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAYS_MS: [u64; 3] = [100, 500, 2000];
@@ -250,34 +298,78 @@ pub fn ok_json(value: &serde_json::Value) -> CallToolResult {
     CallToolResult::text(serde_json::to_string_pretty(value).unwrap_or_default())
 }
 
-/// Return all tool definitions aggregated from every module.
+/// Return the full tool catalog with tier assignments for every tool (MCP-8).
+///
+/// Aggregates definitions from all modules including discovery meta-tools and
+/// pairs each with its `ToolTier` classification.
+pub fn full_catalog() -> Vec<ToolCatalogEntry> {
+    let mut raw = Vec::new();
+    raw.extend(memory::definitions());
+    raw.extend(sessions::definitions());
+    raw.extend(agents::definitions());
+    raw.extend(knowledge::definitions());
+    raw.extend(namespaces::definitions());
+    raw.extend(namespace_keys::definitions());
+    raw.extend(vectors::definitions());
+    raw.extend(inference::definitions());
+    raw.extend(fulltext::definitions());
+    raw.extend(autopilot::definitions());
+    raw.extend(decay::definitions());
+    raw.extend(entities::definitions());
+    raw.extend(graph::definitions());
+    raw.extend(audit::definitions());
+    raw.extend(transfer::definitions());
+    raw.extend(feedback::definitions());
+    raw.extend(extractor::definitions());
+    raw.extend(encryption::definitions());
+    raw.extend(ode::definitions());
+    raw.extend(admin::definitions());
+    raw.extend(analytics::definitions());
+    raw.extend(health::definitions());
+    raw.extend(ops::definitions());
+    raw.extend(streaming::definitions());
+    // Meta-tools are always exposed regardless of profile.
+    raw.extend(discovery::definitions());
+
+    raw.into_iter()
+        .map(|def| {
+            let tier =
+                if def.name == "dakera_discover_tools" || def.name == "dakera_load_tools" {
+                    ToolTier::Meta
+                } else {
+                    assign_tier(&def.name)
+                };
+            ToolCatalogEntry { tier, def }
+        })
+        .collect()
+}
+
+/// Return tool definitions filtered by profile (MCP-8 hybrid exposure).
+///
+/// - `"core"` (default): Core (12) + Meta (2) = 14 tools
+/// - `"power"`: Core + Power + Meta
+/// - `"all"`: every tool (backwards-compatible escape hatch)
+pub fn filtered_definitions(profile: &str) -> Vec<ToolDefinition> {
+    full_catalog()
+        .into_iter()
+        .filter(|entry| match profile {
+            "power" => matches!(
+                entry.tier,
+                ToolTier::Core | ToolTier::Power | ToolTier::Meta
+            ),
+            "all" => true,
+            _ => matches!(entry.tier, ToolTier::Core | ToolTier::Meta),
+        })
+        .map(|entry| entry.def)
+        .collect()
+}
+
+/// Return all tool definitions across every tier.
+///
+/// Used by tests and internal tooling. The MCP `tools/list` handler uses
+/// `filtered_definitions` to apply profile-based filtering.
 pub fn tool_definitions() -> Vec<ToolDefinition> {
-    let mut defs = Vec::new();
-    defs.extend(memory::definitions());
-    defs.extend(sessions::definitions());
-    defs.extend(agents::definitions());
-    defs.extend(knowledge::definitions());
-    defs.extend(namespaces::definitions());
-    defs.extend(namespace_keys::definitions());
-    defs.extend(vectors::definitions());
-    defs.extend(inference::definitions());
-    defs.extend(fulltext::definitions());
-    defs.extend(autopilot::definitions());
-    defs.extend(decay::definitions());
-    defs.extend(entities::definitions());
-    defs.extend(graph::definitions());
-    defs.extend(audit::definitions());
-    defs.extend(transfer::definitions());
-    defs.extend(feedback::definitions());
-    defs.extend(extractor::definitions());
-    defs.extend(encryption::definitions());
-    defs.extend(ode::definitions());
-    defs.extend(admin::definitions());
-    defs.extend(analytics::definitions());
-    defs.extend(health::definitions());
-    defs.extend(ops::definitions());
-    defs.extend(streaming::definitions());
-    defs
+    full_catalog().into_iter().map(|e| e.def).collect()
 }
 
 /// Execute a tool call by dispatching to the appropriate module.
@@ -286,6 +378,10 @@ pub async fn execute_tool(
     name: &str,
     arguments: &serde_json::Value,
 ) -> CallToolResult {
+    // Discovery meta-tools are pure local catalog lookups — no API call needed.
+    if let Some(result) = discovery::execute(client, name, arguments).await {
+        return result;
+    }
     if let Some(result) = memory::execute(client, name, arguments).await {
         return result;
     }
@@ -426,6 +522,157 @@ mod tests {
     fn test_tool_definitions_not_empty() {
         let defs = tool_definitions();
         assert!(!defs.is_empty());
+    }
+
+    // ── MCP-8 hybrid exposure tests ────────────────────────────────────────
+
+    #[test]
+    fn test_core_profile_returns_14_tools() {
+        let defs = filtered_definitions("core");
+        assert_eq!(
+            defs.len(),
+            14,
+            "Core profile must expose exactly 12 core + 2 meta = 14 tools"
+        );
+    }
+
+    #[test]
+    fn test_core_profile_contains_all_12_core_tools() {
+        let defs = filtered_definitions("core");
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        for tool in &[
+            "dakera_store",
+            "dakera_recall",
+            "dakera_search",
+            "dakera_session_start",
+            "dakera_session_end",
+            "dakera_batch_recall",
+            "dakera_forget",
+            "dakera_hybrid_search",
+            "dakera_fulltext_search",
+            "dakera_knowledge_graph",
+            "dakera_extract",
+            "dakera_batch_forget",
+        ] {
+            assert!(names.contains(tool), "Core profile missing: {tool}");
+        }
+    }
+
+    #[test]
+    fn test_core_profile_contains_meta_tools() {
+        let defs = filtered_definitions("core");
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert!(
+            names.contains("dakera_discover_tools"),
+            "Core profile missing dakera_discover_tools"
+        );
+        assert!(
+            names.contains("dakera_load_tools"),
+            "Core profile missing dakera_load_tools"
+        );
+    }
+
+    #[test]
+    fn test_all_profile_matches_tool_definitions() {
+        let all_profile = filtered_definitions("all");
+        let all_defs = tool_definitions();
+        assert_eq!(
+            all_profile.len(),
+            all_defs.len(),
+            "profile=all must return same count as tool_definitions()"
+        );
+    }
+
+    #[test]
+    fn test_power_profile_larger_than_core() {
+        let core = filtered_definitions("core");
+        let power = filtered_definitions("power");
+        assert!(
+            power.len() > core.len(),
+            "power ({}) must have more tools than core ({})",
+            power.len(),
+            core.len()
+        );
+    }
+
+    #[test]
+    fn test_all_profile_larger_than_power() {
+        let power = filtered_definitions("power");
+        let all = filtered_definitions("all");
+        assert!(
+            all.len() > power.len(),
+            "all ({}) must have more tools than power ({})",
+            all.len(),
+            power.len()
+        );
+    }
+
+    #[test]
+    fn test_unknown_profile_defaults_to_core() {
+        let unknown = filtered_definitions("bogus_profile");
+        let core = filtered_definitions("core");
+        assert_eq!(
+            unknown.len(),
+            core.len(),
+            "Unknown profile must default to core behaviour"
+        );
+    }
+
+    #[test]
+    fn test_full_catalog_exactly_12_core_tier_tools() {
+        let catalog = full_catalog();
+        let core_names: std::collections::HashSet<_> = catalog
+            .iter()
+            .filter(|e| e.tier == ToolTier::Core)
+            .map(|e| e.def.name.as_str())
+            .collect();
+        assert!(core_names.contains("dakera_store"));
+        assert!(core_names.contains("dakera_recall"));
+        assert!(core_names.contains("dakera_batch_recall"));
+        assert_eq!(core_names.len(), 12, "Expected exactly 12 Core-tier tools");
+    }
+
+    #[test]
+    fn test_full_catalog_exactly_2_meta_tier_tools() {
+        let catalog = full_catalog();
+        let meta: Vec<_> = catalog
+            .iter()
+            .filter(|e| e.tier == ToolTier::Meta)
+            .collect();
+        assert_eq!(meta.len(), 2, "Expected exactly 2 Meta-tier tools");
+        let meta_names: std::collections::HashSet<_> =
+            meta.iter().map(|e| e.def.name.as_str()).collect();
+        assert!(meta_names.contains("dakera_discover_tools"));
+        assert!(meta_names.contains("dakera_load_tools"));
+    }
+
+    #[test]
+    fn test_full_catalog_namespace_tools_are_admin_tier() {
+        let catalog = full_catalog();
+        for entry in &catalog {
+            if entry.def.name.starts_with("dakera_namespace") {
+                assert_eq!(
+                    entry.tier,
+                    ToolTier::Admin,
+                    "{} must be Admin tier",
+                    entry.def.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_tool_definitions_includes_discovery_tools() {
+        let defs = tool_definitions();
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert!(
+            names.contains("dakera_discover_tools"),
+            "tool_definitions() missing dakera_discover_tools"
+        );
+        assert!(
+            names.contains("dakera_load_tools"),
+            "tool_definitions() missing dakera_load_tools"
+        );
     }
 
     #[test]

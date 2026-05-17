@@ -64,6 +64,30 @@ impl JsonRpcResponse {
     }
 }
 
+/// Tier classification for tool exposure control (MCP-8 hybrid exposure).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolTier {
+    /// 12 high-frequency tools — always included in default tools/list
+    Core,
+    /// Power-user tools — included with profile=power or profile=all
+    Power,
+    /// Administrative tools (namespace/encryption/bulk) — only with profile=all
+    Admin,
+    /// Discovery meta-tools — always included alongside Core
+    Meta,
+}
+
+impl ToolTier {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ToolTier::Core => "core",
+            ToolTier::Power => "power",
+            ToolTier::Admin => "admin",
+            ToolTier::Meta => "meta",
+        }
+    }
+}
+
 /// MCP Tool definition
 #[derive(Debug, Serialize)]
 pub struct ToolDefinition {
