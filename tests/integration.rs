@@ -752,9 +752,15 @@ fn test_tier_assignment_integration_spot_check() {
         .collect();
 
     // Power tier tools must NOT appear in core profile
-    let core_names: std::collections::HashSet<_> =
-        filtered_definitions("core").into_iter().map(|d| d.name).collect();
-    for power_tool in &["dakera_agent_stats", "dakera_consolidate", "dakera_autopilot_status"] {
+    let core_names: std::collections::HashSet<_> = filtered_definitions("core")
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    for power_tool in &[
+        "dakera_agent_stats",
+        "dakera_consolidate",
+        "dakera_autopilot_status",
+    ] {
         assert!(
             !core_names.contains(*power_tool),
             "Power tool '{power_tool}' must NOT be in core profile"
@@ -767,12 +773,19 @@ fn test_tier_assignment_integration_spot_check() {
     }
 
     // Admin tier tools must appear in admin profile but NOT in power profile
-    let admin_names: std::collections::HashSet<_> =
-        filtered_definitions("admin").into_iter().map(|d| d.name).collect();
-    let power_names: std::collections::HashSet<_> =
-        filtered_definitions("power").into_iter().map(|d| d.name).collect();
-    for admin_tool in &["dakera_namespace_create", "dakera_namespace_delete", "dakera_audit_query"]
-    {
+    let admin_names: std::collections::HashSet<_> = filtered_definitions("admin")
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    let power_names: std::collections::HashSet<_> = filtered_definitions("power")
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    for admin_tool in &[
+        "dakera_namespace_create",
+        "dakera_namespace_delete",
+        "dakera_audit_query",
+    ] {
         assert!(
             admin_names.contains(*admin_tool),
             "Admin tool '{admin_tool}' must appear in admin profile"
@@ -807,7 +820,9 @@ async fn test_protocol_tools_list_core_returns_14() {
     let req = rpc_request("tools/list", serde_json::json!({"profile": "core"}));
     let resp = handle_request(&c, &req).await;
     let result = resp.result.expect("tools/list must return a result");
-    let tools = result["tools"].as_array().expect("result must contain tools array");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
     assert_eq!(
         tools.len(),
         14,
@@ -823,7 +838,10 @@ async fn test_protocol_tools_list_power_larger_than_core() {
     let core_resp = handle_request(&c, &core_req).await;
     let power_resp = handle_request(&c, &power_req).await;
     let core_count = core_resp.result.unwrap()["tools"].as_array().unwrap().len();
-    let power_count = power_resp.result.unwrap()["tools"].as_array().unwrap().len();
+    let power_count = power_resp.result.unwrap()["tools"]
+        .as_array()
+        .unwrap()
+        .len();
     assert!(
         power_count > core_count,
         "tools/list profile=power ({power_count}) must have more tools than core ({core_count})"
@@ -836,7 +854,9 @@ async fn test_protocol_tools_list_admin_profile() {
     let req = rpc_request("tools/list", serde_json::json!({"profile": "admin"}));
     let resp = handle_request(&c, &req).await;
     let result = resp.result.expect("tools/list must return a result");
-    let tools = result["tools"].as_array().expect("result must contain tools array");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
     let names: std::collections::HashSet<_> =
         tools.iter().filter_map(|t| t["name"].as_str()).collect();
     // Admin profile must include admin-tier namespace tools
@@ -867,7 +887,9 @@ async fn test_protocol_tools_list_all_returns_86() {
     let req = rpc_request("tools/list", serde_json::json!({"profile": "all"}));
     let resp = handle_request(&c, &req).await;
     let result = resp.result.expect("tools/list must return a result");
-    let tools = result["tools"].as_array().expect("result must contain tools array");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
     assert_eq!(
         tools.len(),
         86,
@@ -885,7 +907,9 @@ async fn test_protocol_tools_list_no_params_defaults_to_core() {
     let req = rpc_request("tools/list", serde_json::json!({}));
     let resp = handle_request(&c, &req).await;
     let result = resp.result.expect("tools/list must return a result");
-    let tools = result["tools"].as_array().expect("result must contain tools array");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
     assert_eq!(
         tools.len(),
         14,
@@ -1024,7 +1048,10 @@ async fn test_power_agent_stats_live() {
         );
     } else {
         // Success path: response should be a JSON object
-        assert!(!text.is_empty(), "dakera_agent_stats must return non-empty response");
+        assert!(
+            !text.is_empty(),
+            "dakera_agent_stats must return non-empty response"
+        );
     }
 }
 
@@ -1044,7 +1071,10 @@ async fn test_power_autopilot_status_live() {
             "dakera_autopilot_status must not return 'Unknown tool': {text}"
         );
     } else {
-        assert!(!text.is_empty(), "dakera_autopilot_status must return non-empty response");
+        assert!(
+            !text.is_empty(),
+            "dakera_autopilot_status must return non-empty response"
+        );
     }
 }
 
@@ -1060,12 +1090,18 @@ async fn test_power_session_list_live() {
     .await;
     let text = &r.content[0].text;
     if r.is_error.unwrap_or(false) {
-        assert!(!text.contains("Unknown tool"), "dakera_session_list must not be unknown: {text}");
+        assert!(
+            !text.contains("Unknown tool"),
+            "dakera_session_list must not be unknown: {text}"
+        );
     } else {
         // sessions list for a fresh test agent should return an array (possibly empty)
         let v: serde_json::Value = serde_json::from_str(text)
             .unwrap_or_else(|e| panic!("dakera_session_list response is not JSON: {e}\n{text}"));
-        assert!(v.is_object(), "dakera_session_list must return a JSON object");
+        assert!(
+            v.is_object(),
+            "dakera_session_list must return a JSON object"
+        );
     }
 }
 
@@ -1151,7 +1187,9 @@ async fn test_power_graph_traverse_live() {
     )
     .await;
     let stored = ok(&r_store);
-    let memory_id = stored["memory"]["id"].as_str().expect("store must return memory.id");
+    let memory_id = stored["memory"]["id"]
+        .as_str()
+        .expect("store must return memory.id");
 
     let r = execute_tool(
         &c,
@@ -1179,7 +1217,12 @@ async fn test_meta_roundtrip_power_tier() {
     let c = client();
 
     // Step 1: discover power-tier tools via meta-tool
-    let r1 = execute_tool(&c, "dakera_discover_tools", &serde_json::json!({"tier": "power"})).await;
+    let r1 = execute_tool(
+        &c,
+        "dakera_discover_tools",
+        &serde_json::json!({"tier": "power"}),
+    )
+    .await;
     let v1 = ok(&r1);
     let tools = v1["tools"].as_array().unwrap();
     assert!(!tools.is_empty(), "power tier must have discoverable tools");
@@ -1196,9 +1239,12 @@ async fn test_meta_roundtrip_power_tier() {
     );
 
     // Step 2: load full schema for the power-tier tool via meta-tool
-    let r2 =
-        execute_tool(&c, "dakera_load_tools", &serde_json::json!({"tools": ["dakera_agent_stats"]}))
-            .await;
+    let r2 = execute_tool(
+        &c,
+        "dakera_load_tools",
+        &serde_json::json!({"tools": ["dakera_agent_stats"]}),
+    )
+    .await;
     let v2 = ok(&r2);
     let schema = &v2["tools"][0];
     assert_eq!(schema["name"].as_str().unwrap(), "dakera_agent_stats");

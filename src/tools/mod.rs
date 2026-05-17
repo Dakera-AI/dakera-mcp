@@ -817,7 +817,10 @@ mod tests {
         let defs = filtered_definitions("admin");
         let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
         for tool in &["dakera_store", "dakera_recall", "dakera_batch_recall"] {
-            assert!(names.contains(tool), "admin profile missing core tool: {tool}");
+            assert!(
+                names.contains(tool),
+                "admin profile missing core tool: {tool}"
+            );
         }
     }
 
