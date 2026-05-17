@@ -340,7 +340,8 @@ pub fn full_catalog() -> Vec<ToolCatalogEntry> {
 /// Return tool definitions filtered by profile (MCP-8 hybrid exposure).
 ///
 /// - `"core"` (default): Core (12) + Meta (2) = 14 tools
-/// - `"power"`: Core + Power + Meta
+/// - `"power"`: Core + Power + Meta (excludes Admin management-plane tools)
+/// - `"admin"`: Core + Admin + Meta (namespace/encryption/bulk ops — no Power tools)
 /// - `"all"`: every tool (backwards-compatible escape hatch)
 pub fn filtered_definitions(profile: &str) -> Vec<ToolDefinition> {
     full_catalog()
@@ -349,6 +350,10 @@ pub fn filtered_definitions(profile: &str) -> Vec<ToolDefinition> {
             "power" => matches!(
                 entry.tier,
                 ToolTier::Core | ToolTier::Power | ToolTier::Meta
+            ),
+            "admin" => matches!(
+                entry.tier,
+                ToolTier::Core | ToolTier::Admin | ToolTier::Meta
             ),
             "all" => true,
             _ => matches!(entry.tier, ToolTier::Core | ToolTier::Meta),
@@ -364,6 +369,14 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
 }
 
 /// Execute a tool call by dispatching to the appropriate module.
+///
+/// # Profile enforcement
+/// This function dispatches to ALL tools regardless of the caller's active profile.
+/// Profile selection via `filtered_definitions()` controls which tools appear in
+/// `tools/list` responses (i.e. what the MCP client *sees*), not which tools can
+/// be *invoked* via `tools/call`. This mirrors the Claude Code ToolSearch pattern
+/// where listing and invocation are independent operations. The security boundary
+/// is the Dakera API key, not the MCP profile tier.
 pub async fn execute_tool(
     client: &DakeraApiClient,
     name: &str,
@@ -795,5 +808,214 @@ mod tests {
         let result = execute_tool(&client, "nonexistent_tool_xyz", &json!({})).await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("nonexistent_tool_xyz"));
+    }
+
+    // ── Admin profile tests (gap #1 fix) ─────────────────────────────────────
+
+    #[test]
+    fn test_admin_profile_includes_core_tools() {
+        let defs = filtered_definitions("admin");
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        for tool in &["dakera_store", "dakera_recall", "dakera_batch_recall"] {
+            assert!(
+                names.contains(tool),
+                "admin profile missing core tool: {tool}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_admin_profile_includes_meta_tools() {
+        let defs = filtered_definitions("admin");
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        assert!(
+            names.contains("dakera_discover_tools"),
+            "admin profile must include meta tool dakera_discover_tools"
+        );
+        assert!(
+            names.contains("dakera_load_tools"),
+            "admin profile must include meta tool dakera_load_tools"
+        );
+    }
+
+    #[test]
+    fn test_admin_profile_includes_admin_tier_tools() {
+        let defs = filtered_definitions("admin");
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        // Namespace tools are Admin tier — must appear in admin profile
+        assert!(
+            names.contains("dakera_namespace_list"),
+            "admin profile missing dakera_namespace_list"
+        );
+        assert!(
+            names.contains("dakera_namespace_create"),
+            "admin profile missing dakera_namespace_create"
+        );
+        assert!(
+            names.contains("dakera_audit_query"),
+            "admin profile missing dakera_audit_query"
+        );
+    }
+
+    #[test]
+    fn test_admin_profile_excludes_power_tier_tools() {
+        let defs = filtered_definitions("admin");
+        let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+        // Power-tier tools must NOT appear in admin profile
+        assert!(
+            !names.contains("dakera_agent_stats"),
+            "admin profile must NOT include power tool dakera_agent_stats"
+        );
+        assert!(
+            !names.contains("dakera_consolidate"),
+            "admin profile must NOT include power tool dakera_consolidate"
+        );
+        assert!(
+            !names.contains("dakera_autopilot_status"),
+            "admin profile must NOT include power tool dakera_autopilot_status"
+        );
+    }
+
+    #[test]
+    fn test_admin_profile_larger_than_core() {
+        let core = filtered_definitions("core");
+        let admin = filtered_definitions("admin");
+        assert!(
+            admin.len() > core.len(),
+            "admin ({}) must have more tools than core ({})",
+            admin.len(),
+            core.len()
+        );
+    }
+
+    #[test]
+    fn test_all_profile_larger_than_admin() {
+        let admin = filtered_definitions("admin");
+        let all = filtered_definitions("all");
+        assert!(
+            all.len() > admin.len(),
+            "all ({}) must have more tools than admin ({})",
+            all.len(),
+            admin.len()
+        );
+    }
+
+    // ── Total tool count regression test (gap #8 fix) ────────────────────────
+
+    #[test]
+    fn test_total_tool_count() {
+        let all = filtered_definitions("all");
+        // Exact count after PR#84 prune: 86 tools total.
+        // If this fails, run filtered_definitions("all").len() to discover the new count
+        // and update this assertion. Catches accidental add/remove.
+        assert_eq!(
+            all.len(),
+            86,
+            "Expected exactly 86 tools in 'all' profile. Actual: {}. \
+             Update this constant after intentional catalog changes.",
+            all.len()
+        );
+    }
+
+    // ── Tier assignment correctness spot-check (gap #9 fix) ──────────────────
+
+    #[test]
+    fn test_tier_assignment_spot_check() {
+        let catalog = full_catalog();
+        let tier_map: std::collections::HashMap<_, _> = catalog
+            .iter()
+            .map(|e| (e.def.name.as_str(), e.tier))
+            .collect();
+
+        // Core tier — high-frequency tools always in default profile
+        for name in &[
+            "dakera_store",
+            "dakera_recall",
+            "dakera_search",
+            "dakera_batch_recall",
+            "dakera_batch_forget",
+            "dakera_forget",
+            "dakera_session_start",
+            "dakera_session_end",
+            "dakera_hybrid_search",
+            "dakera_fulltext_search",
+            "dakera_knowledge_graph",
+            "dakera_extract",
+        ] {
+            assert_eq!(
+                tier_map.get(name).copied(),
+                Some(ToolTier::Core),
+                "{name} must be Core tier"
+            );
+        }
+
+        // Admin tier — namespace/encryption/bulk/audit/decay management plane
+        for name in &[
+            "dakera_namespace_list",
+            "dakera_namespace_create",
+            "dakera_namespace_delete",
+            "dakera_namespace_configure",
+            "dakera_namespace_key_create",
+            "dakera_audit_query",
+            "dakera_memory_export",
+            "dakera_memory_import",
+        ] {
+            assert_eq!(
+                tier_map.get(name).copied(),
+                Some(ToolTier::Admin),
+                "{name} must be Admin tier"
+            );
+        }
+
+        // Power tier — advanced tools not in default profile
+        for name in &[
+            "dakera_agent_stats",
+            "dakera_consolidate",
+            "dakera_autopilot_status",
+            "dakera_session_list",
+            "dakera_memory_get",
+            "dakera_graph_traverse",
+            "dakera_vector_unified_query",
+        ] {
+            assert_eq!(
+                tier_map.get(name).copied(),
+                Some(ToolTier::Power),
+                "{name} must be Power tier"
+            );
+        }
+
+        // Meta tier — always exposed alongside Core
+        for name in &["dakera_discover_tools", "dakera_load_tools"] {
+            assert_eq!(
+                tier_map.get(name).copied(),
+                Some(ToolTier::Meta),
+                "{name} must be Meta tier"
+            );
+        }
+    }
+
+    // ── Pruned tool regression test (gap #7 fix — unit level) ────────────────
+
+    #[tokio::test]
+    async fn test_pruned_tools_not_in_execute_catalog() {
+        let client = DakeraApiClient::new("http://localhost:9999".to_string(), None);
+        // These tools were deleted in PR#84 (DAK-5182). They must return "Unknown tool".
+        for pruned in &[
+            "dakera_admin_health_full",
+            "dakera_analytics_usage",
+            "dakera_stream_events",
+        ] {
+            let result = execute_tool(&client, pruned, &json!({})).await;
+            assert_eq!(
+                result.is_error,
+                Some(true),
+                "Pruned tool '{pruned}' must return an error, not silently succeed"
+            );
+            assert!(
+                result.content[0].text.contains("Unknown tool"),
+                "Pruned tool '{pruned}' error must say 'Unknown tool', got: {}",
+                result.content[0].text
+            );
+        }
     }
 }

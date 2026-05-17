@@ -18,6 +18,8 @@
 
 #![cfg(feature = "integration")]
 
+use dakera_mcp::protocol::JsonRpcRequest;
+use dakera_mcp::server::handle_request;
 use dakera_mcp::tools::{execute_tool, filtered_definitions, DakeraApiClient};
 use serde_json::{json, Value};
 
@@ -665,7 +667,616 @@ async fn test_extract() {
     assert!(v.is_object(), "extract must return an object");
 }
 
-// ── Full round-trip: discover → load schema → invoke tool ────────────────────
+// ── Admin profile tests (gap #1 — profile tiering completeness) ──────────────
+
+#[test]
+fn test_profile_admin_includes_namespace_tools() {
+    let defs = filtered_definitions("admin");
+    let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+    assert!(
+        names.contains("dakera_namespace_list"),
+        "admin profile must include dakera_namespace_list (Admin tier)"
+    );
+    assert!(
+        names.contains("dakera_namespace_create"),
+        "admin profile must include dakera_namespace_create (Admin tier)"
+    );
+    assert!(
+        names.contains("dakera_audit_query"),
+        "admin profile must include dakera_audit_query (Admin tier)"
+    );
+}
+
+#[test]
+fn test_profile_admin_excludes_power_tools() {
+    let defs = filtered_definitions("admin");
+    let names: std::collections::HashSet<_> = defs.iter().map(|d| d.name.as_str()).collect();
+    assert!(
+        !names.contains("dakera_agent_stats"),
+        "admin profile must NOT include power tool dakera_agent_stats"
+    );
+    assert!(
+        !names.contains("dakera_consolidate"),
+        "admin profile must NOT include power tool dakera_consolidate"
+    );
+}
+
+#[test]
+fn test_profile_admin_larger_than_core() {
+    let core = filtered_definitions("core");
+    let admin = filtered_definitions("admin");
+    assert!(
+        admin.len() > core.len(),
+        "admin ({}) must have more tools than core ({})",
+        admin.len(),
+        core.len()
+    );
+}
+
+#[test]
+fn test_profile_all_larger_than_admin() {
+    let admin = filtered_definitions("admin");
+    let all = filtered_definitions("all");
+    assert!(
+        all.len() > admin.len(),
+        "all ({}) must have more tools than admin ({})",
+        all.len(),
+        admin.len()
+    );
+}
+
+// ── Total tool count regression test (gap #8) ────────────────────────────────
+
+#[test]
+fn test_total_tool_count_regression() {
+    let all = filtered_definitions("all");
+    // 86 tools after PR#84 prune. Update this constant after intentional catalog changes.
+    assert_eq!(
+        all.len(),
+        86,
+        "Total tool count must be exactly 86. Actual: {}. \
+         If you intentionally added/removed tools, update this constant.",
+        all.len()
+    );
+}
+
+// ── Tier assignment spot-check (gap #9) ──────────────────────────────────────
+
+#[test]
+fn test_tier_assignment_integration_spot_check() {
+    use dakera_mcp::tools::full_catalog;
+    let catalog = full_catalog();
+    let tier_map: std::collections::HashMap<_, _> = catalog
+        .iter()
+        .map(|e| (e.def.name.clone(), e.tier))
+        .collect();
+
+    // Power tier tools must NOT appear in core profile
+    let core_names: std::collections::HashSet<_> = filtered_definitions("core")
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    for power_tool in &[
+        "dakera_agent_stats",
+        "dakera_consolidate",
+        "dakera_autopilot_status",
+    ] {
+        assert!(
+            !core_names.contains(*power_tool),
+            "Power tool '{power_tool}' must NOT be in core profile"
+        );
+        assert_eq!(
+            tier_map.get(*power_tool).map(|t| t.as_str()),
+            Some("power"),
+            "'{power_tool}' must be classified as Power tier"
+        );
+    }
+
+    // Admin tier tools must appear in admin profile but NOT in power profile
+    let admin_names: std::collections::HashSet<_> = filtered_definitions("admin")
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    let power_names: std::collections::HashSet<_> = filtered_definitions("power")
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    for admin_tool in &[
+        "dakera_namespace_create",
+        "dakera_namespace_delete",
+        "dakera_audit_query",
+    ] {
+        assert!(
+            admin_names.contains(*admin_tool),
+            "Admin tool '{admin_tool}' must appear in admin profile"
+        );
+        assert!(
+            !power_names.contains(*admin_tool),
+            "Admin tool '{admin_tool}' must NOT appear in power profile"
+        );
+    }
+}
+
+// ── Protocol-level JSON-RPC tests (gap #3 — validates server.rs lines 106-114) ──
+
+/// Build a fake DakeraApiClient pointing nowhere — tools/list never makes HTTP calls.
+fn no_http_client() -> DakeraApiClient {
+    DakeraApiClient::new("http://localhost:0".to_string(), None)
+}
+
+fn rpc_request(method: &str, params: serde_json::Value) -> JsonRpcRequest {
+    serde_json::from_value(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params,
+    }))
+    .expect("test JSON-RPC request must deserialize cleanly")
+}
+
+#[tokio::test]
+async fn test_protocol_tools_list_core_returns_14() {
+    let c = no_http_client();
+    let req = rpc_request("tools/list", serde_json::json!({"profile": "core"}));
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.expect("tools/list must return a result");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
+    assert_eq!(
+        tools.len(),
+        14,
+        "tools/list profile=core must return 14 tools (12 core + 2 meta)"
+    );
+}
+
+#[tokio::test]
+async fn test_protocol_tools_list_power_larger_than_core() {
+    let c = no_http_client();
+    let core_req = rpc_request("tools/list", serde_json::json!({"profile": "core"}));
+    let power_req = rpc_request("tools/list", serde_json::json!({"profile": "power"}));
+    let core_resp = handle_request(&c, &core_req).await;
+    let power_resp = handle_request(&c, &power_req).await;
+    let core_count = core_resp.result.unwrap()["tools"].as_array().unwrap().len();
+    let power_count = power_resp.result.unwrap()["tools"]
+        .as_array()
+        .unwrap()
+        .len();
+    assert!(
+        power_count > core_count,
+        "tools/list profile=power ({power_count}) must have more tools than core ({core_count})"
+    );
+}
+
+#[tokio::test]
+async fn test_protocol_tools_list_admin_profile() {
+    let c = no_http_client();
+    let req = rpc_request("tools/list", serde_json::json!({"profile": "admin"}));
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.expect("tools/list must return a result");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
+    let names: std::collections::HashSet<_> =
+        tools.iter().filter_map(|t| t["name"].as_str()).collect();
+    // Admin profile must include admin-tier namespace tools
+    assert!(
+        names.contains("dakera_namespace_list"),
+        "tools/list profile=admin must include dakera_namespace_list"
+    );
+    // Admin profile must include core tools
+    assert!(
+        names.contains("dakera_store"),
+        "tools/list profile=admin must include dakera_store"
+    );
+    // Admin profile must NOT include power tools
+    assert!(
+        !names.contains("dakera_agent_stats"),
+        "tools/list profile=admin must NOT include power tool dakera_agent_stats"
+    );
+    assert!(
+        tools.len() > 14,
+        "tools/list profile=admin must have more than 14 tools (admin > core), got {}",
+        tools.len()
+    );
+}
+
+#[tokio::test]
+async fn test_protocol_tools_list_all_returns_86() {
+    let c = no_http_client();
+    let req = rpc_request("tools/list", serde_json::json!({"profile": "all"}));
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.expect("tools/list must return a result");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
+    assert_eq!(
+        tools.len(),
+        86,
+        "tools/list profile=all must return exactly 86 tools"
+    );
+}
+
+#[tokio::test]
+async fn test_protocol_tools_list_no_params_defaults_to_core() {
+    let c = no_http_client();
+    // Ensure env var is not set so we exercise the true default
+    unsafe {
+        std::env::remove_var("DAKERA_MCP_PROFILE");
+    }
+    let req = rpc_request("tools/list", serde_json::json!({}));
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.expect("tools/list must return a result");
+    let tools = result["tools"]
+        .as_array()
+        .expect("result must contain tools array");
+    assert_eq!(
+        tools.len(),
+        14,
+        "tools/list with no profile param and no env var must default to core (14 tools)"
+    );
+}
+
+// ── DAKERA_MCP_PROFILE env var fallback (gap #4) ──────────────────────────────
+// NOTE: must run with --test-threads=1 (already enforced in CI) since env mutation is global.
+
+#[tokio::test]
+async fn test_protocol_env_var_profile_power() {
+    let c = no_http_client();
+    unsafe {
+        std::env::set_var("DAKERA_MCP_PROFILE", "power");
+    }
+    let req = rpc_request("tools/list", serde_json::json!({}));
+    let resp = handle_request(&c, &req).await;
+    unsafe {
+        std::env::remove_var("DAKERA_MCP_PROFILE");
+    }
+    let result = resp.result.expect("tools/list must return a result");
+    let count = result["tools"].as_array().unwrap().len();
+    let core_count = filtered_definitions("core").len();
+    assert!(
+        count > core_count,
+        "DAKERA_MCP_PROFILE=power must expose more tools than core ({count} vs {core_count})"
+    );
+}
+
+#[tokio::test]
+async fn test_protocol_env_var_profile_admin() {
+    let c = no_http_client();
+    unsafe {
+        std::env::set_var("DAKERA_MCP_PROFILE", "admin");
+    }
+    let req = rpc_request("tools/list", serde_json::json!({}));
+    let resp = handle_request(&c, &req).await;
+    unsafe {
+        std::env::remove_var("DAKERA_MCP_PROFILE");
+    }
+    let result = resp.result.expect("tools/list must return a result");
+    let tools = result["tools"].as_array().unwrap();
+    let names: std::collections::HashSet<_> =
+        tools.iter().filter_map(|t| t["name"].as_str()).collect();
+    assert!(
+        names.contains("dakera_namespace_list"),
+        "DAKERA_MCP_PROFILE=admin must expose admin tools like dakera_namespace_list"
+    );
+    assert!(
+        !names.contains("dakera_agent_stats"),
+        "DAKERA_MCP_PROFILE=admin must NOT expose power tools like dakera_agent_stats"
+    );
+}
+
+#[tokio::test]
+async fn test_protocol_request_profile_overrides_env_var() {
+    let c = no_http_client();
+    // Env var says "all" but request param says "core" — request wins
+    unsafe {
+        std::env::set_var("DAKERA_MCP_PROFILE", "all");
+    }
+    let req = rpc_request("tools/list", serde_json::json!({"profile": "core"}));
+    let resp = handle_request(&c, &req).await;
+    unsafe {
+        std::env::remove_var("DAKERA_MCP_PROFILE");
+    }
+    let result = resp.result.expect("tools/list must return a result");
+    let count = result["tools"].as_array().unwrap().len();
+    assert_eq!(
+        count, 14,
+        "Request profile param must override DAKERA_MCP_PROFILE env var: got {count}"
+    );
+}
+
+// ── Pruned tool regression tests (gap #7 — deleted tools return errors) ──────
+
+#[tokio::test]
+async fn test_pruned_admin_health_full_returns_unknown() {
+    let c = client();
+    let r = execute_tool(&c, "dakera_admin_health_full", &serde_json::json!({})).await;
+    assert_eq!(
+        r.is_error,
+        Some(true),
+        "Pruned tool dakera_admin_health_full must return is_error=true"
+    );
+    assert!(
+        r.content[0].text.contains("Unknown tool"),
+        "Expected 'Unknown tool' error for dakera_admin_health_full, got: {}",
+        r.content[0].text
+    );
+}
+
+#[tokio::test]
+async fn test_pruned_analytics_usage_returns_unknown() {
+    let c = client();
+    let r = execute_tool(&c, "dakera_analytics_usage", &serde_json::json!({})).await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(
+        r.content[0].text.contains("Unknown tool"),
+        "Expected 'Unknown tool' error for dakera_analytics_usage, got: {}",
+        r.content[0].text
+    );
+}
+
+#[tokio::test]
+async fn test_pruned_stream_events_returns_unknown() {
+    let c = client();
+    let r = execute_tool(&c, "dakera_stream_events", &serde_json::json!({})).await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(
+        r.content[0].text.contains("Unknown tool"),
+        "Expected 'Unknown tool' error for dakera_stream_events, got: {}",
+        r.content[0].text
+    );
+}
+
+// ── Power-tier live tool invocations (gap #5 — validates ~75% of tool catalog) ──
+
+#[tokio::test]
+async fn test_power_agent_stats_live() {
+    let c = client();
+    let r = execute_tool(
+        &c,
+        "dakera_agent_stats",
+        &serde_json::json!({"agent_id": "inttest-power-stats"}),
+    )
+    .await;
+    // May return 404 if agent doesn't exist — that's still a valid API response, not a tool error
+    let text = &r.content[0].text;
+    // If it's an error, it should be an API error (404/etc), not "Unknown tool"
+    if r.is_error.unwrap_or(false) {
+        assert!(
+            !text.contains("Unknown tool"),
+            "dakera_agent_stats must not return 'Unknown tool': {text}"
+        );
+    } else {
+        // Success path: response should be a JSON object
+        assert!(
+            !text.is_empty(),
+            "dakera_agent_stats must return non-empty response"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_power_autopilot_status_live() {
+    let c = client();
+    let r = execute_tool(
+        &c,
+        "dakera_autopilot_status",
+        &serde_json::json!({"agent_id": "inttest-power-autopilot"}),
+    )
+    .await;
+    let text = &r.content[0].text;
+    if r.is_error.unwrap_or(false) {
+        assert!(
+            !text.contains("Unknown tool"),
+            "dakera_autopilot_status must not return 'Unknown tool': {text}"
+        );
+    } else {
+        assert!(
+            !text.is_empty(),
+            "dakera_autopilot_status must return non-empty response"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_power_session_list_live() {
+    let c = client();
+    let agent_id = agent("power-sessionlist");
+    let r = execute_tool(
+        &c,
+        "dakera_session_list",
+        &serde_json::json!({"agent_id": agent_id}),
+    )
+    .await;
+    let text = &r.content[0].text;
+    if r.is_error.unwrap_or(false) {
+        assert!(
+            !text.contains("Unknown tool"),
+            "dakera_session_list must not be unknown: {text}"
+        );
+    } else {
+        // sessions list for a fresh test agent should return an array (possibly empty)
+        let v: serde_json::Value = serde_json::from_str(text)
+            .unwrap_or_else(|e| panic!("dakera_session_list response is not JSON: {e}\n{text}"));
+        assert!(
+            v.is_object(),
+            "dakera_session_list must return a JSON object"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_power_memory_importance_live() {
+    let c = client();
+    let agent_id = agent("power-importance");
+    cleanup(&c, &agent_id).await;
+
+    // Store a memory first to get a valid ID
+    let r_store = execute_tool(
+        &c,
+        "dakera_store",
+        &serde_json::json!({
+            "agent_id": agent_id,
+            "content": "Power tier test: importance boost candidate memory.",
+            "importance": 0.5,
+            "tags": [TEST_TAG],
+        }),
+    )
+    .await;
+    let stored = ok(&r_store);
+    let memory_id = stored["memory"]["id"]
+        .as_str()
+        .expect("store must return memory.id");
+
+    // Invoke the power tool dakera_memory_importance
+    let r = execute_tool(
+        &c,
+        "dakera_memory_importance",
+        &serde_json::json!({
+            "agent_id": agent_id,
+            "memory_id": memory_id,
+            "importance": 0.9,
+        }),
+    )
+    .await;
+    let text = &r.content[0].text;
+    assert!(
+        !text.contains("Unknown tool"),
+        "dakera_memory_importance must not be unknown: {text}"
+    );
+
+    cleanup(&c, &agent_id).await;
+}
+
+#[tokio::test]
+async fn test_power_consolidate_live() {
+    let c = client();
+    let agent_id = agent("power-consolidate");
+    cleanup(&c, &agent_id).await;
+
+    // Consolidate on an agent with no memories — should return cleanly, not "Unknown tool"
+    let r = execute_tool(
+        &c,
+        "dakera_consolidate",
+        &serde_json::json!({"agent_id": agent_id}),
+    )
+    .await;
+    let text = &r.content[0].text;
+    assert!(
+        !text.contains("Unknown tool"),
+        "dakera_consolidate must not be unknown: {text}"
+    );
+}
+
+#[tokio::test]
+async fn test_power_graph_traverse_live() {
+    let c = client();
+    let agent_id = agent("power-graph");
+    cleanup(&c, &agent_id).await;
+
+    // Store a memory and traverse its graph
+    let r_store = execute_tool(
+        &c,
+        "dakera_store",
+        &serde_json::json!({
+            "agent_id": agent_id,
+            "content": "Graph traverse test: node A connects to node B in the knowledge graph.",
+            "importance": 0.7,
+            "tags": [TEST_TAG],
+        }),
+    )
+    .await;
+    let stored = ok(&r_store);
+    let memory_id = stored["memory"]["id"]
+        .as_str()
+        .expect("store must return memory.id");
+
+    let r = execute_tool(
+        &c,
+        "dakera_graph_traverse",
+        &serde_json::json!({
+            "agent_id": agent_id,
+            "memory_id": memory_id,
+            "depth": 1,
+        }),
+    )
+    .await;
+    let text = &r.content[0].text;
+    assert!(
+        !text.contains("Unknown tool"),
+        "dakera_graph_traverse must not be unknown: {text}"
+    );
+
+    cleanup(&c, &agent_id).await;
+}
+
+// ── Meta-tool power-tier round-trip (gap #6 — discover power → load → invoke) ──
+
+#[tokio::test]
+async fn test_meta_roundtrip_power_tier() {
+    let c = client();
+
+    // Step 1: discover power-tier tools via meta-tool
+    let r1 = execute_tool(
+        &c,
+        "dakera_discover_tools",
+        &serde_json::json!({"tier": "power"}),
+    )
+    .await;
+    let v1 = ok(&r1);
+    let tools = v1["tools"].as_array().unwrap();
+    assert!(!tools.is_empty(), "power tier must have discoverable tools");
+
+    // Confirm dakera_agent_stats appears as a power tool
+    let agent_stats_entry = tools
+        .iter()
+        .find(|t| t["name"].as_str() == Some("dakera_agent_stats"))
+        .expect("dakera_agent_stats must appear in power tier catalog");
+    assert_eq!(
+        agent_stats_entry["tier"].as_str().unwrap(),
+        "power",
+        "dakera_agent_stats must be classified as power"
+    );
+
+    // Step 2: load full schema for the power-tier tool via meta-tool
+    let r2 = execute_tool(
+        &c,
+        "dakera_load_tools",
+        &serde_json::json!({"tools": ["dakera_agent_stats"]}),
+    )
+    .await;
+    let v2 = ok(&r2);
+    let schema = &v2["tools"][0];
+    assert_eq!(schema["name"].as_str().unwrap(), "dakera_agent_stats");
+    assert!(
+        schema["inputSchema"].is_object(),
+        "load_tools must return inputSchema for power tool"
+    );
+    assert!(
+        schema["inputSchema"]["properties"]["agent_id"].is_object(),
+        "dakera_agent_stats schema must define agent_id parameter"
+    );
+    assert_eq!(
+        schema["tier"].as_str().unwrap(),
+        "power",
+        "loaded schema must include tier=power for dakera_agent_stats"
+    );
+
+    // Step 3: invoke the power-tier tool using the schema contract
+    let r3 = execute_tool(
+        &c,
+        "dakera_agent_stats",
+        &serde_json::json!({"agent_id": "inttest-meta-power-roundtrip"}),
+    )
+    .await;
+    let text = &r3.content[0].text;
+    assert!(
+        !text.contains("Unknown tool"),
+        "Power-tier round-trip: dakera_agent_stats invocation must not return 'Unknown tool': {text}"
+    );
+}
+
+// ── Full round-trip: discover → load schema → invoke tool (core tier) ────────
 
 #[tokio::test]
 async fn test_meta_roundtrip_discover_load_invoke() {
