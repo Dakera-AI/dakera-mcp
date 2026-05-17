@@ -47,19 +47,53 @@ pub async fn execute(
     args: &serde_json::Value,
 ) -> Option<CallToolResult> {
     match name {
-        "dakera_diagnostics" => Some(client.get_json("/ops/diagnostics").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_list_jobs" => Some(client.get_json("/ops/jobs").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_diagnostics" => Some(
+            client
+                .get_json("/ops/diagnostics")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_list_jobs" => Some(
+            client
+                .get_json("/ops/jobs")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         "dakera_get_job" => Some(tool_get_job(client, args).await),
-        "dakera_compact" => Some(client.post_json("/ops/compact", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_shutdown" => Some(client.post_json("/ops/shutdown", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_compact" => Some(
+            client
+                .post_json("/ops/compact", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_shutdown" => Some(
+            client
+                .post_json("/ops/shutdown", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         _ => None,
     }
 }
 
-async fn tool_get_job(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let job_id = match require_string(args, "job_id") { Ok(v) => v, Err(e) => return e };
+async fn tool_get_job(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let job_id = match require_string(args, "job_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/ops/jobs/{}", urlencoding::encode(&job_id));
-    client.get_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .get_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
 #[cfg(test)]
@@ -74,12 +108,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_returns_none() {
-        assert!(execute(&dummy_client(), "not_ops", &json!({})).await.is_none());
+        assert!(
+            execute(&dummy_client(), "not_ops", &json!({}))
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
     async fn test_get_job_missing_id() {
-        let r = execute(&dummy_client(), "dakera_get_job", &json!({})).await.unwrap();
+        let r = execute(&dummy_client(), "dakera_get_job", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("job_id"));
     }

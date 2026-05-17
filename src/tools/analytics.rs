@@ -41,11 +41,41 @@ pub async fn execute(
     _args: &serde_json::Value,
 ) -> Option<CallToolResult> {
     match name {
-        "dakera_analytics_overview" => Some(client.get_json("/v1/analytics/overview").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_analytics_latency" => Some(client.get_json("/v1/analytics/latency").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_analytics_throughput" => Some(client.get_json("/v1/analytics/throughput").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_analytics_storage" => Some(client.get_json("/v1/analytics/storage").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_kpis" => Some(client.get_json("/v1/kpis").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_analytics_overview" => Some(
+            client
+                .get_json("/v1/analytics/overview")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_analytics_latency" => Some(
+            client
+                .get_json("/v1/analytics/latency")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_analytics_throughput" => Some(
+            client
+                .get_json("/v1/analytics/throughput")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_analytics_storage" => Some(
+            client
+                .get_json("/v1/analytics/storage")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_kpis" => Some(
+            client
+                .get_json("/v1/kpis")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         _ => None,
     }
 }
@@ -62,7 +92,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_returns_none() {
-        assert!(execute(&dummy_client(), "not_analytics", &json!({})).await.is_none());
+        assert!(
+            execute(&dummy_client(), "not_analytics", &json!({}))
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -76,7 +110,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_known_tools_dispatch() {
-        for tool in &["dakera_analytics_overview", "dakera_analytics_latency", "dakera_analytics_throughput", "dakera_analytics_storage", "dakera_kpis"] {
+        for tool in &[
+            "dakera_analytics_overview",
+            "dakera_analytics_latency",
+            "dakera_analytics_throughput",
+            "dakera_analytics_storage",
+            "dakera_kpis",
+        ] {
             let r = execute(&dummy_client(), tool, &json!({})).await;
             assert!(r.is_some(), "{} should dispatch", tool);
         }

@@ -385,55 +385,209 @@ pub async fn execute(
 ) -> Option<CallToolResult> {
     match name {
         // Cluster
-        "dakera_cluster_status" => Some(client.get_json("/admin/cluster/status").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_cluster_nodes" => Some(client.get_json("/admin/cluster/nodes").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_cluster_replication" => Some(client.get_json("/admin/cluster/replication").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_list_shards" => Some(client.get_json("/admin/cluster/shards").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_rebalance_shards" => Some(client.post_json("/admin/cluster/shards/rebalance", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_maintenance_status" => Some(client.get_json("/admin/cluster/maintenance").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_enable_maintenance" => Some(client.post_json("/admin/cluster/maintenance/enable", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_disable_maintenance" => Some(client.post_json("/admin/cluster/maintenance/disable", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_cluster_status" => Some(
+            client
+                .get_json("/admin/cluster/status")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_cluster_nodes" => Some(
+            client
+                .get_json("/admin/cluster/nodes")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_cluster_replication" => Some(
+            client
+                .get_json("/admin/cluster/replication")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_list_shards" => Some(
+            client
+                .get_json("/admin/cluster/shards")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_rebalance_shards" => Some(
+            client
+                .post_json("/admin/cluster/shards/rebalance", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_maintenance_status" => Some(
+            client
+                .get_json("/admin/cluster/maintenance")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_enable_maintenance" => Some(
+            client
+                .post_json("/admin/cluster/maintenance/enable", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_disable_maintenance" => Some(
+            client
+                .post_json("/admin/cluster/maintenance/disable", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         // Admin namespaces
-        "dakera_list_namespaces_admin" => Some(client.get_json("/admin/namespaces").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_delete_namespace_admin" => Some(tool_delete_namespace_admin(client, args).await),
+        "dakera_list_namespaces_admin" => Some(
+            client
+                .get_json("/admin/namespaces")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_delete_namespace_admin" => {
+            Some(tool_delete_namespace_admin(client, args).await)
+        }
         "dakera_optimize_namespace" => Some(tool_optimize_namespace(client, args).await),
         "dakera_migrate_dimensions" => Some(tool_migrate_dimensions(client, args).await),
         // Indexes / cache / storage
-        "dakera_index_stats" => Some(client.get_json("/admin/indexes/stats").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_rebuild_indexes" => Some(client.post_json("/admin/indexes/rebuild", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_cache_stats" => Some(client.get_json("/admin/cache/stats").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_cache_clear" => Some(client.post_json("/admin/cache/clear", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_storage_tiers" => Some(client.get_json("/admin/storage/tiers").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_index_stats" => Some(
+            client
+                .get_json("/admin/indexes/stats")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_rebuild_indexes" => Some(
+            client
+                .post_json("/admin/indexes/rebuild", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_cache_stats" => Some(
+            client
+                .get_json("/admin/cache/stats")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_cache_clear" => Some(
+            client
+                .post_json("/admin/cache/clear", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_storage_tiers" => Some(
+            client
+                .get_json("/admin/storage/tiers")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         // Config
-        "dakera_get_server_config" => Some(client.get_json("/admin/config").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_update_server_config" => Some(tool_update_server_config(client, args).await),
+        "dakera_get_server_config" => Some(
+            client
+                .get_json("/admin/config")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_update_server_config" => {
+            Some(tool_update_server_config(client, args).await)
+        }
         // TTL / background
-        "dakera_ttl_cleanup" => Some(client.post_json("/admin/ttl/cleanup", &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_ttl_stats" => Some(client.get_json("/admin/ttl/stats").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_background_activity" => Some(client.get_json("/admin/background-activity").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_ttl_cleanup" => Some(
+            client
+                .post_json("/admin/ttl/cleanup", &json!({}))
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_ttl_stats" => Some(
+            client
+                .get_json("/admin/ttl/stats")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_background_activity" => Some(
+            client
+                .get_json("/admin/background-activity")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         // Quotas
-        "dakera_list_quotas" => Some(client.get_json("/admin/quotas").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_get_default_quota" => Some(client.get_json("/admin/quotas/default").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_list_quotas" => Some(
+            client
+                .get_json("/admin/quotas")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_get_default_quota" => Some(
+            client
+                .get_json("/admin/quotas/default")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         "dakera_set_default_quota" => Some(tool_set_default_quota(client, args).await),
         "dakera_get_quota" => Some(tool_get_quota(client, args).await),
         "dakera_set_quota" => Some(tool_set_quota(client, args).await),
         "dakera_delete_quota" => Some(tool_delete_quota(client, args).await),
         "dakera_check_quota" => Some(tool_check_quota(client, args).await),
         // Backups
-        "dakera_list_backups" => Some(client.get_json("/admin/backups").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_list_backups" => Some(
+            client
+                .get_json("/admin/backups")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         "dakera_create_backup" => Some(tool_create_backup(client, args).await),
         "dakera_get_backup" => Some(tool_get_backup(client, args).await),
         "dakera_delete_backup" => Some(tool_delete_backup(client, args).await),
         "dakera_download_backup" => Some(tool_download_backup(client, args).await),
         "dakera_upload_backup" => Some(tool_upload_backup(client, args).await),
-        "dakera_get_backup_schedule" => Some(client.get_json("/admin/backups/schedule").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_get_backup_schedule" => Some(
+            client
+                .get_json("/admin/backups/schedule")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         "dakera_set_backup_schedule" => Some(tool_set_backup_schedule(client, args).await),
         "dakera_restore_backup" => Some(tool_restore_backup(client, args).await),
         "dakera_restore_status" => Some(tool_restore_status(client, args).await),
         // Slow queries
-        "dakera_list_slow_queries" => Some(client.get_json("/admin/slow-queries").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_slow_query_summary" => Some(client.get_json("/admin/slow-queries/summary").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
-        "dakera_clear_slow_queries" => Some(client.delete_json("/admin/slow-queries").await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)),
+        "dakera_list_slow_queries" => Some(
+            client
+                .get_json("/admin/slow-queries")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_slow_query_summary" => Some(
+            client
+                .get_json("/admin/slow-queries/summary")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
+        "dakera_clear_slow_queries" => Some(
+            client
+                .delete_json("/admin/slow-queries")
+                .await
+                .map(|v| ok_json(&v))
+                .unwrap_or_else(CallToolResult::error),
+        ),
         "dakera_slow_query_config" => Some(tool_slow_query_config(client, args).await),
         _ => None,
     }
@@ -441,146 +595,370 @@ pub async fn execute(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async fn tool_delete_namespace_admin(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
+async fn tool_delete_namespace_admin(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/namespaces/{}", urlencoding::encode(&namespace));
-    client.delete_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .delete_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_optimize_namespace(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
-    let path = format!("/admin/namespaces/{}/optimize", urlencoding::encode(&namespace));
-    client.post_json(&path, &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+async fn tool_optimize_namespace(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let path = format!(
+        "/admin/namespaces/{}/optimize",
+        urlencoding::encode(&namespace)
+    );
+    client
+        .post_json(&path, &json!({}))
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_migrate_dimensions(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
+async fn tool_migrate_dimensions(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let new_dimension = match args.get("new_dimension").and_then(|v| v.as_u64()) {
         Some(d) => d,
-        None => return CallToolResult::error("Missing required parameter: new_dimension".to_string()),
+        None => {
+            return CallToolResult::error(
+                "Missing required parameter: new_dimension".to_string(),
+            )
+        }
     };
     let mut body = json!({ "namespace": namespace, "new_dimension": new_dimension });
     if let Some(d) = args.get("distance").and_then(|v| v.as_str()) {
         body["distance"] = json!(d);
     }
-    client.post_json("/admin/namespaces/migrate-dimensions", &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .post_json("/admin/namespaces/migrate-dimensions", &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_update_server_config(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_update_server_config(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let config = match args.get("config") {
         Some(c) => c.clone(),
-        None => return CallToolResult::error("Missing required parameter: config".to_string()),
+        None => {
+            return CallToolResult::error(
+                "Missing required parameter: config".to_string(),
+            )
+        }
     };
-    client.put_json("/admin/config", &config).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .put_json("/admin/config", &config)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
 fn build_quota_config(args: &serde_json::Value) -> serde_json::Value {
     let mut config = json!({});
-    if let Some(v) = args.get("max_vectors") { config["max_vectors"] = v.clone(); }
-    if let Some(v) = args.get("max_storage_bytes") { config["max_storage_bytes"] = v.clone(); }
-    if let Some(v) = args.get("max_dimensions") { config["max_dimensions"] = v.clone(); }
-    if let Some(v) = args.get("max_metadata_bytes") { config["max_metadata_bytes"] = v.clone(); }
-    if let Some(v) = args.get("enforcement") { config["enforcement"] = v.clone(); }
+    if let Some(v) = args.get("max_vectors") {
+        config["max_vectors"] = v.clone();
+    }
+    if let Some(v) = args.get("max_storage_bytes") {
+        config["max_storage_bytes"] = v.clone();
+    }
+    if let Some(v) = args.get("max_dimensions") {
+        config["max_dimensions"] = v.clone();
+    }
+    if let Some(v) = args.get("max_metadata_bytes") {
+        config["max_metadata_bytes"] = v.clone();
+    }
+    if let Some(v) = args.get("enforcement") {
+        config["enforcement"] = v.clone();
+    }
     config
 }
 
-async fn tool_set_default_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_set_default_quota(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let body = json!({ "config": build_quota_config(args) });
-    client.put_json("/admin/quotas/default", &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .put_json("/admin/quotas/default", &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_get_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
+async fn tool_get_quota(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/quotas/{}", urlencoding::encode(&namespace));
-    client.get_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .get_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_set_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
+async fn tool_set_quota(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/quotas/{}", urlencoding::encode(&namespace));
     let body = json!({ "config": build_quota_config(args) });
-    client.put_json(&path, &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .put_json(&path, &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_delete_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
+async fn tool_delete_quota(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/quotas/{}", urlencoding::encode(&namespace));
-    client.delete_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .delete_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_check_quota(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let namespace = match require_string(args, "namespace") { Ok(v) => v, Err(e) => return e };
+async fn tool_check_quota(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let namespace = match require_string(args, "namespace") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/quotas/{}/check", urlencoding::encode(&namespace));
-    client.post_json(&path, &json!({})).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .post_json(&path, &json!({}))
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_create_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let name = match require_string(args, "name") { Ok(v) => v, Err(e) => return e };
+async fn tool_create_backup(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let name = match require_string(args, "name") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let mut body = json!({ "name": name });
-    if let Some(v) = args.get("backup_type") { body["backup_type"] = v.clone(); }
-    if let Some(v) = args.get("namespaces") { body["namespaces"] = v.clone(); }
-    if let Some(v) = args.get("encrypt") { body["encrypt"] = v.clone(); }
-    if let Some(v) = args.get("compression") { body["compression"] = v.clone(); }
-    client.post_json("/admin/backups", &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    if let Some(v) = args.get("backup_type") {
+        body["backup_type"] = v.clone();
+    }
+    if let Some(v) = args.get("namespaces") {
+        body["namespaces"] = v.clone();
+    }
+    if let Some(v) = args.get("encrypt") {
+        body["encrypt"] = v.clone();
+    }
+    if let Some(v) = args.get("compression") {
+        body["compression"] = v.clone();
+    }
+    client
+        .post_json("/admin/backups", &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_get_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let backup_id = match require_string(args, "backup_id") { Ok(v) => v, Err(e) => return e };
+async fn tool_get_backup(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let backup_id = match require_string(args, "backup_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/backups/{}", urlencoding::encode(&backup_id));
-    client.get_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .get_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_delete_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let backup_id = match require_string(args, "backup_id") { Ok(v) => v, Err(e) => return e };
+async fn tool_delete_backup(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let backup_id = match require_string(args, "backup_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let path = format!("/admin/backups/{}", urlencoding::encode(&backup_id));
-    client.delete_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .delete_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_download_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let backup_id = match require_string(args, "backup_id") { Ok(v) => v, Err(e) => return e };
-    let path = format!("/admin/backups/{}/download", urlencoding::encode(&backup_id));
+async fn tool_download_backup(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let backup_id = match require_string(args, "backup_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let path = format!(
+        "/admin/backups/{}/download",
+        urlencoding::encode(&backup_id)
+    );
     match client.get_text(&path).await {
         Ok(text) => CallToolResult::text(text),
         Err(e) => CallToolResult::error(e),
     }
 }
 
-async fn tool_upload_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let content = match require_string(args, "content") { Ok(v) => v, Err(e) => return e };
-    client.post_multipart_text("/admin/backups/upload", &content).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+async fn tool_upload_backup(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let content = match require_string(args, "content") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    client
+        .post_multipart_text("/admin/backups/upload", &content)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_set_backup_schedule(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let enabled = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+async fn tool_set_backup_schedule(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let enabled = args
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let mut body = json!({ "enabled": enabled });
-    let fields = ["cron", "backup_type", "retention_days", "max_backups", "namespaces", "encrypt", "compression"];
+    let fields = [
+        "cron",
+        "backup_type",
+        "retention_days",
+        "max_backups",
+        "namespaces",
+        "encrypt",
+        "compression",
+    ];
     for f in &fields {
-        if let Some(v) = args.get(*f) { body[*f] = v.clone(); }
+        if let Some(v) = args.get(*f) {
+            body[*f] = v.clone();
+        }
     }
-    client.post_json("/admin/backups/schedule", &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    client
+        .post_json("/admin/backups/schedule", &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_restore_backup(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let backup_id = match require_string(args, "backup_id") { Ok(v) => v, Err(e) => return e };
+async fn tool_restore_backup(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let backup_id = match require_string(args, "backup_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let mut body = json!({ "backup_id": backup_id });
-    if let Some(v) = args.get("target_namespaces") { body["target_namespaces"] = v.clone(); }
-    if let Some(v) = args.get("overwrite") { body["overwrite"] = v.clone(); }
-    if let Some(v) = args.get("point_in_time") { body["point_in_time"] = v.clone(); }
-    client.post_json("/admin/backups/restore", &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    if let Some(v) = args.get("target_namespaces") {
+        body["target_namespaces"] = v.clone();
+    }
+    if let Some(v) = args.get("overwrite") {
+        body["overwrite"] = v.clone();
+    }
+    if let Some(v) = args.get("point_in_time") {
+        body["point_in_time"] = v.clone();
+    }
+    client
+        .post_json("/admin/backups/restore", &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_restore_status(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    let restore_id = match require_string(args, "restore_id") { Ok(v) => v, Err(e) => return e };
-    let path = format!("/admin/backups/restore/{}", urlencoding::encode(&restore_id));
-    client.get_json(&path).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+async fn tool_restore_status(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
+    let restore_id = match require_string(args, "restore_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let path = format!(
+        "/admin/backups/restore/{}",
+        urlencoding::encode(&restore_id)
+    );
+    client
+        .get_json(&path)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
-async fn tool_slow_query_config(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+async fn tool_slow_query_config(
+    client: &DakeraApiClient,
+    args: &serde_json::Value,
+) -> CallToolResult {
     let mut body = json!({});
-    if let Some(v) = args.get("enabled") { body["enabled"] = v.clone(); }
-    if let Some(v) = args.get("threshold_ms") { body["threshold_ms"] = v.clone(); }
-    if let Some(v) = args.get("max_entries") { body["max_entries"] = v.clone(); }
-    client.patch_json("/admin/slow-queries/config", &body).await.map(|v| ok_json(&v)).unwrap_or_else(CallToolResult::error)
+    if let Some(v) = args.get("enabled") {
+        body["enabled"] = v.clone();
+    }
+    if let Some(v) = args.get("threshold_ms") {
+        body["threshold_ms"] = v.clone();
+    }
+    if let Some(v) = args.get("max_entries") {
+        body["max_entries"] = v.clone();
+    }
+    client
+        .patch_json("/admin/slow-queries/config", &body)
+        .await
+        .map(|v| ok_json(&v))
+        .unwrap_or_else(CallToolResult::error)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -597,25 +975,43 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_unknown_returns_none() {
-        assert!(execute(&dummy_client(), "not_an_admin_tool", &json!({})).await.is_none());
+        assert!(
+            execute(&dummy_client(), "not_an_admin_tool", &json!({}))
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
     async fn test_delete_namespace_admin_missing_namespace() {
-        let r = execute(&dummy_client(), "dakera_delete_namespace_admin", &json!({})).await.unwrap();
+        let r = execute(
+            &dummy_client(),
+            "dakera_delete_namespace_admin",
+            &json!({}),
+        )
+        .await
+        .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("namespace"));
     }
 
     #[tokio::test]
     async fn test_optimize_namespace_missing_namespace() {
-        let r = execute(&dummy_client(), "dakera_optimize_namespace", &json!({})).await.unwrap();
+        let r = execute(&dummy_client(), "dakera_optimize_namespace", &json!({}))
+            .await
+            .unwrap();
         assert_eq!(r.is_error, Some(true));
     }
 
     #[tokio::test]
     async fn test_migrate_dimensions_missing_namespace() {
-        let r = execute(&dummy_client(), "dakera_migrate_dimensions", &json!({"new_dimension": 768})).await.unwrap();
+        let r = execute(
+            &dummy_client(),
+            "dakera_migrate_dimensions",
+            &json!({"new_dimension": 768}),
+        )
+        .await
+        .unwrap();
         assert_eq!(r.is_error, Some(true));
         assert!(r.content[0].text.contains("namespace"));
     }

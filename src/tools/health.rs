@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use super::{DakeraApiClient};
+use super::DakeraApiClient;
 use crate::protocol::{CallToolResult, ToolDefinition};
 
 pub fn definitions() -> Vec<ToolDefinition> {
@@ -31,14 +31,22 @@ pub async fn execute(
     _args: &serde_json::Value,
 ) -> Option<CallToolResult> {
     match name {
-        "dakera_health_ready" => Some(match client.get_text("/health/ready").await {
-            Ok(text) => CallToolResult::text(if text.is_empty() { "ready".into() } else { text }),
-            Err(e) => CallToolResult::error(e),
-        }),
-        "dakera_health_live" => Some(match client.get_text("/health/live").await {
-            Ok(text) => CallToolResult::text(if text.is_empty() { "alive".into() } else { text }),
-            Err(e) => CallToolResult::error(e),
-        }),
+        "dakera_health_ready" => {
+            Some(match client.get_text("/health/ready").await {
+                Ok(text) => CallToolResult::text(
+                    if text.is_empty() { "ready".into() } else { text },
+                ),
+                Err(e) => CallToolResult::error(e),
+            })
+        }
+        "dakera_health_live" => {
+            Some(match client.get_text("/health/live").await {
+                Ok(text) => CallToolResult::text(
+                    if text.is_empty() { "alive".into() } else { text },
+                ),
+                Err(e) => CallToolResult::error(e),
+            })
+        }
         "dakera_ops_metrics" => Some(match client.get_text("/v1/ops/metrics").await {
             Ok(text) => CallToolResult::text(text),
             Err(e) => CallToolResult::error(e),
@@ -59,7 +67,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_returns_none() {
-        assert!(execute(&dummy_client(), "not_health", &json!({})).await.is_none());
+        assert!(
+            execute(&dummy_client(), "not_health", &json!({}))
+                .await
+                .is_none()
+        );
     }
 
     #[tokio::test]
