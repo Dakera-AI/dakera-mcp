@@ -6,9 +6,16 @@ license = "MIT"
 description = "Dakera MCP Server - Model Context Protocol server for AI agent memory"
 repository = "https://github.com/Dakera-AI/dakera-mcp"
 
+[lib]
+name = "dakera_mcp"
+path = "src/lib.rs"
+
 [[bin]]
 name = "dakera-mcp"
 path = "src/main.rs"
+
+[features]
+integration = []
 
 [dependencies]
 # Async runtime

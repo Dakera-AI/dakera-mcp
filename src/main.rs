@@ -1,13 +1,6 @@
-//! Dakera MCP Server
-//!
-//! Model Context Protocol server that exposes Dakera memory operations
-//! as tools for AI agents. Communicates over stdio using JSON-RPC.
+//! Dakera MCP Server binary entry point.
 
 use tracing_subscriber::EnvFilter;
-
-mod protocol;
-mod server;
-mod tools;
 
 #[tokio::main]
 async fn main() {
@@ -28,7 +21,7 @@ async fn main() {
 
     tracing::info!(api_url = %api_url, has_key = api_key.is_some(), "Connecting to Dakera API");
 
-    let server = server::McpServer::new(api_url, api_key);
+    let server = dakera_mcp::server::McpServer::new(api_url, api_key);
     if let Err(e) = server.run().await {
         tracing::error!(error = %e, "MCP server error");
         std::process::exit(1);
