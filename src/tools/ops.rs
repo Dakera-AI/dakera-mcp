@@ -1,4 +1,4 @@
-//! Ops tools — diagnostics, jobs, compact, shutdown
+//! Ops tools — background job status
 
 use serde_json::json;
 
@@ -8,18 +8,15 @@ use crate::protocol::{CallToolResult, ToolDefinition};
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
-            name: "dakera_diagnostics".into(),
-            description: "Run a diagnostics report (storage integrity, index health, memory pressure). Requires Admin scope.".into(),
-            input_schema: json!({"type": "object", "properties": {}, "required": []}),
-        },
-        ToolDefinition {
             name: "dakera_list_jobs".into(),
-            description: "List all background jobs (backup, restore, migration, reindex) and their status. Requires Admin scope.".into(),
+            description:
+                "List all background jobs (backup, restore, migration, reindex) and their status."
+                    .into(),
             input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },
         ToolDefinition {
             name: "dakera_get_job".into(),
-            description: "Get the status and progress of a specific background job by ID. Requires Admin scope.".into(),
+            description: "Get the status and progress of a specific background job by ID.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -27,16 +24,6 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 },
                 "required": ["job_id"]
             }),
-        },
-        ToolDefinition {
-            name: "dakera_compact".into(),
-            description: "Trigger a RocksDB compaction to reclaim storage space. Runs asynchronously. Requires Admin scope.".into(),
-            input_schema: json!({"type": "object", "properties": {}, "required": []}),
-        },
-        ToolDefinition {
-            name: "dakera_shutdown".into(),
-            description: "Initiate a graceful server shutdown. WARNING: this will stop the Dakera process. Requires Admin scope.".into(),
-            input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },
     ]
 }
@@ -47,13 +34,6 @@ pub async fn execute(
     args: &serde_json::Value,
 ) -> Option<CallToolResult> {
     match name {
-        "dakera_diagnostics" => Some(
-            client
-                .get_json("/ops/diagnostics")
-                .await
-                .map(|v| ok_json(&v))
-                .unwrap_or_else(CallToolResult::error),
-        ),
         "dakera_list_jobs" => Some(
             client
                 .get_json("/ops/jobs")
@@ -62,20 +42,6 @@ pub async fn execute(
                 .unwrap_or_else(CallToolResult::error),
         ),
         "dakera_get_job" => Some(tool_get_job(client, args).await),
-        "dakera_compact" => Some(
-            client
-                .post_json("/ops/compact", &json!({}))
-                .await
-                .map(|v| ok_json(&v))
-                .unwrap_or_else(CallToolResult::error),
-        ),
-        "dakera_shutdown" => Some(
-            client
-                .post_json("/ops/shutdown", &json!({}))
-                .await
-                .map(|v| ok_json(&v))
-                .unwrap_or_else(CallToolResult::error),
-        ),
         _ => None,
     }
 }
@@ -126,6 +92,6 @@ mod tests {
         for d in &defs {
             assert!(seen.insert(d.name.as_str()), "duplicate: {}", d.name);
         }
-        assert_eq!(defs.len(), 5);
+        assert_eq!(defs.len(), 2);
     }
 }
