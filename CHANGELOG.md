@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-05-17
+
+### Breaking Changes
+
+- **Tool surface reduced from 169 to 14 default tools** — the MCP server now exposes only 14
+  core memory tools by default, down from 169. Agents discover additional tools via the
+  `dakera_discover_tools` meta-tool. Saves ~35K tokens per session.
+  ([#83](https://github.com/Dakera-AI/dakera-mcp/pull/83))
+- **Removed admin, analytics, and streaming tools** — `dakera_admin_*`, `dakera_analytics_*`,
+  `dakera_streaming_*`, and redundant graph/vector tools have been permanently deleted (-1,672
+  lines). If you relied on these tools, use the Dakera REST API directly.
+  ([#84](https://github.com/Dakera-AI/dakera-mcp/pull/84))
+
+### Added
+
+- **Profile-based tool tiering** — three profiles (`minimal`, `standard`, `full`) control which
+  tools are exposed. Set via `DAKERA_MCP_PROFILE` env var. `standard` is the default (14 tools).
+  ([#83](https://github.com/Dakera-AI/dakera-mcp/pull/83))
+- **`dakera_discover_tools` meta-tool** — agents can dynamically discover and load additional
+  tools beyond the default set without exposing them all upfront.
+  ([#83](https://github.com/Dakera-AI/dakera-mcp/pull/83))
+- **25 integration tests against live Dakera Docker** — end-to-end verification of store, recall,
+  search, session lifecycle, and profile switching against a real Dakera instance.
+  ([#85](https://github.com/Dakera-AI/dakera-mcp/pull/85))
+- **47 deep profile tiering validation tests** — comprehensive coverage of tool visibility,
+  profile transitions, and meta-tool behavior (190 → 237 total tests).
+  ([#86](https://github.com/Dakera-AI/dakera-mcp/pull/86))
+
+### Changed
+
+- Consolidated `graph_traverse`/`graph_path`/`graph_export` into unified graph tools.
+  ([#84](https://github.com/Dakera-AI/dakera-mcp/pull/84))
+- Consolidated `vector_query`/`vector_multi_search`/`vector_explain` into unified vector tools.
+  ([#84](https://github.com/Dakera-AI/dakera-mcp/pull/84))
+
+### Chore
+
+- Applied ARM rustfmt 1.9.0 formatting.
+
+## [0.9.8] - 2026-05-13
+
+### Chore
+
+- Version bump for Docker image rebuild with MCP annotation.
+  ([#72](https://github.com/Dakera-AI/dakera-mcp/pull/72))
+
 ## [0.9.7] - 2026-04-29
 
 ### Changed
