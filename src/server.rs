@@ -83,7 +83,11 @@ impl McpServer {
     }
 }
 
-async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) -> JsonRpcResponse {
+/// Handle a single JSON-RPC request. Exposed as pub for protocol-level integration tests.
+pub async fn handle_request(
+    client: &DakeraApiClient,
+    request: &JsonRpcRequest,
+) -> JsonRpcResponse {
     match request.method.as_str() {
         "initialize" => JsonRpcResponse::success(
             request.id.clone(),
