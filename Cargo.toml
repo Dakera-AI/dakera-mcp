@@ -5,6 +5,12 @@ edition = "2021"
 license = "MIT"
 description = "Dakera MCP Server - Model Context Protocol server for AI agent memory"
 repository = "https://github.com/Dakera-AI/dakera-mcp"
+homepage = "https://dakera.ai"
+documentation = "https://dakera.ai/docs"
+readme = "README.md"
+authors = ["Dakera AI <hello@dakera.ai>"]
+keywords = ["mcp", "ai-memory", "agent-memory", "vector-search", "knowledge-graph"]
+categories = ["database", "web-programming"]
 
 [lib]
 name = "dakera_mcp"
