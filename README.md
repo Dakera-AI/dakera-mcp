@@ -18,7 +18,7 @@ Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
 ## Architecture: 14 core tools + on-demand discovery
 
-Starting every agent session with 60+ tool schemas wastes ~35K tokens before you write a single message. dakera-mcp solves this with **hybrid tool exposure**:
+Starting every agent session with 60+ tool schemas wastes ~15K tokens before you write a single message. dakera-mcp solves this with **hybrid tool exposure**:
 
 - **14 tools loaded by default** — the 12 highest-frequency memory operations + 2 meta-discovery tools
 - **On-demand expansion** — use `dakera_discover_tools` and `dakera_load_tools` to fetch additional tool schemas only when you need them
@@ -48,8 +48,8 @@ Starting every agent session with 60+ tool schemas wastes ~35K tokens before you
 |---|---|---|
 | **core** | 12 | Always (default profile) |
 | **meta** | 2 | Always (alongside core) |
-| **power** | ~25 | `?profile=power` or `DAKERA_MCP_PROFILE=power` |
-| **admin** | ~20 | `?profile=all` or `DAKERA_MCP_PROFILE=all` |
+| **power** | 54 | `?profile=power` or `DAKERA_MCP_PROFILE=power` |
+| **admin** | 18 | `?profile=all` or `DAKERA_MCP_PROFILE=all` |
 
 ### Accessing additional tools
 
@@ -77,7 +77,7 @@ The profile controls which tools appear in `tools/list`. Three ways to set it:
 DAKERA_MCP_PROFILE=power
 ```
 
-**3. Default**: `core` (14 tools, ~5K tokens)
+**3. Default**: `core` (14 tools, ~2.4K tokens)
 
 ---
 
@@ -137,7 +137,7 @@ Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop
 }
 ```
 
-To start with the power profile (exposes ~37 tools):
+To start with the power profile (exposes 68 tools):
 
 ```json
 {
