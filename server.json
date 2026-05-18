@@ -6,11 +6,11 @@
     "url": "https://github.com/Dakera-AI/dakera-mcp",
     "source": "github"
   },
-  "version": "0.10.1",
+  "version": "0.10.3",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/dakera-ai/dakera-mcp:0.10.1",
+      "identifier": "ghcr.io/dakera-ai/dakera-mcp:0.10.3",
       "transport": {
         "type": "stdio"
       },
