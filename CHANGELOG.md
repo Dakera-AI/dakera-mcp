@@ -5,13 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-05-18
+
+### Fixed
+
+- **MCP pagination page size increased from 20 to 100** — all profiles (core=14, power=68, all=86)
+  now return in a single page. Eliminates multi-page pagination that caused tool visibility issues
+  in Claude Code and other MCP clients. ([#96](https://github.com/Dakera-AI/dakera-mcp/pull/96))
+
 ## [0.10.1] - 2026-05-18
 
 ### Added
 
 - **MCP token/context optimizations** — 5 optimizations that cut tool description tokens by ~47%:
-  description compression, property deduplication, default value removal, cursor-based pagination
-  (20 tools/page), and compact enum formatting. Core profile now ~2,400 estimated tokens (was
+  description compression, property deduplication, default value removal, cursor-based pagination,
+  and compact enum formatting. Core profile now ~2,400 estimated tokens (was
   ~4,500+). ([#88](https://github.com/Dakera-AI/dakera-mcp/pull/88))
 - **Cross-compilation CI workflow** — automated release builds for 10 platform binaries:
   Linux (x64, ARM64, musl, ARMv7), macOS (ARM64, x64), Windows (x64, ARM64), and FreeBSD (x64).
