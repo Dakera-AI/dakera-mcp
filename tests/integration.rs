@@ -894,10 +894,7 @@ async fn test_protocol_tools_list_all_returns_86() {
         let req = rpc_request("tools/list", params);
         let resp = handle_request(&c, &req).await;
         let result = resp.result.expect("tools/list must return a result");
-        total += result["tools"]
-            .as_array()
-            .expect("tools array")
-            .len();
+        total += result["tools"].as_array().expect("tools array").len();
         cursor = result
             .get("nextCursor")
             .and_then(|v| v.as_str())
