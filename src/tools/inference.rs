@@ -15,7 +15,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace to query" },
                     "text": { "type": "string", "description": "Natural language query text" },
-                    "top_k": { "type": "integer", "description": "Number of results", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results" },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
                 "required": ["namespace", "text"]
@@ -42,7 +42,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                             "required": ["id", "text"]
                         }
                     },
-                    "model": { "type": "string", "description": "Embedding model (default: minilm)" }
+                    "model": { "type": "string", "description": "Embedding model" }
                 },
                 "required": ["namespace", "documents"]
             }),
@@ -59,10 +59,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "description": "Multiple query texts",
                         "items": { "type": "string" }
                     },
-                    "top_k": { "type": "integer", "description": "Number of results per query", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results per query" },
                     "filter": { "type": "object", "description": "Optional filter for all queries" },
-                    "include_vectors": { "type": "boolean", "description": "Include vectors in response", "default": false },
-                    "model": { "type": "string", "description": "Embedding model (default: minilm)" }
+                    "include_vectors": { "type": "boolean", "description": "Include vectors in response" },
+                    "model": { "type": "string", "description": "Embedding model" }
                 },
                 "required": ["namespace", "queries"]
             }),

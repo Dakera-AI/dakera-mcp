@@ -36,8 +36,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of events to return (default 100, max 10000)",
-                    "default": 100
+                    "description": "Maximum events to return (max 10000)"
                 }
             },
             "required": []

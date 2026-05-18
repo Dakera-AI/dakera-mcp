@@ -39,7 +39,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace to search in" },
                     "query": { "type": "string", "description": "Search query text" },
-                    "top_k": { "type": "integer", "description": "Number of results to return", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results to return" },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
                 "required": ["namespace", "query"]
@@ -85,10 +85,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "items": { "type": "number" }
                     },
                     "text": { "type": "string", "description": "Text query for full-text search" },
-                    "top_k": { "type": "integer", "description": "Number of results to return", "default": 10 },
-                    "vector_weight": { "type": "number", "description": "Weight for vector score (0.0-1.0). Text weight is 1-vector_weight. Ignored when vector is omitted.", "default": 0.5 },
-                    "include_metadata": { "type": "boolean", "description": "Include metadata in results", "default": true },
-                    "include_vectors": { "type": "boolean", "description": "Include vectors in results", "default": false },
+                    "top_k": { "type": "integer", "description": "Number of results to return" },
+                    "vector_weight": { "type": "number", "description": "Weight for vector score (0.0-1.0). Text weight is 1-vector_weight. Ignored when vector is omitted." },
+                    "include_metadata": { "type": "boolean", "description": "Include metadata in results" },
+                    "include_vectors": { "type": "boolean", "description": "Include vectors in results" },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
                 "required": ["namespace", "text"]

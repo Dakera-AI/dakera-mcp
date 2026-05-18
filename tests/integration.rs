@@ -1331,3 +1331,153 @@ async fn test_meta_roundtrip_discover_load_invoke() {
 
     cleanup(&c, &agent_id).await;
 }
+
+// ── DAK-5216: Pagination tests (pure local — no live server required) ─────────
+
+#[tokio::test]
+async fn test_pagination_core_profile_single_page() {
+    // Core profile has 14 tools which fit in one page (page_size=20).
+    // No nextCursor should be returned.
+    use dakera_mcp::server::handle_request;
+    use dakera_mcp::tools::DakeraApiClient;
+    let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
+    let req: dakera_mcp::protocol::JsonRpcRequest =
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"profile":"core"}}"#).unwrap();
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.unwrap();
+    let tools = result["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 14, "core profile must return all 14 tools in one page");
+    assert!(
+        result.get("nextCursor").is_none(),
+        "core profile (14 tools) fits in one page — no nextCursor expected"
+    );
+}
+
+#[tokio::test]
+async fn test_pagination_all_profile_first_page() {
+    // all profile (86 tools) with page_size=20 must return first 20 tools + nextCursor.
+    use dakera_mcp::server::handle_request;
+    use dakera_mcp::tools::DakeraApiClient;
+    let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
+    let req: dakera_mcp::protocol::JsonRpcRequest =
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"profile":"all"}}"#).unwrap();
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.unwrap();
+    let tools = result["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 20, "first page of 'all' profile must return exactly 20 tools");
+    assert!(
+        result.get("nextCursor").is_some(),
+        "'all' profile with 86 tools must return a nextCursor for page 2"
+    );
+}
+
+#[tokio::test]
+async fn test_pagination_cursor_advances_page() {
+    // Requesting cursor="20" must return tools 21-40 (second page).
+    use dakera_mcp::server::handle_request;
+    use dakera_mcp::tools::DakeraApiClient;
+    let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
+    let req: dakera_mcp::protocol::JsonRpcRequest =
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"20"}}"#).unwrap();
+    let resp = handle_request(&c, &req).await;
+    let result = resp.result.unwrap();
+    let tools = result["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 20, "second page must return 20 tools");
+    let req0: dakera_mcp::protocol::JsonRpcRequest =
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"profile":"all"}}"#).unwrap();
+    let resp0 = handle_request(&c, &req0).await;
+    let page0_names: std::collections::HashSet<String> = resp0.result.unwrap()["tools"]
+        .as_array().unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap_or("").to_string())
+        .collect();
+    for tool in tools {
+        let name = tool["name"].as_str().unwrap_or("");
+        assert!(
+            !page0_names.contains(name),
+            "tool '{name}' appears on both page 0 and page 1 — pagination is broken"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_pagination_all_tools_across_pages() {
+    // Paginating through all pages of 'all' profile must cover all 86 tools exactly once.
+    use dakera_mcp::server::handle_request;
+    use dakera_mcp::tools::DakeraApiClient;
+    let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
+    let mut cursor: Option<String> = None;
+    let mut all_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut pages = 0usize;
+
+    loop {
+        let params = match &cursor {
+            None => r#"{"profile":"all"}"#.to_string(),
+            Some(cur) => format!(r#"{{"profile":"all","cursor":"{}"}}"#, cur),
+        };
+        let raw = format!(
+            r#"{{"jsonrpc":"2.0","id":{},"method":"tools/list","params":{}}}"#,
+            pages, params
+        );
+        let req: dakera_mcp::protocol::JsonRpcRequest = serde_json::from_str(&raw).unwrap();
+        let resp = handle_request(&c, &req).await;
+        let result = resp.result.unwrap();
+        let tools = result["tools"].as_array().unwrap();
+        for t in tools {
+            all_names.insert(t["name"].as_str().unwrap_or("").to_string());
+        }
+        pages += 1;
+        cursor = result
+            .get("nextCursor")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        if cursor.is_none() {
+            break;
+        }
+        assert!(pages <= 10, "Pagination took more than 10 pages — likely infinite loop");
+    }
+
+    assert_eq!(
+        all_names.len(),
+        86,
+        "Paginating through 'all' profile must yield all 86 tools, got: {}",
+        all_names.len()
+    );
+}
+
+// ── DAK-5216: Token count measurement (pure local — no live server required) ──
+
+#[test]
+fn test_token_count_before_after_measurement() {
+    // Measure JSON byte size of each profile's tools/list response.
+    // Token estimate: bytes / 3.5 (conservative avg chars/token for JSON).
+    // Pre-optimization all-profile baseline: ~72000 bytes (~20571 tokens).
+    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 86, 0)];
+    for (profile, expected_count, _) in &profiles {
+        let defs = dakera_mcp::tools::filtered_definitions(profile);
+        if *expected_count > 0 {
+            assert_eq!(defs.len(), *expected_count, "profile={} tool count mismatch", profile);
+        }
+        let json = serde_json::json!({"tools": defs});
+        let bytes = serde_json::to_string(&json).unwrap().len();
+        let est_tokens = bytes as f64 / 3.5;
+        println!(
+            "[DAK-5216] profile={} tools={} bytes={} est_tokens={:.0}",
+            profile,
+            defs.len(),
+            bytes,
+            est_tokens
+        );
+    }
+    // Hard gate: core profile must stay under 8000 bytes (~2286 tokens).
+    let core = dakera_mcp::tools::filtered_definitions("core");
+    let core_bytes = serde_json::to_string(&serde_json::json!({"tools": core}))
+        .unwrap()
+        .len();
+    assert!(
+        core_bytes < 8000,
+        "Core profile tools/list JSON is {} bytes (est {:.0} tokens) — exceeds budget",
+        core_bytes,
+        core_bytes as f64 / 3.5
+    );
+}

@@ -15,45 +15,44 @@ pub fn definitions() -> Vec<ToolDefinition> {
         ToolDefinition {
             name: "dakera_graph_traverse".into(),
             description: "Traverse the memory knowledge graph via BFS. \
-                Two modes: (1) memory-anchored — provide `memory_id` to start from a specific \
-                memory (CE-5 API); (2) agent-scoped — provide `agent_id` + `root_id` to traverse \
-                with optional edge-type/weight filters (KG-2 API). Returns connected memories \
-                and edge types within the specified depth."
+                Two modes: (1) memory-anchored — provide `memory_id`; \
+                (2) agent-scoped — provide `agent_id` + `root_id` with optional edge-type/weight filters. \
+                Returns connected memories and edge types within the specified depth."
                 .into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "memory_id": {
                         "type": "string",
-                        "description": "Memory ID to start traversal from (CE-5 mode)"
+                        "description": "Memory ID to start traversal from (memory-anchored mode)"
                     },
                     "agent_id": {
                         "type": "string",
-                        "description": "Agent ID whose graph to traverse (KG-2 mode, pair with root_id)"
+                        "description": "Agent ID whose graph to traverse (agent-scoped mode, pair with root_id)"
                     },
                     "root_id": {
                         "type": "string",
-                        "description": "Root memory ID for agent-scoped traversal (KG-2 mode)"
+                        "description": "Root memory ID for agent-scoped traversal"
                     },
                     "depth": {
                         "type": "integer",
-                        "description": "BFS depth limit (1–5, default 3)",
+                        "description": "BFS depth limit (1–5)",
                         "minimum": 1,
                         "maximum": 5
                     },
                     "edge_type": {
                         "type": "string",
-                        "description": "Comma-separated edge type filter, e.g. \"related_to,precedes\" (KG-2 mode only)"
+                        "description": "Comma-separated edge type filter (e.g. \"related_to,precedes\"; agent-scoped only)"
                     },
                     "min_weight": {
                         "type": "number",
-                        "description": "Minimum edge weight threshold 0.0–1.0 (KG-2 mode only)",
+                        "description": "Min edge weight 0.0–1.0 (agent-scoped only)",
                         "minimum": 0.0,
                         "maximum": 1.0
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum edges to return (KG-2 mode, default 100, max 1000)",
+                        "description": "Max edges to return (agent-scoped only, max 1000)",
                         "minimum": 1,
                         "maximum": 1000
                     }

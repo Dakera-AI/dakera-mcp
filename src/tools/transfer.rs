@@ -30,8 +30,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "format": {
                         "type": "string",
                         "enum": ["jsonl", "csv", "mem0", "zep"],
-                        "description": "Export format (default: jsonl)",
-                        "default": "jsonl"
+                        "description": "Export format (jsonl|csv|mem0|zep)"
                     }
                 },
                 "required": ["agent_id"]

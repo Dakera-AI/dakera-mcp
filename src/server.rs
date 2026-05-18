@@ -112,11 +112,24 @@ pub async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) 
                 .unwrap_or_else(|| {
                     std::env::var("DAKERA_MCP_PROFILE").unwrap_or_else(|_| "core".to_string())
                 });
-            let tool_defs = tools::filtered_definitions(&profile);
-            JsonRpcResponse::success(
-                request.id.clone(),
-                serde_json::json!({ "tools": tool_defs }),
-            )
+            let all_tools = tools::filtered_definitions(&profile);
+            // MCP cursor-based pagination — cursor is a decimal string offset.
+            // Page size 20: core profile (14 tools) fits in one page; power (≈39) in 2; all (86) in 5.
+            const PAGE_SIZE: usize = 20;
+            let offset = request
+                .params
+                .get("cursor")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let total = all_tools.len();
+            let page: Vec<_> = all_tools.into_iter().skip(offset).take(PAGE_SIZE).collect();
+            let next_offset = offset + page.len();
+            let mut result = serde_json::json!({ "tools": page });
+            if next_offset < total {
+                result["nextCursor"] = serde_json::json!(next_offset.to_string());
+            }
+            JsonRpcResponse::success(request.id.clone(), result)
         }
         "tools/call" => handle_tools_call(client, request).await,
         "ping" => JsonRpcResponse::success(request.id.clone(), serde_json::json!({})),
