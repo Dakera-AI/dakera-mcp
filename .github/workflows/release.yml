@@ -163,3 +163,42 @@ jobs:
             chmod +x /tmp/dakera-mcp
             mv /tmp/dakera-mcp /home/dakera/.local/bin/dakera-mcp
             echo "✅ dakera-mcp ${{ github.ref_name }} deployed"
+
+  release-asset:
+    name: Upload Release Binary Asset
+    runs-on: ubuntu-latest
+    needs: docker-merge
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract binary from Docker image
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}"
+          docker pull "$IMAGE"
+          CONTAINER=$(docker create "$IMAGE")
+          docker cp "${CONTAINER}:/usr/local/bin/dakera-mcp" ./dakera-mcp-linux-x86_64
+          docker rm "$CONTAINER"
+          chmod +x ./dakera-mcp-linux-x86_64
+          tar czf dakera-mcp-linux-x86_64.tar.gz dakera-mcp-linux-x86_64
+          sha256sum dakera-mcp-linux-x86_64.tar.gz dakera-mcp-linux-x86_64 > checksums-linux-x86_64.txt
+          echo "Extracted: $(ls -lh ./dakera-mcp-linux-x86_64)"
+
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            dakera-mcp-linux-x86_64 \
+            dakera-mcp-linux-x86_64.tar.gz \
+            checksums-linux-x86_64.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
