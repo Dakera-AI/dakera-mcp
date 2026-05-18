@@ -1103,7 +1103,7 @@ mod tests {
     #[test]
     fn test_token_size_all_profile_within_budget() {
         // All-profile (86 tools) after description compression. Budget: 17000 estimated
-        // tokens (JSON bytes / 3). With MCP pagination at 20 tools/page, per-request
+        // tokens (JSON bytes / 3). With MCP pagination at 100 tools/page, per-request
         // cost is ~3500 tokens — well within LLM context budgets.
         let defs = filtered_definitions("all");
         let json_bytes = serde_json::to_string(&defs).unwrap().len();

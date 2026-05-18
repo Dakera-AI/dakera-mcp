@@ -114,8 +114,7 @@ pub async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) 
                 });
             let all_tools = tools::filtered_definitions(&profile);
             // MCP cursor-based pagination — cursor is a decimal string offset.
-            // Page size 20: core profile (14 tools) fits in one page; power (≈39) in 2; all (86) in 5.
-            const PAGE_SIZE: usize = 20;
+            const PAGE_SIZE: usize = 100;
             let offset = request
                 .params
                 .get("cursor")
