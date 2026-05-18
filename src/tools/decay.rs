@@ -13,7 +13,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_decay_config_get".into(),
-            description: "Get the current memory-decay configuration (strategy, half-life hours, minimum importance threshold). Requires Admin scope.".into(),
+            description: "Read global memory-decay config: strategy, half-life hours, and minimum importance threshold. Requires Admin scope.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -22,7 +22,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_decay_config_set".into(),
-            description: "Update memory-decay settings at runtime (no restart required). Changes take effect on the next decay cycle. All fields are optional — omit fields you do not want to change. Requires Admin scope.".into(),
+            description: "Update memory-decay parameters at runtime without restarting the server. Changes take effect on the next decay cycle. All fields are optional — omit fields you do not want to change. Requires Admin scope. Use to extend half_life_hours if important memories are being dropped too aggressively.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -45,7 +45,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_decay_stats".into(),
-            description: "Get cumulative decay statistics and last-cycle details (memories decayed/deleted, cycle count, last run timestamp). Requires Admin scope.".into(),
+            description: "Return cumulative decay stats: memories decayed/deleted, cycle count, and last-cycle timestamp. Requires Admin scope.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},

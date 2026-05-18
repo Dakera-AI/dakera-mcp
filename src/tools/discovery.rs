@@ -14,9 +14,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_discover_tools".into(),
-            description: "Search the Dakera tool catalog by keyword/tier. Returns names + \
-                summaries without full schemas. Use dakera_load_tools to get inputSchema \
-                for tools to call."
+            description: "Search the Dakera tool catalog by keyword or tier (core/power/admin/meta) and return names and one-line summaries without loading full schemas. Call this first to find relevant tools, then use dakera_load_tools to fetch only the schemas you need — avoids loading the full catalog upfront."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -35,8 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_load_tools".into(),
-            description: "Load full inputSchema for named tools. Use dakera_discover_tools \
-                first to find tool names."
+            description: "Fetch the full inputSchema for one or more named tools. Use after dakera_discover_tools. Returns schemas for found tools and a not_found list for unrecognized names."
                 .into(),
             input_schema: json!({
                 "type": "object",

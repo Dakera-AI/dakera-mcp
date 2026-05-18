@@ -63,9 +63,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_extractor_get".into(),
-            description: "Read the default extraction provider configuration for a namespace. \
-                Returns the stored ExtractorConfig (provider, model, base_url). \
-                If no namespace-level config has been set, returns provider=none."
+            description: "Read the default extraction provider config for a namespace. \
+                Returns provider, model, and base_url; defaults to provider=none if not set."
                 .into(),
             input_schema: json!({
                 "type": "object",

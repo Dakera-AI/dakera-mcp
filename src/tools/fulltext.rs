@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_fulltext_index".into(),
-            description: "Index documents for full-text search in a namespace. Each document has an id, text content, and optional metadata.".into(),
+            description: "Add or replace documents in the BM25 index. Each document requires id and text; metadata is optional. Prerequisite for dakera_fulltext_search and the text side of dakera_hybrid_search.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -33,7 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_fulltext_search".into(),
-            description: "Search documents using full-text search with BM25 scoring.".into(),
+            description: "BM25 keyword search over indexed documents. Use over vector search when exact-term recall matters (error codes, IDs, names). For semantic+keyword combined use dakera_hybrid_search.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -47,7 +47,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_fulltext_delete".into(),
-            description: "Delete documents from the full-text index by their IDs.".into(),
+            description: "Remove documents from the BM25 index by ID. To update a document, delete then re-index via dakera_fulltext_index.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -63,7 +63,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_fulltext_stats".into(),
-            description: "BM25 index stats: doc count, unique terms, avg doc length.".into(),
+            description: "Return BM25 index stats for a namespace: document count, unique term count, average document length. Use to diagnose recall quality or monitor index drift.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -74,7 +74,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_hybrid_search".into(),
-            description: "Vector + BM25 hybrid search. Omit vector for BM25-only mode.".into(),
+            description: "BM25 + vector ANN hybrid search in a single pass. Omit vector for BM25-only mode. Use for RAG when pure semantic or keyword search alone is insufficient. vector_weight: 0.0=BM25, 1.0=vector (default 0.5).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

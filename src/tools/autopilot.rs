@@ -12,7 +12,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_autopilot_status".into(),
-            description: "Get the current AutoPilot configuration and last-run statistics (memories deduped, consolidated, cycle timestamps). Requires Admin scope.".into(),
+            description: "Return AutoPilot configuration and last-cycle stats (memories deduped, consolidated, timestamps). Requires Admin scope.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -21,7 +21,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_autopilot_trigger".into(),
-            description: "Force an immediate AutoPilot cycle. Use action=dedup to run deduplication, action=consolidate to run consolidation, or action=all to run both. Requires Admin scope.".into(),
+            description: "Trigger an AutoPilot cycle immediately. action: dedup|consolidate|all. Requires Admin scope.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

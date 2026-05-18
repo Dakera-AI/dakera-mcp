@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_store".into(),
-            description: "Store a memory for an agent. Returns the stored memory ID.".into(),
+            description: "Persist a new memory for an agent with importance weighting and optional tags. Use to save facts, decisions, or context for future retrieval. importance defaults to 0.5; set 0.8–1.0 for critical memories that must survive decay.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -26,7 +26,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Recall memories by semantic similarity. Optionally include KG-linked memories (include_associated) or filter by time window (since/until).".into(),
+            description: "Retrieve top-k memories semantically closest to a query. Prefer over dakera_batch_recall for query-based retrieval. Set include_associated=true to expand results via KG edges (1-3 hops).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -43,7 +43,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_forget".into(),
-            description: "Delete memories matching a filter. Use with caution.".into(),
+            description: "Permanently delete memories by ID or tag. Provide memory_ids for exact removal or tags to bulk-delete all memories sharing those tags. Deletion is immediate and irreversible — prefer dakera_memory_importance to suppress without deleting.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -56,7 +56,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_batch_recall".into(),
-            description: "Bulk recall by filters (tags, importance, time). Requires at least one filter.".into(),
+            description: "Filter-based memory listing by tags, importance range, time window, type, or session. Prefer over dakera_recall when semantic search is not needed. At least one filter required.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -74,7 +74,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_batch_forget".into(),
-            description: "Bulk delete by filters. Requires at least one filter to prevent accidental full-wipe.".into(),
+            description: "Bulk-delete memories matching filter criteria: tags, importance range, time window, or memory type. At least one filter is required to prevent accidental full-agent wipe. Deletion is permanent — use dakera_memory_importance to lower importance scores instead of deleting.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -92,7 +92,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_search".into(),
-            description: "Advanced memory search with filters. Supports tag filtering and importance thresholds.".into(),
+            description: "Semantic search with optional tag and memory-type pre-filters. Prefer over dakera_recall when results must be constrained by tag or type alongside the semantic match.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -107,7 +107,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_consolidate".into(),
-            description: "Consolidate related memories into a summary. Reduces redundancy and creates a synthesized memory.".into(),
+            description: "Merge a set of memories into a synthesized summary, de-duplicating overlap. Use after a burst of related episodic memories to reduce storage and improve recall. Source memories are retained unless explicitly deleted.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -119,7 +119,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_get".into(),
-            description: "Get a specific memory by ID. Returns the full memory object including content, metadata, and embedding info.".into(),
+            description: "Fetch a single memory by ID, returning the full object: content, tags, importance, timestamps, and embedding metadata.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -131,7 +131,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_update".into(),
-            description: "Update an existing memory's content, importance, or tags. The memory is re-embedded if content changes.".into(),
+            description: "Edit an existing memory's content, importance, or tags. Changing content triggers re-embedding so semantic search reflects the update. Prefer over delete+recreate to preserve the memory ID.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -146,7 +146,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall_associated".into(),
-            description: "Recall memories with KG-associated context. Always enables associative recall with configurable hop depth (1–3).".into(),
+            description: "Semantic recall that expands results by following Knowledge Graph edges from each matched memory to its linked neighbors (1–3 hops). Use instead of dakera_recall when cross-linked context — related decisions, people, or events — would improve completeness. associated_memories_depth=1 is the default; higher values widen the result set.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -164,7 +164,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_importance".into(),
-            description: "Batch-update importance scores for multiple memories. Useful for re-ranking after review.".into(),
+            description: "Batch-update importance scores for multiple memories in a single call. Use to boost critical memories (0.9–1.0 to resist decay) or to down-weight noisy ones without deleting them. Accepts an array of {memory_id, importance} pairs where importance is 0.0–1.0.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

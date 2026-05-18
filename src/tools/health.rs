@@ -9,17 +9,17 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_health_ready".into(),
-            description: "Readiness probe — returns 200 when the server is ready to serve requests (storage and inference loaded). No auth required.".into(),
+            description: "Readiness probe: returns OK when storage and inference are loaded. Use in startup checks before sending traffic. No auth required.".into(),
             input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },
         ToolDefinition {
             name: "dakera_health_live".into(),
-            description: "Liveness probe — returns 200 when the server process is alive. No auth required.".into(),
+            description: "Liveness probe: returns OK when the server process is running and responsive. Use to detect hangs; use dakera_health_ready for readiness. No auth required.".into(),
             input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },
         ToolDefinition {
             name: "dakera_ops_metrics".into(),
-            description: "Get Prometheus-format metrics (counters, histograms, gauges) for the Dakera instance. Requires Admin scope.".into(),
+            description: "Return Prometheus-format metrics: request counters, latency histograms, memory/session gauges, and decay stats. Requires Admin scope.".into(),
             input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },
     ]

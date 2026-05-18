@@ -11,9 +11,7 @@ use crate::protocol::{CallToolResult, ToolDefinition};
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![ToolDefinition {
         name: "dakera_audit_query".into(),
-        description: "Query the business-event audit log. Returns memory lifecycle events \
-            (stored, recalled, forgotten, session.started, etc.) with optional filters on \
-            agent, event type, and time range. Requires Admin scope."
+        description: "Query the audit log of memory lifecycle events with optional filters by agent, event type, and time range (Unix ms). Requires Admin scope. Limit defaults to 100 (max 10000)."
             .into(),
         input_schema: json!({
             "type": "object",

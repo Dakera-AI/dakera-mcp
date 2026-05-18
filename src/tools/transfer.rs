@@ -16,9 +16,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_memory_export".into(),
-            description: "Export all memories for an agent in a portable format (jsonl, csv, \
-                mem0, zep). Returns the raw export text. Use to migrate memories between \
-                Dakera instances or compatible memory systems."
+            description: "Export all memories for an agent as a portable payload (jsonl, csv, mem0, or zep). Returns the raw text for archiving or import into another instance. format defaults to jsonl."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -35,9 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_import".into(),
-            description: "Import memories from a string payload (JSONL, CSV, Mem0 JSON, or \
-                Zep JSON). The format is auto-detected from the content unless explicitly \
-                specified. Returns an import job status with counts of imported/skipped records."
+            description: "Import memories from a JSONL, CSV, Mem0, or Zep payload. Format is auto-detected unless specified. Returns import status with counts of imported and skipped records."
                 .into(),
             input_schema: json!({
                 "type": "object",

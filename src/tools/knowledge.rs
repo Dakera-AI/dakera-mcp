@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_knowledge_graph".into(),
-            description: "Build a knowledge graph from a seed memory. Finds related memories via embedding similarity, producing a root node with related edges.".into(),
+            description: "Build a knowledge graph from a seed memory using embedding similarity. Use to explore how a concept connects to stored knowledge. For BFS traversal of an existing linked graph use dakera_graph_traverse.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -23,7 +23,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_knowledge_summarize".into(),
-            description: "Summarize a set of memories into a single consolidated memory. Combines content, tags, and importance from source memories.".into(),
+            description: "Combine 2+ memories into a synthesized semantic memory. Use to compress episodic context into a persistent fact. Requires at least 2 memory IDs.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -36,7 +36,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_knowledge_deduplicate".into(),
-            description: "Find and optionally merge duplicate or near-duplicate memories for an agent.".into(),
+            description: "Scan for duplicate or near-duplicate memories above a cosine similarity threshold and optionally merge them. Set dry_run=true to preview before committing. Threshold defaults to 0.9.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -49,7 +49,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_knowledge_network_cross_agent".into(),
-            description: "Build a cross-agent memory network spanning all agent namespaces. Returns nodes (memories) and edges (cross-agent similarity links). Requires Admin scope.".into(),
+            description: "Build a cross-agent similarity graph across agent memory stores. Returns nodes (memories) and edges (links). Requires Admin scope. Omit agent_ids to span all agents.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

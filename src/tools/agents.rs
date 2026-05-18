@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_agent_stats".into(),
-            description: "Get statistics for an agent: memory count, session count, storage usage, and top tags.".into(),
+            description: "Return an agent's memory footprint: count, session count, approximate storage, and top tags. Use to monitor memory growth or compare agents.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -20,7 +20,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_agent_memories".into(),
-            description: "List all memories belonging to an agent, ordered by recency.".into(),
+            description: "Paginate through all memories belonging to an agent, ordered by recency. Use for inspection or bulk operations — for semantic retrieval use dakera_recall; for filter-based listing use dakera_batch_recall. limit defaults to 50 (max 1000).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -33,7 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_agent_sessions".into(),
-            description: "List all sessions for an agent, including active and completed sessions.".into(),
+            description: "List all sessions (active and closed) for an agent with timestamps and summaries. Use to find a session_id for dakera_session_memories.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

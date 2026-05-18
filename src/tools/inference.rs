@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_text_query".into(),
-            description: "Query a namespace using natural language text. The text is embedded server-side and used for similarity search.".into(),
+            description: "Query a namespace with natural language text — the server embeds the text and runs ANN similarity search. Use instead of dakera_vector_upsert + manual embedding when you do not want to manage embedding generation client-side.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -23,7 +23,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_upsert_text".into(),
-            description: "Upsert text documents with automatic embedding generation. The text is embedded server-side using the specified model and stored as vectors.".into(),
+            description: "Store text documents with automatic server-side embedding. Use over dakera_vector_upsert when you do not want to generate embeddings client-side. Supports per-document TTL via ttl_seconds.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -49,7 +49,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_batch_query_text".into(),
-            description: "Batch query using multiple text queries with automatic embedding. Runs multiple similarity searches in one request.".into(),
+            description: "Run multiple natural-language similarity searches in a single request, all embedded server-side. Use instead of sequential dakera_text_query calls when searching the same namespace with several independent queries — reduces round trips and embedding overhead.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

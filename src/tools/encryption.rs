@@ -13,13 +13,8 @@ use crate::protocol::{CallToolResult, ToolDefinition};
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![ToolDefinition {
         name: "dakera_encryption_rotate_key".into(),
-        description: "Rotate the AES-256-GCM encryption key used for memory content at rest. \
-            Re-encrypts all stored memories under the new key in a single atomic pass. \
-            The server begins using the new key immediately — existing clients continue \
-            operating without restart (zero-downtime). Requires SuperAdmin scope. \
-            new_key accepts either a 64-char hex string (raw 256-bit key) or a passphrase \
-            (stretched via PBKDF2-HMAC-SHA256). Returns the number of memories rotated \
-            and the namespaces affected."
+        description: "Rotate the AES-256-GCM key for memory content at rest, re-encrypting all memories atomically with zero downtime. \
+            new_key: 64-char hex or passphrase (PBKDF2-HMAC-SHA256). Optionally scope to one namespace. Requires SuperAdmin scope."
             .into(),
         input_schema: json!({
             "type": "object",

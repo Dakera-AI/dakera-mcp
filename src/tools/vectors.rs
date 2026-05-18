@@ -10,7 +10,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_vector_upsert".into(),
-            description: "Upsert vectors into a namespace. Each vector has an ID, float array, and optional metadata.".into(),
+            description: "Insert or replace vectors (by ID) in a namespace. Each entry requires an id and a float values array; metadata is optional. Use for custom embeddings — for text with server-side embedding use dakera_upsert_text instead.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -34,7 +34,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_delete".into(),
-            description: "Delete vectors by ID from a namespace.".into(),
+            description: "Remove specific vectors by ID. For bulk removal by filter use dakera_vector_bulk_delete.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -46,7 +46,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_batch_query".into(),
-            description: "Batch query multiple vectors at once. Runs multiple similarity searches in parallel and returns results for each query.".into(),
+            description: "Run multiple similarity searches in one request, each with its own vector, top_k, and filter. More efficient than sequential single-vector queries.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -72,7 +72,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_bulk_update".into(),
-            description: "Update metadata on vectors matching a filter. Applies the same update to all matching vectors in the namespace.".into(),
+            description: "Apply a metadata update to all vectors matching a filter. Use to re-tag or reclassify vectors without re-upserting embeddings.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -85,7 +85,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_bulk_delete".into(),
-            description: "Delete all vectors matching a filter from a namespace.".into(),
+            description: "Delete all vectors matching a metadata filter. For deletion by known IDs use dakera_vector_delete.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -97,7 +97,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_count".into(),
-            description: "Count vectors in a namespace, optionally filtered. If no filter is provided, returns the total count.".into(),
+            description: "Return the count of vectors in a namespace, optionally scoped by a metadata filter. Use to validate ingestion or check index size.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -109,7 +109,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_export".into(),
-            description: "Export vectors from a namespace with pagination. Returns vectors with optional values and metadata.".into(),
+            description: "Paginate through all vectors with optional values and metadata. Use for backup or migration; iterate via cursor until no next_cursor. top_k controls page size (max 10000).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -124,7 +124,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_aggregate".into(),
-            description: "Compute aggregations over vectors in a namespace. Supports Count, Sum, Avg, Min, Max on metadata fields with optional grouping.".into(),
+            description: "Compute Count/Sum/Avg/Min/Max on metadata fields across vectors, with optional group-by. Use for analytics dashboards or to detect distribution skew.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -145,7 +145,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_multi_search".into(),
-            description: "Multi-vector search with positive and negative vectors. Supports weighted combination, MMR diversity, and score thresholds.".into(),
+            description: "Similarity search driven by a weighted combination of multiple positive and optional negative vectors, with support for MMR diversity re-ranking and a score threshold. Use when a single query vector is insufficient — for concept arithmetic, excluding a topic, or blending multiple semantic directions.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -181,7 +181,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_upsert_columns".into(),
-            description: "Upsert vectors in column format. All arrays must have equal length. More efficient for batch operations.".into(),
+            description: "Upsert vectors in columnar form (parallel arrays of ids, vectors, attributes). More efficient for large batches than dakera_vector_upsert. All arrays must be the same length.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -206,7 +206,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_explain".into(),
-            description: "Explain a query execution plan. Shows index selection, execution stages, cost estimates, and optimization recommendations.".into(),
+            description: "Return the query execution plan showing index selection, stages, and cost estimates. Set execute=true to run for real latency stats. Use to debug slow queries or estimate cost before batch operations.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -232,7 +232,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_warm".into(),
-            description: "Warm the cache for a namespace. Pre-loads vectors into memory for faster subsequent queries.".into(),
+            description: "Pre-load a namespace (or specific vectors) into memory to reduce cold-start latency. Omit vector_ids to warm the entire namespace.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -248,7 +248,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_vector_unified_query".into(),
-            description: "Unified query with flexible ranking. Supports vector search, full-text search, attribute ordering, and combined rankings (Sum, Max, Product).".into(),
+            description: "Flexible ranked retrieval using the rank_by DSL combining vector ANN, BM25, and attribute ordering. Use when you need composite ranking (Sum, Max, Product) not supported by dakera_hybrid_search's fixed weight.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
