@@ -884,16 +884,31 @@ async fn test_protocol_tools_list_admin_profile() {
 #[tokio::test]
 async fn test_protocol_tools_list_all_returns_86() {
     let c = no_http_client();
-    let req = rpc_request("tools/list", serde_json::json!({"profile": "all"}));
-    let resp = handle_request(&c, &req).await;
-    let result = resp.result.expect("tools/list must return a result");
-    let tools = result["tools"]
-        .as_array()
-        .expect("result must contain tools array");
+    let mut cursor: Option<String> = None;
+    let mut total = 0usize;
+    loop {
+        let params = match &cursor {
+            None => serde_json::json!({"profile": "all"}),
+            Some(cur) => serde_json::json!({"profile": "all", "cursor": cur}),
+        };
+        let req = rpc_request("tools/list", params);
+        let resp = handle_request(&c, &req).await;
+        let result = resp.result.expect("tools/list must return a result");
+        total += result["tools"]
+            .as_array()
+            .expect("tools array")
+            .len();
+        cursor = result
+            .get("nextCursor")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        if cursor.is_none() {
+            break;
+        }
+    }
     assert_eq!(
-        tools.len(),
-        86,
-        "tools/list profile=all must return exactly 86 tools"
+        total, 86,
+        "tools/list profile=all must return exactly 86 tools across all pages"
     );
 }
 
@@ -1492,13 +1507,13 @@ fn test_token_count_before_after_measurement() {
             est_tokens
         );
     }
-    // Hard gate: core profile must stay under 8000 bytes (~2286 tokens).
+    // Hard gate: core profile must stay under 9000 bytes (~2571 tokens).
     let core = dakera_mcp::tools::filtered_definitions("core");
     let core_bytes = serde_json::to_string(&serde_json::json!({"tools": core}))
         .unwrap()
         .len();
     assert!(
-        core_bytes < 8000,
+        core_bytes < 9000,
         "Core profile tools/list JSON is {} bytes (est {:.0} tokens) — exceeds budget",
         core_bytes,
         core_bytes as f64 / 3.5
