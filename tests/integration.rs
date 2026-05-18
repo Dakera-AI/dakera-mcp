@@ -1348,7 +1348,7 @@ async fn test_meta_roundtrip_discover_load_invoke() {
 
 #[tokio::test]
 async fn test_pagination_core_profile_single_page() {
-    // Core profile has 14 tools which fit in one page (page_size=20).
+    // Core profile has 14 tools which fit in one page (page_size=100).
     // No nextCursor should be returned.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
@@ -1373,7 +1373,7 @@ async fn test_pagination_core_profile_single_page() {
 
 #[tokio::test]
 async fn test_pagination_all_profile_first_page() {
-    // all profile (86 tools) with page_size=20 must return first 20 tools + nextCursor.
+    // all profile (86 tools) with page_size=100 fits in one page — no nextCursor.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1386,45 +1386,31 @@ async fn test_pagination_all_profile_first_page() {
     let tools = result["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        20,
-        "first page of 'all' profile must return exactly 20 tools"
+        86,
+        "all profile must return all 86 tools in one page"
     );
     assert!(
-        result.get("nextCursor").is_some(),
-        "'all' profile with 86 tools must return a nextCursor for page 2"
+        result.get("nextCursor").is_none(),
+        "'all' profile (86 tools) fits in one page — no nextCursor expected"
     );
 }
 
 #[tokio::test]
 async fn test_pagination_cursor_advances_page() {
-    // Requesting cursor="20" must return tools 21-40 (second page).
+    // Cursor past total returns empty page with no nextCursor.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
     let req: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"20"}}"#).unwrap();
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"86"}}"#).unwrap();
     let resp = handle_request(&c, &req).await;
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 20, "second page must return 20 tools");
-    let req0: dakera_mcp::protocol::JsonRpcRequest = serde_json::from_str(
-        r#"{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"profile":"all"}}"#,
-    )
-    .unwrap();
-    let resp0 = handle_request(&c, &req0).await;
-    let page0_names: std::collections::HashSet<String> = resp0.result.unwrap()["tools"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|t| t["name"].as_str().unwrap_or("").to_string())
-        .collect();
-    for tool in tools {
-        let name = tool["name"].as_str().unwrap_or("");
-        assert!(
-            !page0_names.contains(name),
-            "tool '{name}' appears on both page 0 and page 1 — pagination is broken"
-        );
-    }
+    assert_eq!(tools.len(), 0, "cursor past total must return empty page");
+    assert!(
+        result.get("nextCursor").is_none(),
+        "cursor past total must have no nextCursor"
+    );
 }
 
 #[tokio::test]
