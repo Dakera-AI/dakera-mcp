@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.3] - 2026-05-18
+
+### Added
+
+- **Crate metadata for Glama.ai discoverability** — added `authors`, `homepage`, `documentation`,
+  `readme`, `keywords`, and `categories` to Cargo.toml. Fixes "No maintainers listed" on Glama.ai
+  registry. ([#98](https://github.com/Dakera-AI/dakera-mcp/pull/98))
+
 ## [0.10.2] - 2026-05-18
 
 ### Fixed
