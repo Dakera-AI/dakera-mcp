@@ -10,7 +10,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         ToolDefinition {
             name: "dakera_session_start".into(),
             description:
-                "Start a new session for an agent. Sessions group related memories together.".into(),
+                "Open a new session, returning a session_id that groups stored memories under a shared context. Attach metadata such as task type or trigger source for later retrieval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -22,7 +22,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_end".into(),
-            description: "End an active session, optionally with a summary.".into(),
+            description: "Close an active session with an optional summary. Always call at run end (even on error) to avoid orphaned sessions; summary is retrievable via dakera_session_get.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -34,7 +34,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_list".into(),
-            description: "List sessions for an agent. Optionally filter to active sessions only."
+            description: "List sessions for an agent, newest first. Set active_only=true to detect a lingering open session before starting a new one."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -48,7 +48,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         ToolDefinition {
             name: "dakera_session_get".into(),
             description:
-                "Get details for a specific session by ID, including metadata and summary.".into(),
+                "Fetch the full record for a session: metadata, summary, timestamps, and memory count. Use to review a prior agent run or verify a session closed cleanly.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -59,7 +59,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_memories".into(),
-            description: "List all memories associated with a session.".into(),
+            description: "Return all memories stored under a specific session. Use to audit a single agent run without fetching the agent's entire memory history.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

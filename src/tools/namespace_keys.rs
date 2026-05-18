@@ -18,9 +18,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_namespace_key_create".into(),
-            description: "Create a namespace-scoped API key. The key is automatically restricted \
-                to the given namespace. Requires Admin scope on that namespace. \
-                Cannot create super_admin keys through this endpoint."
+            description: "Create a new API key scoped to a specific namespace with the given permission level (read/write/admin). The raw key is returned once in the response — store it securely as it cannot be retrieved again. Cannot create super_admin keys through this endpoint."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -53,8 +51,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_key_list".into(),
-            description: "List all API keys that include access to a namespace. \
-                Returns key metadata (id, name, scope, created_at) but not the raw key values."
+            description: "List API keys with access to a namespace (metadata only, no raw values). Use to audit access or find key IDs for revocation."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -69,8 +66,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_key_delete".into(),
-            description: "Revoke a namespace-scoped API key by ID. \
-                The key is immediately invalidated. Requires Admin scope on the namespace."
+            description: "Immediately revoke a namespace-scoped API key by ID. Requires Admin scope. Use dakera_namespace_key_list to find the key_id."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -89,8 +85,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_key_usage".into(),
-            description: "Get usage statistics for a namespace-scoped API key. \
-                Returns request counts, last used timestamp, and rate limit info."
+            description: "Return request counts, last-used timestamp, and rate-limit status for a key. Use to audit activity before revoking."
                 .into(),
             input_schema: json!({
                 "type": "object",

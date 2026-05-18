@@ -15,11 +15,9 @@ use crate::protocol::{CallToolResult, ToolDefinition};
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![ToolDefinition {
         name: "dakera_extract_entities".into(),
-        description: "Extract named entities from text using the dakera-ode GLiNER pipeline. \
-            Returns a list of entities with label, text, start offset, end offset, and \
-            confidence score. Supported entity types (defaults): PERSON, ORG, LOCATION, DATE, \
-            TECHNOLOGY, PRODUCT, EVENT, CONCEPT. \
-            Requires DAKERA_ODE_URL to point to a running dakera-ode instance."
+        description: "Extract named entities from text via the dakera-ode GLiNER sidecar, returning label, offsets, and confidence. \
+            Defaults: PERSON, ORG, LOCATION, DATE, TECHNOLOGY, PRODUCT, EVENT, CONCEPT. \
+            Requires DAKERA_ODE_URL. Use dakera_auto_tag if the ODE sidecar is not deployed."
             .into(),
         input_schema: json!({
             "type": "object",

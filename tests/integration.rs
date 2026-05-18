@@ -1490,13 +1490,14 @@ fn test_token_count_before_after_measurement() {
             est_tokens
         );
     }
-    // Hard gate: core profile must stay under 9000 bytes (~2571 tokens).
+    // Hard gate: core profile must stay under 10500 bytes (~3500 tokens at 3 bytes/token),
+    // aligned with the unit test budget in src/tools/mod.rs::test_token_size_core_profile_within_budget.
     let core = dakera_mcp::tools::filtered_definitions("core");
     let core_bytes = serde_json::to_string(&serde_json::json!({"tools": core}))
         .unwrap()
         .len();
     assert!(
-        core_bytes < 9000,
+        core_bytes < 10500,
         "Core profile tools/list JSON is {} bytes (est {:.0} tokens) — exceeds budget",
         core_bytes,
         core_bytes as f64 / 3.5

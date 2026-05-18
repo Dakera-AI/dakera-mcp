@@ -14,10 +14,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_graph_traverse".into(),
-            description: "Traverse the memory knowledge graph via BFS. \
-                Two modes: (1) memory-anchored — provide `memory_id`; \
-                (2) agent-scoped — provide `agent_id` + `root_id` with optional edge-type/weight filters. \
-                Returns connected memories and edge types within the specified depth."
+            description: "Traverse the memory knowledge graph via BFS to discover connected memories. \
+                Memory-anchored mode: provide memory_id to explore outbound links from a known memory. \
+                Agent-scoped mode: provide agent_id + root_id with optional edge-type or min-weight filters. \
+                Returns connected memories and edge metadata up to the specified depth (1–5)."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -61,8 +61,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_graph_path".into(),
-            description: "Find the shortest path between two memories in the knowledge graph. \
-                Returns the ordered sequence of memory IDs and edge hops connecting them."
+            description: "Find the shortest path between two memory nodes, returning the ordered sequence of IDs and edge hops. \
+                Use to explain why two memories are related or trace an inference chain."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -75,8 +75,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_graph_link_memory".into(),
-            description: "Create an explicit linked_by edge between two memories in the \
-                knowledge graph."
+            description: "Create an explicit linked_by edge between two memories. \
+                Use when semantic similarity did not auto-link them; affects graph traversal and dakera_recall_associated."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -89,8 +89,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_graph_export".into(),
-            description: "Export the memory knowledge graph for an agent. \
-                Supports JSON (structured edges) and GraphML (XML for Gephi/yEd/Cytoscape)."
+            description: "Export an agent's knowledge graph as JSON or GraphML (compatible with Gephi, yEd, Cytoscape). \
+                Use for offline visualization or compliance audit."
                 .into(),
             input_schema: json!({
                 "type": "object",

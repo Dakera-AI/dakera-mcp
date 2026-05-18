@@ -10,13 +10,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
         ToolDefinition {
             name: "dakera_list_jobs".into(),
             description:
-                "List all background jobs (backup, restore, migration, reindex) and their status."
+                "List active and recent background jobs (backup, restore, migration, reindex) with status and progress. Use to retrieve job IDs for dakera_get_job."
                     .into(),
             input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },
         ToolDefinition {
             name: "dakera_get_job".into(),
-            description: "Get the status and progress of a specific background job by ID.".into(),
+            description: "Fetch status, progress, and result for a background job by UUID. Poll until the job reaches done|failed|cancelled.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

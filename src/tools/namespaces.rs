@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_namespace_list".into(),
-            description: "List all namespaces in the Dakera instance. Namespaces are isolated vector collections.".into(),
+            description: "List all namespaces with dimensions, distance metrics, and vector counts. Use to discover available namespaces or verify one exists before inserting vectors.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -18,7 +18,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_get".into(),
-            description: "Get details for a specific namespace including vector count, dimensions, and index stats.".into(),
+            description: "Fetch a namespace's configuration and stats: dimensions, distance metric, vector count, and HNSW parameters. Use to verify settings or confirm dimension compatibility.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -29,7 +29,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_create".into(),
-            description: "Create a new namespace with specified dimensions and distance metric.".into(),
+            description: "Create a vector namespace with the specified dimension and distance metric. dimension must match your model (e.g. 384 for MiniLM, 1536 for ada-002). Use dakera_namespace_configure for idempotent create-or-update.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -42,7 +42,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_delete".into(),
-            description: "Delete a namespace and all its vectors. This action is irreversible.".into(),
+            description: "Permanently delete a namespace and all of its vectors, full-text index, and metadata. This action is irreversible and takes effect immediately — verify the namespace name before calling.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -53,7 +53,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_configure".into(),
-            description: "Create-or-update (upsert) a namespace configuration. Creates the namespace if it does not exist; updates the distance metric if it does. Dimension must match on updates. Requires Write scope.".into(),
+            description: "Idempotent create-or-update for a namespace. Creates if absent; updates distance metric if present. Prefer over dakera_namespace_create in deployment scripts. dimension must match on updates.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -66,7 +66,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_policy_get".into(),
-            description: "Get the memory lifecycle policy for a namespace. Returns TTLs, decay curves, spaced repetition, consolidation, and rate limit config.".into(),
+            description: "Read the memory lifecycle policy for a namespace: TTL per type, decay curve, spaced-repetition, consolidation, and rate limits. Check before modifying with dakera_memory_policy_set.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -77,7 +77,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_policy_set".into(),
-            description: "Update the memory lifecycle policy for a namespace. All fields optional — only provided fields are overwritten; others preserved. Decay curves: exponential|linear|step|power_law|logarithmic|flat.".into(),
+            description: "Update the memory lifecycle policy for a namespace. Only provided fields are overwritten. Decay curves: exponential|linear|step|power_law|logarithmic|flat. Use to tune memory TTLs or enable auto-consolidation.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

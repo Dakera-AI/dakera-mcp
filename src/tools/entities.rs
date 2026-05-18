@@ -11,7 +11,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_auto_tag".into(),
-            description: "Extract structured entities from text using the GLiNER zero-shot NER engine and optional rule-based pre-pass (dates, URLs, UUIDs, emails, IPs). Returns typed entity spans without storing anything.".into(),
+            description: "Extract typed entity spans from text using GLiNER NER and optional rule-based pre-pass (dates, URLs, emails, IPs). Returns spans without storing. Use to preview extraction before enabling it on a namespace.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -30,7 +30,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_entity_types_set".into(),
-            description: "Configure entity extraction for a namespace. Enable or disable automatic GLiNER entity tagging at memory write time, and set which entity types to extract.".into(),
+            description: "Enable or disable automatic GLiNER entity tagging at memory write time for a namespace, and set which entity types to extract.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -67,7 +67,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_entities".into(),
-            description: "Retrieve the structured entity tags that were extracted and stored when a memory was written. Returns entity type, value, and confidence score for each entity.".into(),
+            description: "Retrieve entity tags extracted when a memory was written: type, value, and confidence score per entity.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

@@ -17,9 +17,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_memory_feedback".into(),
-            description: "Submit a feedback signal on a memory. Upvotes increase the memory's \
-                importance score; downvotes decrease it; flag marks it for review and may \
-                accelerate decay. Each signal is recorded in the memory's feedback_history."
+            description: "Submit a feedback signal (upvote/downvote/flag) on a memory. \
+                Upvote raises importance; downvote lowers it; flag marks for review and may accelerate decay."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -39,8 +38,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_feedback_get".into(),
-            description: "Retrieve the feedback history for a memory, including all upvote, \
-                downvote, and flag signals with their timestamps."
+            description: "Retrieve the feedback history for a memory: all upvote, downvote, and flag signals with timestamps."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -55,9 +53,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_agent_feedback_summary".into(),
-            description: "Get a summary of feedback signals for all memories belonging to an \
-                agent. Returns aggregate counts of upvotes, downvotes, and flags, along with \
-                the most-upvoted and most-flagged memories."
+            description: "Get aggregate feedback stats for an agent's memories: total upvotes, downvotes, flags, and the top-rated/most-flagged memories."
                 .into(),
             input_schema: json!({
                 "type": "object",
