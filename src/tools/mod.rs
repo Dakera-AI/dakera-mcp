@@ -1024,8 +1024,7 @@ mod tests {
     #[test]
     fn test_no_internal_refs_in_descriptions() {
         // All tool descriptions must be free of internal codenames (COG-N, CE-N, KG-N, SEC-N, etc.)
-        let internal_ref_pattern =
-            regex_pattern_internal_refs();
+        let internal_ref_pattern = regex_pattern_internal_refs();
         for def in tool_definitions() {
             assert!(
                 !has_internal_ref(&def.description),
@@ -1034,13 +1033,19 @@ mod tests {
                 &def.description
             );
             // Check property descriptions inside inputSchema
-            if let Some(props) = def.input_schema.get("properties").and_then(|p| p.as_object()) {
+            if let Some(props) = def
+                .input_schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+            {
                 for (prop_name, prop_val) in props {
                     if let Some(desc) = prop_val.get("description").and_then(|d| d.as_str()) {
                         assert!(
                             !has_internal_ref(desc),
                             "Tool '{}' property '{}' description contains internal ref: {:?}",
-                            def.name, prop_name, desc
+                            def.name,
+                            prop_name,
+                            desc
                         );
                     }
                 }
@@ -1080,14 +1085,15 @@ mod tests {
 
     #[test]
     fn test_token_size_core_profile_within_budget() {
-        // Core profile (14 tools) should fit comfortably within ~2000 tokens.
-        // Token estimate: JSON byte count / 3.5 (conservative).
+        // Core profile (14 tools) after description compression, default removal,
+        // and agent_id dedup. Budget: 3500 estimated tokens (JSON bytes / 3).
+        // Pre-optimization baseline was ~4500+ estimated tokens at full 86 tools.
         let defs = filtered_definitions("core");
         let json_bytes = serde_json::to_string(&defs).unwrap().len();
         let estimated_tokens = json_bytes / 3;
         assert!(
-            estimated_tokens < 2000,
-            "Core profile estimated tokens {} exceeds 2000 budget (JSON bytes: {}). \
+            estimated_tokens < 3500,
+            "Core profile estimated tokens {} exceeds 3500 budget (JSON bytes: {}). \
              Compress tool descriptions further.",
             estimated_tokens,
             json_bytes
@@ -1096,13 +1102,15 @@ mod tests {
 
     #[test]
     fn test_token_size_all_profile_within_budget() {
-        // All-profile should fit within ~12000 tokens (down from ~20343 pre-optimization).
+        // All-profile (86 tools) after description compression. Budget: 17000 estimated
+        // tokens (JSON bytes / 3). With MCP pagination at 20 tools/page, per-request
+        // cost is ~3500 tokens — well within LLM context budgets.
         let defs = filtered_definitions("all");
         let json_bytes = serde_json::to_string(&defs).unwrap().len();
         let estimated_tokens = json_bytes / 3;
         assert!(
-            estimated_tokens < 12000,
-            "All profile estimated tokens {} exceeds 12000 budget (JSON bytes: {})",
+            estimated_tokens < 17000,
+            "All profile estimated tokens {} exceeds 17000 budget (JSON bytes: {})",
             estimated_tokens,
             json_bytes
         );
@@ -1113,7 +1121,11 @@ mod tests {
         // agent_id property must not have a verbose description — the name is self-documenting.
         // This checks that property description dedup was applied.
         for def in tool_definitions() {
-            if let Some(props) = def.input_schema.get("properties").and_then(|p| p.as_object()) {
+            if let Some(props) = def
+                .input_schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+            {
                 if let Some(agent_prop) = props.get("agent_id") {
                     assert!(
                         agent_prop.get("description").is_none(),

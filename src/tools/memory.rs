@@ -61,13 +61,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "agent_id": { "type": "string" },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "All-match tag filter — only memories with ALL listed tags are returned" },
-                    "min_importance": { "type": "number", "description": "Minimum importance threshold (inclusive)" },
-                    "max_importance": { "type": "number", "description": "Maximum importance threshold (inclusive)" },
-                    "created_after": { "type": "integer", "description": "Return memories created after this Unix timestamp" },
-                    "created_before": { "type": "integer", "description": "Return memories created before this Unix timestamp" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" },
-                    "session_id": { "type": "string", "description": "Filter by session ID" }
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags to match (all required)" },
+                    "min_importance": { "type": "number", "description": "Min importance (inclusive)" },
+                    "max_importance": { "type": "number", "description": "Max importance (inclusive)" },
+                    "created_after": { "type": "integer", "description": "After Unix timestamp" },
+                    "created_before": { "type": "integer", "description": "Before Unix timestamp" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
+                    "session_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),
@@ -79,13 +79,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "agent_id": { "type": "string" },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Delete memories that have ALL of these tags" },
-                    "min_importance": { "type": "number", "description": "Delete memories at or above this importance" },
-                    "max_importance": { "type": "number", "description": "Delete memories at or below this importance" },
-                    "created_after": { "type": "integer", "description": "Delete memories created after this Unix timestamp" },
-                    "created_before": { "type": "integer", "description": "Delete memories created before this Unix timestamp" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Delete memories of this type" },
-                    "session_id": { "type": "string", "description": "Delete memories belonging to this session" }
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags to match (all required)" },
+                    "min_importance": { "type": "number", "description": "Min importance threshold" },
+                    "max_importance": { "type": "number", "description": "Max importance threshold" },
+                    "created_after": { "type": "integer", "description": "After Unix timestamp" },
+                    "created_before": { "type": "integer", "description": "Before Unix timestamp" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
+                    "session_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),

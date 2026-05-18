@@ -1341,12 +1341,18 @@ async fn test_pagination_core_profile_single_page() {
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
-    let req: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"profile":"core"}}"#).unwrap();
+    let req: dakera_mcp::protocol::JsonRpcRequest = serde_json::from_str(
+        r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"profile":"core"}}"#,
+    )
+    .unwrap();
     let resp = handle_request(&c, &req).await;
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 14, "core profile must return all 14 tools in one page");
+    assert_eq!(
+        tools.len(),
+        14,
+        "core profile must return all 14 tools in one page"
+    );
     assert!(
         result.get("nextCursor").is_none(),
         "core profile (14 tools) fits in one page — no nextCursor expected"
@@ -1359,12 +1365,18 @@ async fn test_pagination_all_profile_first_page() {
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
-    let req: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"profile":"all"}}"#).unwrap();
+    let req: dakera_mcp::protocol::JsonRpcRequest = serde_json::from_str(
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"profile":"all"}}"#,
+    )
+    .unwrap();
     let resp = handle_request(&c, &req).await;
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 20, "first page of 'all' profile must return exactly 20 tools");
+    assert_eq!(
+        tools.len(),
+        20,
+        "first page of 'all' profile must return exactly 20 tools"
+    );
     assert!(
         result.get("nextCursor").is_some(),
         "'all' profile with 86 tools must return a nextCursor for page 2"
@@ -1383,11 +1395,14 @@ async fn test_pagination_cursor_advances_page() {
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
     assert_eq!(tools.len(), 20, "second page must return 20 tools");
-    let req0: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"profile":"all"}}"#).unwrap();
+    let req0: dakera_mcp::protocol::JsonRpcRequest = serde_json::from_str(
+        r#"{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"profile":"all"}}"#,
+    )
+    .unwrap();
     let resp0 = handle_request(&c, &req0).await;
     let page0_names: std::collections::HashSet<String> = resp0.result.unwrap()["tools"]
-        .as_array().unwrap()
+        .as_array()
+        .unwrap()
         .iter()
         .map(|t| t["name"].as_str().unwrap_or("").to_string())
         .collect();
@@ -1434,7 +1449,10 @@ async fn test_pagination_all_tools_across_pages() {
         if cursor.is_none() {
             break;
         }
-        assert!(pages <= 10, "Pagination took more than 10 pages — likely infinite loop");
+        assert!(
+            pages <= 10,
+            "Pagination took more than 10 pages — likely infinite loop"
+        );
     }
 
     assert_eq!(
@@ -1456,7 +1474,12 @@ fn test_token_count_before_after_measurement() {
     for (profile, expected_count, _) in &profiles {
         let defs = dakera_mcp::tools::filtered_definitions(profile);
         if *expected_count > 0 {
-            assert_eq!(defs.len(), *expected_count, "profile={} tool count mismatch", profile);
+            assert_eq!(
+                defs.len(),
+                *expected_count,
+                "profile={} tool count mismatch",
+                profile
+            );
         }
         let json = serde_json::json!({"tools": defs});
         let bytes = serde_json::to_string(&json).unwrap().len();

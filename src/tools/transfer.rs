@@ -23,10 +23,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "Agent whose memories to export"
-                    },
+                    "agent_id": { "type": "string" },
                     "format": {
                         "type": "string",
                         "enum": ["jsonl", "csv", "mem0", "zep"],
@@ -45,10 +42,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "Target agent ID to import memories into"
-                    },
+                    "agent_id": { "type": "string" },
                     "data": {
                         "type": "string",
                         "description": "Raw export content (JSONL lines, CSV text, Mem0 JSON, or Zep JSON)"

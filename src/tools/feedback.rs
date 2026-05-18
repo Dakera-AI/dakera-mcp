@@ -62,10 +62,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "Agent ID to get feedback summary for"
-                    }
+                    "agent_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),

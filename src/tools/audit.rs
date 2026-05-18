@@ -18,10 +18,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         input_schema: json!({
             "type": "object",
             "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "description": "Filter by agent ID (optional)"
-                },
+                "agent_id": { "type": "string" },
                 "event_type": {
                     "type": "string",
                     "description": "Filter by event type, e.g. 'stored', 'recalled', 'forgotten', 'session_started' (optional)"

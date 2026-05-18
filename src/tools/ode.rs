@@ -28,10 +28,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "type": "string",
                     "description": "Text to extract entities from"
                 },
-                "agent_id": {
-                    "type": "string",
-                    "description": "Agent that owns the content"
-                },
+                "agent_id": { "type": "string" },
                 "memory_id": {
                     "type": "string",
                     "description": "Optional memory ID for context"

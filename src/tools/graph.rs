@@ -27,8 +27,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "description": "Memory ID to start traversal from (memory-anchored mode)"
                     },
                     "agent_id": {
-                        "type": "string",
-                        "description": "Agent ID whose graph to traverse (agent-scoped mode, pair with root_id)"
+                        "type": "string"
                     },
                     "root_id": {
                         "type": "string",
@@ -96,7 +95,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent ID whose graph to export" },
+                    "agent_id": { "type": "string" },
                     "format": {
                         "type": "string",
                         "description": "Export format: \"json\" (default) or \"graphml\"",
