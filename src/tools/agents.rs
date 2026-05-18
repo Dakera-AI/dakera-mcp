@@ -13,7 +13,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" }
+                    "agent_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),
@@ -24,9 +24,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
-                    "limit": { "type": "integer", "description": "Max memories to return", "default": 50 },
-                    "offset": { "type": "integer", "description": "Pagination offset", "default": 0 }
+                    "agent_id": { "type": "string" },
+                    "limit": { "type": "integer", "description": "Max memories to return" },
+                    "offset": { "type": "integer", "description": "Pagination offset" }
                 },
                 "required": ["agent_id"]
             }),
@@ -37,7 +37,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" }
+                    "agent_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),

@@ -14,7 +14,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "metadata": { "type": "object", "description": "Optional session metadata" }
                 },
                 "required": ["agent_id"]
@@ -39,8 +39,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
-                    "active_only": { "type": "boolean", "description": "Only return active sessions", "default": false }
+                    "agent_id": { "type": "string" },
+                    "active_only": { "type": "boolean", "description": "Only return active sessions" }
                 },
                 "required": ["agent_id"]
             }),

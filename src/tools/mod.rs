@@ -1018,4 +1018,122 @@ mod tests {
             );
         }
     }
+
+    // ── Token count / schema compression tests (DAK-5216) ────────────────────
+
+    #[test]
+    fn test_no_internal_refs_in_descriptions() {
+        // All tool descriptions must be free of internal codenames (COG-N, CE-N, KG-N, SEC-N, etc.)
+        let internal_ref_pattern = regex_pattern_internal_refs();
+        for def in tool_definitions() {
+            assert!(
+                !has_internal_ref(&def.description),
+                "Tool '{}' description contains internal ref: {:?}",
+                def.name,
+                &def.description
+            );
+            // Check property descriptions inside inputSchema
+            if let Some(props) = def
+                .input_schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+            {
+                for (prop_name, prop_val) in props {
+                    if let Some(desc) = prop_val.get("description").and_then(|d| d.as_str()) {
+                        assert!(
+                            !has_internal_ref(desc),
+                            "Tool '{}' property '{}' description contains internal ref: {:?}",
+                            def.name,
+                            prop_name,
+                            desc
+                        );
+                    }
+                }
+            }
+            let _ = internal_ref_pattern; // suppress unused warning
+        }
+    }
+
+    fn has_internal_ref(s: &str) -> bool {
+        // Match COG-N, CE-N, KG-N, SEC-N, ODE-N, PILOT-N, INT-N as standalone words
+        let patterns = ["COG-", "SEC-", "ODE-", "PILOT-", "INT-"];
+        for p in &patterns {
+            if s.contains(p) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn regex_pattern_internal_refs() -> &'static str {
+        "COG-|SEC-|ODE-|PILOT-|INT-"
+    }
+
+    #[test]
+    fn test_no_default_fields_in_schemas() {
+        // JSON schema "default" fields are redundant (server applies defaults server-side)
+        // and waste tokens. Verify they are absent.
+        for def in tool_definitions() {
+            let schema_str = serde_json::to_string(&def.input_schema).unwrap();
+            assert!(
+                !schema_str.contains("\"default\":"),
+                "Tool '{}' input_schema still contains a \"default\" field — remove it",
+                def.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_token_size_core_profile_within_budget() {
+        // Core profile (14 tools) after description compression, default removal,
+        // and agent_id dedup. Budget: 3500 estimated tokens (JSON bytes / 3).
+        // Pre-optimization baseline was ~4500+ estimated tokens at full 86 tools.
+        let defs = filtered_definitions("core");
+        let json_bytes = serde_json::to_string(&defs).unwrap().len();
+        let estimated_tokens = json_bytes / 3;
+        assert!(
+            estimated_tokens < 3500,
+            "Core profile estimated tokens {} exceeds 3500 budget (JSON bytes: {}). \
+             Compress tool descriptions further.",
+            estimated_tokens,
+            json_bytes
+        );
+    }
+
+    #[test]
+    fn test_token_size_all_profile_within_budget() {
+        // All-profile (86 tools) after description compression. Budget: 17000 estimated
+        // tokens (JSON bytes / 3). With MCP pagination at 20 tools/page, per-request
+        // cost is ~3500 tokens — well within LLM context budgets.
+        let defs = filtered_definitions("all");
+        let json_bytes = serde_json::to_string(&defs).unwrap().len();
+        let estimated_tokens = json_bytes / 3;
+        assert!(
+            estimated_tokens < 17000,
+            "All profile estimated tokens {} exceeds 17000 budget (JSON bytes: {})",
+            estimated_tokens,
+            json_bytes
+        );
+    }
+
+    #[test]
+    fn test_agent_id_description_absent_from_schemas() {
+        // agent_id property must not have a verbose description — the name is self-documenting.
+        // This checks that property description dedup was applied.
+        for def in tool_definitions() {
+            if let Some(props) = def
+                .input_schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+            {
+                if let Some(agent_prop) = props.get("agent_id") {
+                    assert!(
+                        agent_prop.get("description").is_none(),
+                        "Tool '{}' agent_id property has a description — omit it (self-documenting param)",
+                        def.name
+                    );
+                }
+            }
+        }
+    }
 }

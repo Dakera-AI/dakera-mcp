@@ -9,34 +9,34 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_store".into(),
-            description: "Store a memory in Dakera. Memories are semantic units of information associated with an agent.".into(),
+            description: "Store a memory for an agent. Returns the stored memory ID.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "content": { "type": "string", "description": "Memory content text" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Type of memory", "default": "episodic" },
-                    "importance": { "type": "number", "description": "Importance score 0.0-1.0", "default": 0.5 },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization", "default": [] },
-                    "session_id": { "type": "string", "description": "Optional session ID to associate with" },
-                    "expires_at": { "type": "integer", "description": "Optional explicit expiry Unix timestamp (seconds). Takes precedence over ttl_seconds. On expiry the memory is hard-deleted by the decay engine." }
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Memory type (episodic|semantic|procedural|working)" },
+                    "importance": { "type": "number", "description": "Importance 0.0-1.0" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for filtering" },
+                    "session_id": { "type": "string", "description": "Session to associate with" },
+                    "expires_at": { "type": "integer", "description": "Expiry Unix timestamp (seconds)" }
                 },
                 "required": ["agent_id", "content"]
             }),
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Recall memories by semantic query. Returns the most relevant memories for the given query text. Set include_associated=true to also surface KG-linked memories (COG-2 associative recall). Use since/until for time-window recall (CE-7).".into(),
+            description: "Recall memories by semantic similarity. Optionally include KG-linked memories (include_associated) or filter by time window (since/until).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "query": { "type": "string", "description": "Semantic query text" },
-                    "top_k": { "type": "integer", "description": "Number of results to return", "default": 5 },
-                    "min_importance": { "type": "number", "description": "Minimum importance threshold", "default": 0.0 },
-                    "include_associated": { "type": "boolean", "description": "COG-2: traverse KG depth-1 from recalled memories and include associatively linked memories in associated_memories field", "default": false },
-                    "since": { "type": "string", "description": "CE-7: only return memories created at or after this ISO-8601 timestamp (e.g. '2026-01-01T00:00:00Z')" },
-                    "until": { "type": "string", "description": "CE-7: only return memories created at or before this ISO-8601 timestamp (e.g. '2026-03-31T23:59:59Z')" }
+                    "top_k": { "type": "integer", "description": "Max results to return" },
+                    "min_importance": { "type": "number", "description": "Min importance threshold" },
+                    "include_associated": { "type": "boolean", "description": "Include KG-linked memories in results" },
+                    "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
+                    "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -47,7 +47,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "memory_ids": { "type": "array", "items": { "type": "string" }, "description": "Specific memory IDs to delete" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Delete memories with these tags" }
                 },
@@ -56,36 +56,36 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_batch_recall".into(),
-            description: "Filter-based bulk recall without semantic search (CE-2). Returns memories matching all specified predicates. Requires at least one filter.".into(),
+            description: "Bulk recall by filters (tags, importance, time). Requires at least one filter.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "All-match tag filter — only memories with ALL listed tags are returned" },
-                    "min_importance": { "type": "number", "description": "Minimum importance threshold (inclusive)" },
-                    "max_importance": { "type": "number", "description": "Maximum importance threshold (inclusive)" },
-                    "created_after": { "type": "integer", "description": "Return memories created after this Unix timestamp" },
-                    "created_before": { "type": "integer", "description": "Return memories created before this Unix timestamp" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" },
-                    "session_id": { "type": "string", "description": "Filter by session ID" }
+                    "agent_id": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags to match (all required)" },
+                    "min_importance": { "type": "number", "description": "Min importance (inclusive)" },
+                    "max_importance": { "type": "number", "description": "Max importance (inclusive)" },
+                    "created_after": { "type": "integer", "description": "After Unix timestamp" },
+                    "created_before": { "type": "integer", "description": "Before Unix timestamp" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
+                    "session_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),
         },
         ToolDefinition {
             name: "dakera_batch_forget".into(),
-            description: "Filter-based bulk delete (CE-2). Deletes all memories matching the predicates. At least one filter is required — the API enforces this to prevent accidental full-namespace wipe.".into(),
+            description: "Bulk delete by filters. Requires at least one filter to prevent accidental full-wipe.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Delete memories that have ALL of these tags" },
-                    "min_importance": { "type": "number", "description": "Delete memories at or above this importance" },
-                    "max_importance": { "type": "number", "description": "Delete memories at or below this importance" },
-                    "created_after": { "type": "integer", "description": "Delete memories created after this Unix timestamp" },
-                    "created_before": { "type": "integer", "description": "Delete memories created before this Unix timestamp" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Delete memories of this type" },
-                    "session_id": { "type": "string", "description": "Delete memories belonging to this session" }
+                    "agent_id": { "type": "string" },
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags to match (all required)" },
+                    "min_importance": { "type": "number", "description": "Min importance threshold" },
+                    "max_importance": { "type": "number", "description": "Max importance threshold" },
+                    "created_after": { "type": "integer", "description": "After Unix timestamp" },
+                    "created_before": { "type": "integer", "description": "Before Unix timestamp" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
+                    "session_id": { "type": "string" }
                 },
                 "required": ["agent_id"]
             }),
@@ -96,9 +96,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "query": { "type": "string", "description": "Search query text" },
-                    "top_k": { "type": "integer", "description": "Number of results", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Filter by tags" },
                     "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" }
                 },
@@ -111,7 +111,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "memory_ids": { "type": "array", "items": { "type": "string" }, "description": "Memory IDs to consolidate" }
                 },
                 "required": ["agent_id", "memory_ids"]
@@ -124,7 +124,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "memory_id": { "type": "string", "description": "Memory ID to retrieve" },
-                    "agent_id": { "type": "string", "description": "Agent identifier (owner of the memory)" }
+                    "agent_id": { "type": "string" }
                 },
                 "required": ["memory_id", "agent_id"]
             }),
@@ -136,7 +136,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "memory_id": { "type": "string", "description": "Memory ID to update" },
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "content": { "type": "string", "description": "New content (triggers re-embedding)" },
                     "importance": { "type": "number", "description": "New importance score 0.0-1.0" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Replace tags" }
@@ -146,18 +146,18 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall_associated".into(),
-            description: "Recall memories with deep KG-associated context enrichment (KG-3). Same as dakera_recall but always enables associative recall and exposes the depth parameter (1–3 hops). Returns direct matches plus KG-traversed associated memories for richer context. Use depth=1 for immediate associations, depth=2–3 for broader knowledge graph exploration.".into(),
+            description: "Recall memories with KG-associated context. Always enables associative recall with configurable hop depth (1–3).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "query": { "type": "string", "description": "Semantic query text" },
-                    "top_k": { "type": "integer", "description": "Number of direct recall results to return", "default": 5 },
-                    "min_importance": { "type": "number", "description": "Minimum importance threshold", "default": 0.0 },
-                    "associated_memories_depth": { "type": "integer", "description": "KG traversal depth for associated memories (1–3 hops, default: 1)", "default": 1, "minimum": 1, "maximum": 3 },
-                    "associated_memories_min_weight": { "type": "number", "description": "Minimum KG edge weight to follow during traversal (0.0–1.0, default: 0.0)", "default": 0.0 },
-                    "since": { "type": "string", "description": "CE-7: only return memories created at or after this ISO-8601 timestamp" },
-                    "until": { "type": "string", "description": "CE-7: only return memories created at or before this ISO-8601 timestamp" }
+                    "top_k": { "type": "integer", "description": "Max direct recall results" },
+                    "min_importance": { "type": "number", "description": "Min importance threshold" },
+                    "associated_memories_depth": { "type": "integer", "description": "KG traversal depth (1–3 hops)", "minimum": 1, "maximum": 3 },
+                    "associated_memories_min_weight": { "type": "number", "description": "Min KG edge weight to follow (0.0–1.0)" },
+                    "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
+                    "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -168,7 +168,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "updates": {
                         "type": "array",
                         "items": {

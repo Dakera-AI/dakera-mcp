@@ -18,10 +18,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         input_schema: json!({
             "type": "object",
             "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "description": "Filter by agent ID (optional)"
-                },
+                "agent_id": { "type": "string" },
                 "event_type": {
                     "type": "string",
                     "description": "Filter by event type, e.g. 'stored', 'recalled', 'forgotten', 'session_started' (optional)"
@@ -36,8 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of events to return (default 100, max 10000)",
-                    "default": 100
+                    "description": "Maximum events to return (max 10000)"
                 }
             },
             "required": []

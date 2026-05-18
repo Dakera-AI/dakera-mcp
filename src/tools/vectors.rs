@@ -59,9 +59,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
                             "properties": {
                                 "id": { "type": "string", "description": "Optional query identifier" },
                                 "vector": { "type": "array", "items": { "type": "number" }, "description": "Query vector" },
-                                "top_k": { "type": "integer", "description": "Number of results for this query", "default": 10 },
+                                "top_k": { "type": "integer", "description": "Number of results for this query" },
                                 "filter": { "type": "object", "description": "Optional filter for this query" },
-                                "include_metadata": { "type": "boolean", "description": "Include metadata in results", "default": true }
+                                "include_metadata": { "type": "boolean", "description": "Include metadata in results" }
                             },
                             "required": ["vector"]
                         }
@@ -114,10 +114,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace to export from" },
-                    "top_k": { "type": "integer", "description": "Number of vectors per page (max 10000)", "default": 1000 },
+                    "top_k": { "type": "integer", "description": "Number of vectors per page (max 10000)" },
                     "cursor": { "type": "string", "description": "Pagination cursor from previous response" },
-                    "include_vectors": { "type": "boolean", "description": "Include vector values", "default": true },
-                    "include_metadata": { "type": "boolean", "description": "Include metadata", "default": true }
+                    "include_vectors": { "type": "boolean", "description": "Include vector values" },
+                    "include_metadata": { "type": "boolean", "description": "Include metadata" }
                 },
                 "required": ["namespace"]
             }),
@@ -158,7 +158,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "positive_weights": {
                         "type": "array",
                         "items": { "type": "number" },
-                        "description": "Weights for positive vectors (optional, defaults to equal)"
+                        "description": "Weights for positive vectors (equal weighting if omitted)"
                     },
                     "negative_vectors": {
                         "type": "array",
@@ -170,10 +170,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "items": { "type": "number" },
                         "description": "Weights for negative vectors (optional)"
                     },
-                    "top_k": { "type": "integer", "description": "Number of results", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results" },
                     "score_threshold": { "type": "number", "description": "Minimum score threshold" },
-                    "enable_mmr": { "type": "boolean", "description": "Enable MMR for diversity", "default": false },
-                    "mmr_lambda": { "type": "number", "description": "MMR lambda (0=diversity, 1=relevance)", "default": 0.5 },
+                    "enable_mmr": { "type": "boolean", "description": "Enable MMR for diversity" },
+                    "mmr_lambda": { "type": "number", "description": "MMR lambda (0=diversity, 1=relevance)" },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
                 "required": ["namespace", "positive_vectors"]
@@ -221,11 +221,11 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "items": { "type": "number" },
                         "description": "Query vector (for vector/hybrid/multi_vector searches)"
                     },
-                    "top_k": { "type": "integer", "description": "Number of results", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results" },
                     "filter": { "type": "object", "description": "Optional filter expression" },
                     "text_query": { "type": "string", "description": "Text query (for full_text/hybrid searches)" },
-                    "execute": { "type": "boolean", "description": "Actually execute the query for real stats", "default": false },
-                    "verbose": { "type": "boolean", "description": "Include verbose output", "default": false }
+                    "execute": { "type": "boolean", "description": "Actually execute the query for real stats" },
+                    "verbose": { "type": "boolean", "description": "Include verbose output" }
                 },
                 "required": ["namespace", "query_type"]
             }),
@@ -256,10 +256,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "rank_by": {
                         "description": "Ranking function as JSON array. Examples: [\"vector\", \"ANN\", [0.1, 0.2]], [\"text\", \"BM25\", \"query\"], [\"timestamp\", \"desc\"], [\"Sum\", [[\"title\", \"BM25\", \"q\"], [\"vector\", \"ANN\", [0.1]]]]"
                     },
-                    "top_k": { "type": "integer", "description": "Number of results", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results" },
                     "filter": { "type": "object", "description": "Optional metadata filter" },
-                    "include_metadata": { "type": "boolean", "description": "Include metadata in results", "default": true },
-                    "include_vectors": { "type": "boolean", "description": "Include vector values in results", "default": false }
+                    "include_metadata": { "type": "boolean", "description": "Include metadata in results" },
+                    "include_vectors": { "type": "boolean", "description": "Include vector values in results" }
                 },
                 "required": ["namespace", "rank_by"]
             }),

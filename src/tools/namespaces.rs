@@ -35,7 +35,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "name": { "type": "string", "description": "Namespace name" },
                     "dimension": { "type": "integer", "description": "Vector dimensions (e.g. 384, 768, 1536)" },
-                    "distance": { "type": "string", "enum": ["cosine", "euclidean", "dot"], "description": "Distance metric", "default": "cosine" }
+                    "distance": { "type": "string", "enum": ["cosine", "euclidean", "dot"], "description": "Distance metric" }
                 },
                 "required": ["name", "dimension"]
             }),
@@ -59,14 +59,14 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace name" },
                     "dimension": { "type": "integer", "description": "Vector dimensions (e.g. 384, 768, 1536). Required on creation; must match existing value on update." },
-                    "distance": { "type": "string", "enum": ["cosine", "euclidean", "dot"], "description": "Distance metric (default: cosine)" }
+                    "distance": { "type": "string", "enum": ["cosine", "euclidean", "dot"], "description": "Distance metric" }
                 },
                 "required": ["namespace", "dimension"]
             }),
         },
         ToolDefinition {
             name: "dakera_memory_policy_get".into(),
-            description: "Get the memory lifecycle policy for a namespace (COG-1). Returns TTLs, decay curves, spaced repetition config, consolidation settings (COG-3), and rate limit config (SEC-5). Requires Read scope.".into(),
+            description: "Get the memory lifecycle policy for a namespace. Returns TTLs, decay curves, spaced repetition, consolidation, and rate limit config.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -77,27 +77,27 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_policy_set".into(),
-            description: "Update the memory lifecycle policy for a namespace (COG-1). All fields are optional — only provided fields overwrite the current policy; all others are preserved via GET+merge+PUT. Requires Write scope.\n\nSettable fields: working_ttl_seconds, episodic_ttl_seconds, semantic_ttl_seconds, procedural_ttl_seconds, working_decay, episodic_decay, semantic_decay, procedural_decay (values: exponential|linear|step|power_law|logarithmic|flat), spaced_repetition_factor, spaced_repetition_base_interval_seconds, consolidation_enabled, consolidation_threshold (0.85–0.99), consolidation_interval_hours, rate_limit_enabled, rate_limit_stores_per_minute, rate_limit_recalls_per_minute.".into(),
+            description: "Update the memory lifecycle policy for a namespace. All fields optional — only provided fields are overwritten; others preserved. Decay curves: exponential|linear|step|power_law|logarithmic|flat.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace name" },
-                    "working_ttl_seconds": { "type": "integer", "description": "TTL for working memories in seconds (default: 14400 = 4h)" },
-                    "episodic_ttl_seconds": { "type": "integer", "description": "TTL for episodic memories in seconds (default: 2592000 = 30d)" },
-                    "semantic_ttl_seconds": { "type": "integer", "description": "TTL for semantic memories in seconds (default: 31536000 = 365d)" },
-                    "procedural_ttl_seconds": { "type": "integer", "description": "TTL for procedural memories in seconds (default: 63072000 = 730d)" },
-                    "working_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for working memories" },
-                    "episodic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for episodic memories" },
-                    "semantic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for semantic memories" },
-                    "procedural_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Decay strategy for procedural memories" },
-                    "spaced_repetition_factor": { "type": "number", "description": "Multiplier for TTL extension per recall (0.0 disables, default: 1.0)" },
-                    "spaced_repetition_base_interval_seconds": { "type": "integer", "description": "Base interval in seconds for spaced repetition TTL extension (default: 86400 = 1d)" },
-                    "consolidation_enabled": { "type": "boolean", "description": "COG-3: enable background DBSCAN deduplication (default: false)" },
-                    "consolidation_threshold": { "type": "number", "description": "COG-3: cosine similarity threshold for merging (0.85–0.99, default: 0.92)" },
-                    "consolidation_interval_hours": { "type": "integer", "description": "COG-3: how often the consolidation job runs in hours (default: 24)" },
-                    "rate_limit_enabled": { "type": "boolean", "description": "SEC-5: master rate-limit switch (default: false)" },
-                    "rate_limit_stores_per_minute": { "type": "integer", "description": "SEC-5: max store ops/min for this namespace (null = unlimited)" },
-                    "rate_limit_recalls_per_minute": { "type": "integer", "description": "SEC-5: max recall ops/min for this namespace (null = unlimited)" }
+                    "working_ttl_seconds": { "type": "integer", "description": "TTL for working memories (seconds)" },
+                    "episodic_ttl_seconds": { "type": "integer", "description": "TTL for episodic memories (seconds)" },
+                    "semantic_ttl_seconds": { "type": "integer", "description": "TTL for semantic memories (seconds)" },
+                    "procedural_ttl_seconds": { "type": "integer", "description": "TTL for procedural memories (seconds)" },
+                    "working_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Working decay curve" },
+                    "episodic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Episodic decay curve" },
+                    "semantic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Semantic decay curve" },
+                    "procedural_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Procedural decay curve" },
+                    "spaced_repetition_factor": { "type": "number", "description": "TTL extension multiplier per recall (0.0 disables)" },
+                    "spaced_repetition_base_interval_seconds": { "type": "integer", "description": "Base interval for spaced repetition (seconds)" },
+                    "consolidation_enabled": { "type": "boolean", "description": "Enable background deduplication" },
+                    "consolidation_threshold": { "type": "number", "description": "Cosine similarity threshold for merging (0.85–0.99)" },
+                    "consolidation_interval_hours": { "type": "integer", "description": "Deduplication job interval (hours)" },
+                    "rate_limit_enabled": { "type": "boolean", "description": "Enable rate limiting" },
+                    "rate_limit_stores_per_minute": { "type": "integer", "description": "Max store ops/min (null = unlimited)" },
+                    "rate_limit_recalls_per_minute": { "type": "integer", "description": "Max recall ops/min (null = unlimited)" }
                 },
                 "required": ["namespace"]
             }),

@@ -13,10 +13,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "memory_id": { "type": "string", "description": "Seed memory ID to build graph from" },
-                    "depth": { "type": "integer", "description": "Graph traversal depth (controls candidate count)", "default": 2 },
-                    "min_similarity": { "type": "number", "description": "Minimum similarity threshold 0.0-1.0", "default": 0.7 }
+                    "depth": { "type": "integer", "description": "Graph traversal depth (controls candidate count)" },
+                    "min_similarity": { "type": "number", "description": "Minimum similarity threshold 0.0-1.0" }
                 },
                 "required": ["agent_id", "memory_id"]
             }),
@@ -27,9 +27,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
+                    "agent_id": { "type": "string" },
                     "memory_ids": { "type": "array", "items": { "type": "string" }, "description": "Memory IDs to summarize (minimum 2)" },
-                    "target_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Type for the summarized memory (default: semantic)" }
+                    "target_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Memory type for the summary" }
                 },
                 "required": ["agent_id", "memory_ids"]
             }),
@@ -40,9 +40,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string", "description": "Agent identifier" },
-                    "threshold": { "type": "number", "description": "Similarity threshold 0.0-1.0 for duplicates", "default": 0.9 },
-                    "dry_run": { "type": "boolean", "description": "If true, only report duplicates without merging", "default": true }
+                    "agent_id": { "type": "string" },
+                    "threshold": { "type": "number", "description": "Similarity threshold 0.0-1.0 for duplicates" },
+                    "dry_run": { "type": "boolean", "description": "If true, only report duplicates without merging" }
                 },
                 "required": ["agent_id"]
             }),
@@ -54,10 +54,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "agent_ids": { "type": "array", "items": { "type": "string" }, "description": "Specific agent IDs to include (omit for all agents)" },
-                    "min_similarity": { "type": "number", "description": "Minimum cosine similarity for a cross-agent edge (default: 0.3)", "default": 0.3 },
-                    "max_nodes_per_agent": { "type": "integer", "description": "Max memories per agent, top N by importance (default: 50)", "default": 50 },
-                    "min_importance": { "type": "number", "description": "Minimum importance score for included memories (default: 0.0)", "default": 0.0 },
-                    "max_cross_edges": { "type": "integer", "description": "Maximum cross-agent edges to return (default: 200)", "default": 200 }
+                    "min_similarity": { "type": "number", "description": "Min cosine similarity for a cross-agent edge" },
+                    "max_nodes_per_agent": { "type": "integer", "description": "Max memories per agent (top by importance)" },
+                    "min_importance": { "type": "number", "description": "Min importance for included memories" },
+                    "max_cross_edges": { "type": "integer", "description": "Max cross-agent edges to return" }
                 },
                 "required": []
             }),

@@ -39,7 +39,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace to search in" },
                     "query": { "type": "string", "description": "Search query text" },
-                    "top_k": { "type": "integer", "description": "Number of results to return", "default": 10 },
+                    "top_k": { "type": "integer", "description": "Number of results to return" },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
                 "required": ["namespace", "query"]
@@ -63,7 +63,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_fulltext_stats".into(),
-            description: "Get statistics about the full-text index for a namespace, including document count, unique terms, and average document length.".into(),
+            description: "BM25 index stats: doc count, unique terms, avg doc length.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -74,21 +74,21 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_hybrid_search".into(),
-            description: "Hybrid search combining vector similarity and full-text BM25 search. Returns results scored by weighted combination of both signals. If vector is omitted, falls back to fulltext-only BM25 (vector_weight is ignored).".into(),
+            description: "Vector + BM25 hybrid search. Omit vector for BM25-only mode.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "namespace": { "type": "string", "description": "Namespace to search in" },
                     "vector": {
                         "type": "array",
-                        "description": "Query vector for similarity search. Optional — omit to use fulltext-only BM25.",
+                        "description": "Query embedding; omit for BM25-only.",
                         "items": { "type": "number" }
                     },
                     "text": { "type": "string", "description": "Text query for full-text search" },
-                    "top_k": { "type": "integer", "description": "Number of results to return", "default": 10 },
-                    "vector_weight": { "type": "number", "description": "Weight for vector score (0.0-1.0). Text weight is 1-vector_weight. Ignored when vector is omitted.", "default": 0.5 },
-                    "include_metadata": { "type": "boolean", "description": "Include metadata in results", "default": true },
-                    "include_vectors": { "type": "boolean", "description": "Include vectors in results", "default": false },
+                    "top_k": { "type": "integer", "description": "Number of results to return" },
+                    "vector_weight": { "type": "number", "description": "Vector score weight 0.0–1.0; text weight = 1−value." },
+                    "include_metadata": { "type": "boolean" },
+                    "include_vectors": { "type": "boolean" },
                     "filter": { "type": "object", "description": "Optional metadata filter" }
                 },
                 "required": ["namespace", "text"]

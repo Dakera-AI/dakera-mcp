@@ -29,7 +29,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "strategy": {
                         "type": "string",
                         "enum": ["exponential", "linear", "step"],
-                        "description": "Decay strategy: 'exponential' (default), 'linear', or 'step'."
+                        "description": "Decay strategy: exponential|linear|step"
                     },
                     "half_life_hours": {
                         "type": "number",
