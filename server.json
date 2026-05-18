@@ -1,16 +1,16 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Dakera-AI/dakera-mcp",
-  "description": "Decay-weighted vector memory for AI agents — 14 core MCP tools (86+ available via profiles): store, recall, search, knowledge graphs.",
+  "description": "Decay-weighted vector memory for AI agents — 86+ MCP tools via tiered profiles",
   "repository": {
     "url": "https://github.com/Dakera-AI/dakera-mcp",
     "source": "github"
   },
-  "version": "0.9.7",
+  "version": "0.10.1",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/dakera-ai/dakera-mcp:0.9.7",
+      "identifier": "ghcr.io/dakera-ai/dakera-mcp:0.10.1",
       "transport": {
         "type": "stdio"
       },
