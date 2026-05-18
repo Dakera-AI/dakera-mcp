@@ -42,14 +42,14 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 | `dakera_discover_tools` | Search the full tool catalog by keyword or tier |
 | `dakera_load_tools` | Load full schemas for specific tools on demand |
 
-### Tool tiers
+### Profiles & token cost
 
-| Tier | Count | When exposed |
-|---|---|---|
-| **core** | 12 | Always (default profile) |
-| **meta** | 2 | Always (alongside core) |
-| **power** | 54 | `?profile=power` or `DAKERA_MCP_PROFILE=power` |
-| **admin** | 18 | `?profile=all` or `DAKERA_MCP_PROFILE=all` |
+| Profile | Tools | ~Tokens | How to enable |
+|---|---|---|---|
+| **core** | 14 | ~2,964 | Default — always loaded |
+| **admin** | 32 | ~5,975 | `DAKERA_MCP_PROFILE=admin` |
+| **power** | 68 | ~13,014 | `DAKERA_MCP_PROFILE=power` |
+| **all** | 86 | ~16,026 | `DAKERA_MCP_PROFILE=all` |
 
 ### Accessing additional tools
 
@@ -77,7 +77,7 @@ The profile controls which tools appear in `tools/list`. Three ways to set it:
 DAKERA_MCP_PROFILE=power
 ```
 
-**3. Default**: `core` (14 tools, ~2.4K tokens)
+**3. Default**: `core` (14 tools, ~2,964 tokens)
 
 ---
 
