@@ -1,16 +1,17 @@
 {
   "name": "@dakera-ai/dakera-mcp-darwin-x64",
   "version": "0.10.7",
-  "description": "Dakera MCP Server — macOS Intel (x64) binary",
-  "bin": {
-    "dakera-mcp": "bin/dakera-mcp"
-  },
+  "description": "Dakera MCP Server \u2014 macOS Intel (x64) binary",
   "files": [
     "bin/",
     "README.md"
   ],
-  "os": ["darwin"],
-  "cpu": ["x64"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "license": "MIT",
   "homepage": "https://dakera.ai",
   "repository": {
