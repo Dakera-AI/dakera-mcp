@@ -1,11 +1,11 @@
 name: Publish npm packages
 
-# Runs after the release workflow (Publish Docker Image) completes — this
-# ensures all platform tarballs are already uploaded to the GitHub Release
-# before we try to download them.
+# Runs after the release workflow completes — this ensures all platform
+# tarballs are already uploaded to the GitHub Release before we try to
+# download them.
 on:
   workflow_run:
-    workflows: ["Publish Docker Image"]
+    workflows: ["Release"]
     types: [completed]
 
 concurrency:

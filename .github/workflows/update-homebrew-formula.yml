@@ -1,10 +1,10 @@
 name: Update Homebrew Formula
 
-# Runs after the release workflow (Publish Docker Image) completes — waits for
-# all platform tarballs to be uploaded before computing SHA256 checksums.
+# Runs after the release workflow completes — waits for all platform tarballs
+# to be uploaded before computing SHA256 checksums.
 on:
   workflow_run:
-    workflows: ["Publish Docker Image"]
+    workflows: ["Release"]
     types: [completed]
 
 concurrency:
