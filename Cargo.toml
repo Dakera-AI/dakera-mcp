@@ -53,3 +53,8 @@ codegen-units = 1
 opt-level = 3
 panic = "abort"
 strip = "symbols"
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/dakera-mcp-{ target }.tar.gz"
+bin-dir = "dakera-mcp{ binary-ext }"
+pkg-fmt = "tgz"
