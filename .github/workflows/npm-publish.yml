@@ -3,10 +3,17 @@ name: Publish npm packages
 # Runs after the release workflow completes — this ensures all platform
 # tarballs are already uploaded to the GitHub Release before we try to
 # download them.
+# Can also be triggered manually via workflow_dispatch (e.g. for README-only fixes).
 on:
   workflow_run:
     workflows: ["Release"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'npm version to publish (e.g. 0.10.7) — must match an existing GitHub Release tag'
+        required: true
+        type: string
 
 concurrency:
   group: npm-publish
@@ -15,8 +22,8 @@ concurrency:
 jobs:
   publish:
     name: Publish @dakera-ai/dakera-mcp to npm
-    # Single-line expression avoids YAML block-scalar if: edge cases.
-    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
+    # workflow_run: only on successful release tags; workflow_dispatch: always run
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,20 +31,24 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Extract version from release tag
+      - name: Extract version from release tag or dispatch input
         id: version
         run: |
-          TAG="${{ github.event.workflow_run.head_branch }}"
-          VERSION="${TAG#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            TAG="${{ github.event.workflow_run.head_branch }}"
+            VERSION="${TAG#v}"
+          fi
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "TAG=v${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Download platform tarballs from GitHub Release
         env:
@@ -89,6 +100,17 @@ jobs:
                          "npm/packages/dakera-mcp-darwin-arm64" "dakera-mcp"
           extract_binary "dakera-mcp-x86_64-apple-darwin.tar.gz" \
                          "npm/packages/dakera-mcp-darwin-x64" "dakera-mcp"
+
+      - name: Copy README into each package directory
+        run: |
+          for pkg_dir in \
+            npm/packages/dakera-mcp \
+            npm/packages/dakera-mcp-linux-x64 \
+            npm/packages/dakera-mcp-darwin-arm64 \
+            npm/packages/dakera-mcp-darwin-x64; do
+            cp README.md "${pkg_dir}/README.md"
+            echo "✅ README.md → ${pkg_dir}/"
+          done
 
       - name: Set version in all package.json files
         run: |

@@ -1,12 +1,13 @@
 {
   "name": "@dakera-ai/dakera-mcp-linux-x64",
-  "version": "0.10.4",
+  "version": "0.10.7",
   "description": "Dakera MCP Server — linux x64 binary",
   "bin": {
     "dakera-mcp": "bin/dakera-mcp"
   },
   "files": [
-    "bin/"
+    "bin/",
+    "README.md"
   ],
   "os": ["linux"],
   "cpu": ["x64"],
