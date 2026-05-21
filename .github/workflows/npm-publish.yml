@@ -154,7 +154,10 @@ jobs:
             npm/packages/dakera-mcp-darwin-x64; do
             if [ -f "${pkg_dir}/bin/dakera-mcp" ]; then
               echo "Publishing ${pkg_dir}..."
-              (cd "${pkg_dir}" && npm publish --access public)
+              result=$(cd "${pkg_dir}" && npm publish --access public 2>&1) && echo "$result" || {
+                echo "$result"
+                echo "$result" | grep -q "previously published" && echo "⚠️ Already published — skipping" || exit 1
+              }
             else
               echo "⚠️ Skipping ${pkg_dir} — binary not present"
             fi
@@ -166,7 +169,9 @@ jobs:
         run: |
           echo "Publishing wrapper package..."
           cd npm/packages/dakera-mcp
-          npm publish --access public
-          echo "✅ @dakera-ai/dakera-mcp published"
-          echo ""
+          result=$(npm publish --access public 2>&1) && echo "$result" || {
+            echo "$result"
+            echo "$result" | grep -q "previously published" && echo "⚠️ Already published — skipping" || exit 1
+          }
+          echo "✅ @dakera-ai/dakera-mcp done"
           echo "Users can now run: npx @dakera-ai/dakera-mcp"
