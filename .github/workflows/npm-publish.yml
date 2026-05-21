@@ -1,0 +1,143 @@
+name: Publish npm packages
+
+# Runs after the release workflow completes — this ensures all platform
+# tarballs are already uploaded to the GitHub Release before we try to
+# download them.
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @dakera-ai/dakera-mcp to npm
+    # Only run on success, and only for releases (ref starts with v)
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Extract version from release tag
+        id: version
+        run: |
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${TAG#v}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download platform tarballs from GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.TAG }}"
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "Downloading tarballs for ${TAG}"
+          for target in \
+            x86_64-unknown-linux-gnu \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin \
+            aarch64-unknown-linux-gnu; do
+            gh release download "${TAG}" \
+              --pattern "dakera-mcp-${target}.tar.gz" \
+              --repo dakera-ai/dakera-mcp \
+              --output "dakera-mcp-${target}.tar.gz" \
+              && echo "✅ ${target}" \
+              || echo "⚠️ ${target} not in release — skipping"
+          done
+
+      - name: Prepare platform packages with binaries
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          # Helper: extract binary from tarball into package bin/ dir
+          extract_binary() {
+            local tarball="$1" dest_dir="$2" binary_name="$3"
+            if [ ! -f "${tarball}" ]; then
+              echo "⚠️ ${tarball} not found — skipping ${dest_dir}"
+              return
+            fi
+            mkdir -p "${dest_dir}/bin"
+            tar xzf "${tarball}" -C "${dest_dir}/bin" "${binary_name}" 2>/dev/null \
+              || tar xzf "${tarball}" -C "${dest_dir}/bin" 2>/dev/null
+            local bin="${dest_dir}/bin/dakera-mcp"
+            if [ -f "${bin}" ]; then
+              chmod +x "${bin}"
+              echo "✅ Binary ready: ${bin} ($(du -sh ${bin} | cut -f1))"
+            else
+              echo "⚠️ Binary not found after extraction in ${dest_dir}/bin/"
+              ls "${dest_dir}/bin/" || true
+            fi
+          }
+
+          extract_binary "dakera-mcp-x86_64-unknown-linux-gnu.tar.gz" \
+                         "npm/packages/dakera-mcp-linux-x64" "dakera-mcp"
+          extract_binary "dakera-mcp-aarch64-apple-darwin.tar.gz" \
+                         "npm/packages/dakera-mcp-darwin-arm64" "dakera-mcp"
+          extract_binary "dakera-mcp-x86_64-apple-darwin.tar.gz" \
+                         "npm/packages/dakera-mcp-darwin-x64" "dakera-mcp"
+
+      - name: Set version in all package.json files
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          for pkg_dir in \
+            npm/packages/dakera-mcp \
+            npm/packages/dakera-mcp-linux-x64 \
+            npm/packages/dakera-mcp-darwin-arm64 \
+            npm/packages/dakera-mcp-darwin-x64; do
+            node -e "
+              const fs = require('fs');
+              const p = '${pkg_dir}/package.json';
+              const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+              pkg.version = '${VERSION}';
+              if (pkg.optionalDependencies) {
+                for (const k of Object.keys(pkg.optionalDependencies)) {
+                  pkg.optionalDependencies[k] = '${VERSION}';
+                }
+              }
+              fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
+              console.log('Updated:', p, 'to', '${VERSION}');
+            "
+          done
+
+      - name: Publish platform packages (linux-x64, darwin-arm64, darwin-x64)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for pkg_dir in \
+            npm/packages/dakera-mcp-linux-x64 \
+            npm/packages/dakera-mcp-darwin-arm64 \
+            npm/packages/dakera-mcp-darwin-x64; do
+            if [ -f "${pkg_dir}/bin/dakera-mcp" ]; then
+              echo "Publishing ${pkg_dir}..."
+              (cd "${pkg_dir}" && npm publish --access public)
+            else
+              echo "⚠️ Skipping ${pkg_dir} — binary not present"
+            fi
+          done
+
+      - name: Publish wrapper package (@dakera-ai/dakera-mcp)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "Publishing wrapper package..."
+          cd npm/packages/dakera-mcp
+          npm publish --access public
+          echo "✅ @dakera-ai/dakera-mcp published"
+          echo ""
+          echo "Users can now run: npx @dakera-ai/dakera-mcp"

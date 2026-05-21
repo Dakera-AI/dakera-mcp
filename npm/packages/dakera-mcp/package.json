@@ -1,0 +1,26 @@
+{
+  "name": "@dakera-ai/dakera-mcp",
+  "version": "0.10.4",
+  "description": "Dakera MCP Server — Model Context Protocol server for AI agent memory",
+  "bin": {
+    "dakera-mcp": "bin/dakera-mcp"
+  },
+  "files": [
+    "bin/dakera-mcp"
+  ],
+  "optionalDependencies": {
+    "@dakera-ai/dakera-mcp-linux-x64": "0.10.4",
+    "@dakera-ai/dakera-mcp-darwin-arm64": "0.10.4",
+    "@dakera-ai/dakera-mcp-darwin-x64": "0.10.4"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT",
+  "homepage": "https://dakera.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dakera-ai/dakera-mcp"
+  },
+  "keywords": ["mcp", "ai", "memory", "agent", "dakera"]
+}
