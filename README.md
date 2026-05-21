@@ -1,10 +1,6 @@
-[![Docs](https://img.shields.io/badge/docs-dakera.ai-D4A843)](https://dakera.ai/docs)
 # ⚡ dakera-mcp
 
-
-
-[![CI](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml) [![Crate](https://img.shields.io/crates/v/dakera-mcp?logo=rust)](https://crates.io/crates/dakera-mcp) [![License: MIT](https://img.shields.io/github/license/Dakera-AI/dakera-mcp)](LICENSE) [![Glama](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badge)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp) [![Glama Score](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/score)
-[![dakera.ai](https://img.shields.io/badge/dakera.ai-website-22c55e?style=flat-square)](https://dakera.ai) [![Docs](https://img.shields.io/badge/docs-dakera.ai%2Fdocs-3b82f6?style=flat-square)](https://dakera.ai/docs)
+[![CI](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Dakera-AI/dakera-mcp/actions/workflows/ci.yml) [![Crate](https://img.shields.io/crates/v/dakera-mcp?logo=rust)](https://crates.io/crates/dakera-mcp) [![npm](https://img.shields.io/npm/v/%40dakera-ai%2Fdakera-mcp?logo=npm)](https://www.npmjs.com/package/@dakera-ai/dakera-mcp) [![Downloads](https://img.shields.io/crates/d/dakera-mcp)](https://crates.io/crates/dakera-mcp) [![License: MIT](https://img.shields.io/github/license/Dakera-AI/dakera-mcp)](LICENSE) [![LoCoMo 87.8%](https://img.shields.io/badge/LoCoMo-87.8%25-22c55e?style=flat-square)](https://dakera.ai/benchmark) [![Glama](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp/badge)](https://glama.ai/mcp/servers/Dakera-AI/dakera-mcp) [![Docs](https://img.shields.io/badge/docs-dakera.ai%2Fdocs-3b82f6?style=flat-square)](https://dakera.ai/docs) [![dakera.ai](https://img.shields.io/badge/dakera.ai-website-22c55e?style=flat-square)](https://dakera.ai)
 
 MCP server for Dakera AI. Gives any MCP-compatible AI agent persistent, queryable memory — with smart token management built in.
 
@@ -12,7 +8,7 @@ Works with Claude, Claude Code, and any MCP-compatible framework.
 
 Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
-> The Dakera memory engine scores **87.6% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
+> The Dakera memory engine scores **87.8% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
 
 ---
 
@@ -109,15 +105,47 @@ Full deployment guide (Docker Compose, Kubernetes, Helm): [dakera-deploy](https:
 
 ## Install
 
+### npm / npx (Node.js 18+)
+
+```bash
+# Global install
+npm install -g @dakera-ai/dakera-mcp
+
+# Or run directly without installing
+npx @dakera-ai/dakera-mcp
+```
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install dakera-ai/tap/dakera-mcp
+```
+
+### Cargo
+
 ```bash
 cargo install dakera-mcp
 ```
 
-Or with Docker:
+### Docker
 
 ```bash
 docker pull ghcr.io/dakera-ai/dakera-mcp:latest
 ```
+
+### Binary download
+
+Pre-built binaries for macOS, Linux, and Windows are available on the [releases page](https://github.com/Dakera-AI/dakera-mcp/releases).
+
+| Platform | File |
+|---|---|
+| macOS (Apple Silicon) | `dakera-mcp-aarch64-apple-darwin.tar.gz` |
+| macOS (Intel) | `dakera-mcp-x86_64-apple-darwin.tar.gz` |
+| Linux x64 | `dakera-mcp-x86_64-unknown-linux-musl.tar.gz` |
+| Linux arm64 | `dakera-mcp-aarch64-unknown-linux-musl.tar.gz` |
+| Windows x64 | `dakera-mcp-x86_64-pc-windows-msvc.zip` |
+
+---
 
 ## Connect
 
