@@ -1,0 +1,118 @@
+name: Update Homebrew Formula
+
+# Runs after the release workflow (Publish Docker Image) completes — waits for
+# all platform tarballs to be uploaded before computing SHA256 checksums.
+on:
+  workflow_run:
+    workflows: ["Publish Docker Image"]
+    types: [completed]
+
+concurrency:
+  group: update-homebrew-formula
+  cancel-in-progress: false
+
+jobs:
+  update-formula:
+    name: Update dakera-mcp Homebrew formula
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Extract version from release tag
+        id: version
+        run: |
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${TAG#v}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download macOS and Linux tarballs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.TAG }}"
+          for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu; do
+            gh release download "${TAG}" \
+              --pattern "dakera-mcp-${target}.tar.gz" \
+              --repo dakera-ai/dakera-mcp \
+              --output "dakera-mcp-${target}.tar.gz"
+            SHA=$(sha256sum "dakera-mcp-${target}.tar.gz" | awk '{print $1}')
+            echo "SHA256_${target//-/_/}=${SHA}" >> "$GITHUB_ENV"
+            echo "${target}: ${SHA}"
+          done
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v6
+        with:
+          repository: dakera-ai/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Regenerate formula with updated SHA256s
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          cd homebrew-tap
+          python3 - <<'PYEOF'
+import os
+
+version             = os.environ['VERSION']
+sha_darwin_arm64    = os.environ.get('SHA256_aarch64_apple_darwin', 'PLACEHOLDER')
+sha_darwin_x64      = os.environ.get('SHA256_x86_64_apple_darwin', 'PLACEHOLDER')
+sha_linux_x64       = os.environ.get('SHA256_x86_64_unknown_linux_gnu', 'PLACEHOLDER')
+
+formula = f'''\
+class DakeraMcp < Formula
+  desc "Dakera MCP Server \\u2014 Model Context Protocol server for AI agent memory"
+  homepage "https://dakera.ai"
+  version "{version}"
+  license "MIT"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/dakera-ai/dakera-mcp/releases/download/v#{{version}}/dakera-mcp-aarch64-apple-darwin.tar.gz"
+      sha256 "{sha_darwin_arm64}"
+    else
+      url "https://github.com/dakera-ai/dakera-mcp/releases/download/v#{{version}}/dakera-mcp-x86_64-apple-darwin.tar.gz"
+      sha256 "{sha_darwin_x64}"
+    end
+  end
+
+  on_linux do
+    url "https://github.com/dakera-ai/dakera-mcp/releases/download/v#{{version}}/dakera-mcp-x86_64-unknown-linux-gnu.tar.gz"
+    sha256 "{sha_linux_x64}"
+  end
+
+  def install
+    bin.install "dakera-mcp"
+  end
+
+  test do
+    system "#{{bin}}/dakera-mcp", "--version"
+  end
+end
+'''
+
+with open('Formula/dakera-mcp.rb', 'w') as f:
+    f.write(formula)
+
+print(f"Updated Formula/dakera-mcp.rb to v{version}")
+print(f"  darwin-arm64 SHA256: {sha_darwin_arm64[:16]}...")
+print(f"  darwin-x64   SHA256: {sha_darwin_x64[:16]}...")
+print(f"  linux-x64    SHA256: {sha_linux_x64[:16]}...")
+PYEOF
+
+      - name: Commit and push formula update
+        run: |
+          cd homebrew-tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/dakera-mcp.rb
+          git diff --cached --quiet && echo "No changes." && exit 0
+          git commit -m "chore: update dakera-mcp formula to v${{ steps.version.outputs.VERSION }}"
+          git push
+          echo "✅ Homebrew formula updated to v${{ steps.version.outputs.VERSION }}"
