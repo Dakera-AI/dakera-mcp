@@ -15,10 +15,8 @@ concurrency:
 jobs:
   publish:
     name: Publish @dakera-ai/dakera-mcp to npm
-    # Only run on success, and only for releases (ref starts with v)
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'v')
+    # Single-line expression avoids YAML block-scalar if: edge cases.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
