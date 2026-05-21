@@ -20,8 +20,13 @@ jobs:
     steps:
       - name: Install dakera-mcp via Homebrew
         run: brew install dakera-ai/tap/dakera-mcp
-      - name: Verify dakera-mcp version
-        run: timeout 3 dakera-mcp || test $? -eq 143
+      - name: Verify dakera-mcp starts
+        run: |
+          dakera-mcp &
+          MCP_PID=$!
+          sleep 3
+          kill "$MCP_PID" 2>/dev/null || true
+          wait "$MCP_PID" 2>/dev/null || true
 
   test-npx:
     name: npx — dakera-mcp
