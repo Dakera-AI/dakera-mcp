@@ -1,0 +1,69 @@
+name: Install Tests
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  # NOTE: Homebrew tap (dakera-ai/homebrew-tap) is private.
+  # brew install requires a public tap. This job runs with continue-on-error until
+  # the tap is made public (requires founder approval per org security policy).
+  test-brew-dakera-mcp:
+    name: Homebrew — dakera-mcp
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - name: Install dakera-mcp via Homebrew
+        run: brew install dakera-ai/tap/dakera-mcp
+      - name: Verify dakera-mcp version
+        run: timeout 3 dakera-mcp || test $? -eq 143
+
+  test-npx:
+    name: npx — dakera-mcp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dakera-mcp via npx
+        run: npm install -g @dakera-ai/dakera-mcp
+      - name: Verify dakera-mcp starts
+        run: timeout 3 dakera-mcp || test $? -eq 143
+
+  # NOTE: cargo install and cargo binstall require dakera-mcp to be published on
+  # crates.io. These jobs are expected to fail until that happens. Tracked in DAK-5436.
+  test-cargo-install:
+    name: cargo install — dakera-mcp
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: cargo-install-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: cargo-install-${{ runner.os }}-
+      - name: Install dakera-mcp from crates.io
+        run: cargo install dakera-mcp --locked
+      - name: Verify dakera-mcp version
+        run: timeout 3 dakera-mcp || test $? -eq 143
+
+  test-cargo-binstall:
+    name: cargo binstall — dakera-mcp
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Install cargo-binstall
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+            | bash
+      - name: Install dakera-mcp via binstall
+        run: cargo binstall dakera-mcp --no-confirm
+      - name: Verify dakera-mcp version
+        run: timeout 3 dakera-mcp || test $? -eq 143
