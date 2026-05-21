@@ -11,8 +11,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'npm version to publish (e.g. 0.10.7) — must match an existing GitHub Release tag'
+        description: 'npm version to publish (e.g. 0.10.7)'
         required: true
+        type: string
+      binary_version:
+        description: 'GitHub Release tag to download binaries from (default: same as version). Use when republishing with metadata-only changes.'
+        required: false
         type: string
 
 concurrency:
@@ -43,26 +47,31 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
+            # binary_version allows reusing binaries from a prior release (e.g. README-only fix)
+            BINARY_VERSION="${{ github.event.inputs.binary_version }}"
+            BINARY_VERSION="${BINARY_VERSION:-${VERSION}}"
           else
             TAG="${{ github.event.workflow_run.head_branch }}"
             VERSION="${TAG#v}"
+            BINARY_VERSION="${VERSION}"
           fi
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "TAG=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "BINARY_TAG=v${BINARY_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Download platform tarballs from GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ steps.version.outputs.TAG }}"
+          BINARY_TAG="${{ steps.version.outputs.BINARY_TAG }}"
           VERSION="${{ steps.version.outputs.VERSION }}"
-          echo "Downloading tarballs for ${TAG}"
+          echo "Downloading tarballs from ${BINARY_TAG}"
           for target in \
             x86_64-unknown-linux-gnu \
             aarch64-apple-darwin \
             x86_64-apple-darwin \
             aarch64-unknown-linux-gnu; do
-            gh release download "${TAG}" \
+            gh release download "${BINARY_TAG}" \
               --pattern "dakera-mcp-${target}.tar.gz" \
               --repo dakera-ai/dakera-mcp \
               --output "dakera-mcp-${target}.tar.gz" \
