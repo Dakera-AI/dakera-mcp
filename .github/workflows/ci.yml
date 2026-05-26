@@ -25,6 +25,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: v2
           shared-key: check
       - run: cargo check --all-targets
 
@@ -38,6 +39,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: v2
           shared-key: clippy
       - run: cargo clippy --all-targets -- -D warnings
 
@@ -59,6 +61,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: v2
           shared-key: test
       - run: cargo test --all-targets
 
@@ -70,6 +73,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: v2
           shared-key: integration
       - name: Pull dakera image
         run: docker pull ghcr.io/dakera-ai/dakera:latest
