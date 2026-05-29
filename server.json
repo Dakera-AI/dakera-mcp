@@ -1,9 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Dakera-AI/dakera-mcp",
-  "description": "Decay-weighted vector memory for AI agents — 86+ MCP tools via tiered profiles",
+  "name": "io.github.dakera-ai/dakera-mcp",
+  "description": "Agent memory engine — 86 MCP tools, self-hosted, single Rust binary",
   "repository": {
-    "url": "https://github.com/Dakera-AI/dakera-mcp",
+    "url": "https://github.com/dakera-ai/dakera-mcp",
     "source": "github"
   },
   "version": "0.10.8",
@@ -14,7 +14,7 @@
       "transport": {
         "type": "stdio"
       },
-      "installationCommand": "cargo install dakera-mcp"
+      "installationCommand": "docker run --rm -i ghcr.io/dakera-ai/dakera-mcp:latest"
     }
   ]
 }
