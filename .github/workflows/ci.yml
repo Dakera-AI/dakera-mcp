@@ -75,6 +75,17 @@ jobs:
         with:
           prefix-key: v2
           shared-key: integration
+      - name: Log in to GHCR
+        # The self-hosted ARM runner can accumulate a stale GHCR credential in its
+        # docker config; once expired, docker presents the bad token instead of doing
+        # an anonymous pull of the (public) dakera image and the registry returns
+        # `denied: denied`. An explicit login refreshes the credential with a valid
+        # token each run, matching the pattern in release.yml. (DAK-6561)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull dakera image
         run: docker pull ghcr.io/dakera-ai/dakera:latest
       - name: Start dakera container

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`dakera_tif_evaluate` tool (Power tier)** — wraps the T-I-F
+  (Truth-Indeterminacy-Falsity) reliability workflow into a single MCP call.
+  Given a `memory_id` (and optional `agent_id`), it fetches the memory's feedback
+  history, counts upvote/downvote/flag signals, computes normalised T-I-F scores,
+  and returns a reuse classification (`confident_reuse`, `surface_contradiction`,
+  `ask_clarification`, `verify_before_use`). Pure arithmetic on feedback signals —
+  no external LLM. Brings the `all` profile to 87 tools and `power` to 69.
+  Phase 3 of the T-I-F RFC
+  ([dakera-deploy#161](https://github.com/Dakera-AI/dakera-deploy/issues/161)).
+
+### Fixed
+
+- **CI integration tests** — added an explicit GHCR `docker/login-action` step
+  before pulling the `dakera` image. The self-hosted ARM runner could accumulate a
+  stale GHCR credential, causing `denied: denied` on the public image pull.
+
 ## [0.10.4] - 2026-05-18
 
 ### Added

@@ -44,8 +44,8 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 |---|---|---|---|
 | **core** | 14 | ~2,964 | Default — always loaded |
 | **admin** | 32 | ~5,975 | `DAKERA_MCP_PROFILE=admin` |
-| **power** | 68 | ~13,014 | `DAKERA_MCP_PROFILE=power` |
-| **all** | 86 | ~16,026 | `DAKERA_MCP_PROFILE=all` |
+| **power** | 69 | ~13,205 | `DAKERA_MCP_PROFILE=power` |
+| **all** | 87 | ~16,212 | `DAKERA_MCP_PROFILE=all` |
 
 ### Accessing additional tools
 

@@ -23,6 +23,7 @@ pub mod namespaces;
 pub mod ode;
 pub mod ops;
 pub mod sessions;
+pub mod tif;
 pub mod transfer;
 pub mod vectors;
 
@@ -317,6 +318,7 @@ pub fn full_catalog() -> Vec<ToolCatalogEntry> {
     raw.extend(audit::definitions());
     raw.extend(transfer::definitions());
     raw.extend(feedback::definitions());
+    raw.extend(tif::definitions());
     raw.extend(extractor::definitions());
     raw.extend(encryption::definitions());
     raw.extend(ode::definitions());
@@ -432,6 +434,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = feedback::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = tif::execute(client, name, arguments).await {
         return result;
     }
     if let Some(result) = extractor::execute(client, name, arguments).await {
@@ -905,13 +910,13 @@ mod tests {
     #[test]
     fn test_total_tool_count() {
         let all = filtered_definitions("all");
-        // Exact count after PR#84 prune: 86 tools total.
+        // Exact count: 87 tools total (86 after PR#84 prune + dakera_tif_evaluate, DAK-6561).
         // If this fails, run filtered_definitions("all").len() to discover the new count
         // and update this assertion. Catches accidental add/remove.
         assert_eq!(
             all.len(),
-            86,
-            "Expected exactly 86 tools in 'all' profile. Actual: {}. \
+            87,
+            "Expected exactly 87 tools in 'all' profile. Actual: {}. \
              Update this constant after intentional catalog changes.",
             all.len()
         );
