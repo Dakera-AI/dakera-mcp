@@ -12,7 +12,7 @@ Works with Claude, Claude Code, and any MCP-compatible framework.
 
 Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
-> The Dakera memory engine scores **87.6% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
+> The Dakera memory engine scores **88.2% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
 
 ---
 
