@@ -88,7 +88,7 @@ fn count_signals(entries: &serde_json::Value) -> (u64, u64, u64) {
 /// Compute T-I-F scores from raw feedback signal counts.
 ///
 /// - `total == 0` → fully indeterminate (`indeterminacy = 1.0`), classified
-///   `verify_before_use`.
+///   `ask_clarification`.
 /// - Otherwise truth/falsity/indeterminacy start as the upvote/downvote/flag
 ///   fractions. A base indeterminacy term is added when `total < 3` (thin evidence
 ///   should not yield high confidence), then the triple is normalised so
@@ -106,7 +106,7 @@ fn compute_tif(upvotes: u64, downvotes: u64, flags: u64) -> TifScores {
             truth: 0.0,
             indeterminacy: 1.0,
             falsity: 0.0,
-            classification: "verify_before_use",
+            classification: "ask_clarification",
         };
     }
 
@@ -223,7 +223,7 @@ mod tests {
         approx(s.truth, 0.0);
         approx(s.indeterminacy, 1.0);
         approx(s.falsity, 0.0);
-        assert_eq!(s.classification, "verify_before_use");
+        assert_eq!(s.classification, "ask_clarification");
     }
 
     #[test]
@@ -291,6 +291,80 @@ mod tests {
     fn test_count_signals_handles_empty_and_null() {
         assert_eq!(count_signals(&serde_json::Value::Null), (0, 0, 0));
         assert_eq!(count_signals(&json!([])), (0, 0, 0));
+    }
+
+    // ── Golden vectors — canonical contract across MCP + all SDKs ───────────
+
+    #[test]
+    fn golden_no_feedback() {
+        let s = compute_tif(0, 0, 0);
+        approx(s.truth, 0.0);
+        approx(s.indeterminacy, 1.0);
+        approx(s.falsity, 0.0);
+        assert_eq!(s.classification, "ask_clarification");
+    }
+
+    #[test]
+    fn golden_one_upvote() {
+        let s = compute_tif(1, 0, 0);
+        approx(s.truth, 0.6667);
+        approx(s.indeterminacy, 0.3333);
+        approx(s.falsity, 0.0);
+        assert_eq!(s.classification, "verify_before_use");
+    }
+
+    #[test]
+    fn golden_two_upvotes() {
+        let s = compute_tif(2, 0, 0);
+        approx(s.truth, 0.8);
+        approx(s.indeterminacy, 0.2);
+        approx(s.falsity, 0.0);
+        assert_eq!(s.classification, "confident_reuse");
+    }
+
+    #[test]
+    fn golden_three_upvotes() {
+        let s = compute_tif(3, 0, 0);
+        approx(s.truth, 1.0);
+        approx(s.indeterminacy, 0.0);
+        approx(s.falsity, 0.0);
+        assert_eq!(s.classification, "confident_reuse");
+    }
+
+    #[test]
+    fn golden_two_downvotes() {
+        let s = compute_tif(0, 2, 0);
+        approx(s.truth, 0.0);
+        approx(s.indeterminacy, 0.2);
+        approx(s.falsity, 0.8);
+        assert_eq!(s.classification, "surface_contradiction");
+    }
+
+    #[test]
+    fn golden_two_flags() {
+        let s = compute_tif(0, 0, 2);
+        approx(s.truth, 0.0);
+        approx(s.indeterminacy, 1.0);
+        approx(s.falsity, 0.0);
+        assert_eq!(s.classification, "ask_clarification");
+    }
+
+    #[test]
+    fn golden_8up_1down_1flag() {
+        let s = compute_tif(8, 1, 1);
+        approx(s.truth, 0.8);
+        approx(s.indeterminacy, 0.1);
+        approx(s.falsity, 0.1);
+        assert_eq!(s.classification, "confident_reuse");
+    }
+
+    #[test]
+    fn golden_3down_3flag() {
+        let s = compute_tif(0, 3, 3);
+        approx(s.truth, 0.0);
+        approx(s.indeterminacy, 0.5);
+        approx(s.falsity, 0.5);
+        assert_eq!(s.classification, "surface_contradiction");
     }
 
     // ── Dispatch ──────────────────────────────────────────────────────────────
