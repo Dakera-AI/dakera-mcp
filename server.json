@@ -1,16 +1,16 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.dakera-ai/dakera-mcp",
+  "name": "io.github.Dakera-AI/dakera-mcp",
   "description": "Agent memory engine — 86 MCP tools, self-hosted, single Rust binary",
   "repository": {
     "url": "https://github.com/dakera-ai/dakera-mcp",
     "source": "github"
   },
-  "version": "0.10.8",
+  "version": "0.10.9",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/dakera-ai/dakera-mcp:0.10.8",
+      "identifier": "ghcr.io/dakera-ai/dakera-mcp:0.10.9",
       "transport": {
         "type": "stdio"
       },
