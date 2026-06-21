@@ -3,7 +3,7 @@
   "name": "io.github.Dakera-AI/dakera-mcp",
   "description": "Agent memory engine — 86 MCP tools, self-hosted, single Rust binary",
   "repository": {
-    "url": "https://github.com/dakera-ai/dakera-mcp",
+    "url": "https://github.com/Dakera-AI/dakera-mcp",
     "source": "github"
   },
   "version": "0.10.9",
