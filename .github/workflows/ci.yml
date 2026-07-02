@@ -73,6 +73,7 @@ jobs:
 
   integration-test:
     name: Integration Tests
+    needs: [check, clippy, fmt, test]
     runs-on: [self-hosted, linux, arm64]
     steps:
       - uses: actions/checkout@v6
