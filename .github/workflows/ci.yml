@@ -27,6 +27,8 @@ jobs:
         with:
           prefix-key: v2
           shared-key: check
+      - name: Purge stale build artifacts
+        run: rm -rf target/
       - run: cargo check --all-targets
 
   clippy:
@@ -41,6 +43,8 @@ jobs:
         with:
           prefix-key: v2
           shared-key: clippy
+      - name: Purge stale build artifacts
+        run: rm -rf target/
       - run: cargo clippy --all-targets -- -D warnings
 
   fmt:
@@ -63,10 +67,13 @@ jobs:
         with:
           prefix-key: v2
           shared-key: test
+      - name: Purge stale build artifacts
+        run: rm -rf target/
       - run: cargo test --all-targets
 
   integration-test:
     name: Integration Tests
+    needs: [check, clippy, fmt, test]
     runs-on: [self-hosted, linux, arm64]
     steps:
       - uses: actions/checkout@v7
@@ -75,6 +82,8 @@ jobs:
         with:
           prefix-key: v2
           shared-key: integration
+      - name: Purge stale build artifacts
+        run: rm -rf target/
       - name: Log in to GHCR
         # The self-hosted ARM runner can accumulate a stale GHCR credential in its
         # docker config; once expired, docker presents the bad token instead of doing
