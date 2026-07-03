@@ -483,6 +483,67 @@ async fn test_forget_by_id() {
     ok(&r2);
 }
 
+/// Regression test for the 422 schema/API drift: `dakera_memory_feedback` and
+/// `dakera_memory_feedback_get` must forward `agent_id` to the server
+/// (`MemoryFeedbackRequest` body / query param respectively).
+#[tokio::test]
+async fn test_memory_feedback_loop() {
+    let c = client();
+    let agent_id = agent("feedback");
+    cleanup(&c, &agent_id).await;
+
+    let r1 = execute_tool(
+        &c,
+        "dakera_store",
+        &json!({
+            "agent_id": agent_id,
+            "content": "This memory will receive feedback signals.",
+            "importance": 0.5,
+            "tags": [TEST_TAG],
+        }),
+    )
+    .await;
+    let stored = ok(&r1);
+    let memory_id = stored["memory"]["id"]
+        .as_str()
+        .expect("store must return memory.id");
+
+    let r2 = execute_tool(
+        &c,
+        "dakera_memory_feedback",
+        &json!({
+            "agent_id": agent_id,
+            "memory_id": memory_id,
+            "signal": "upvote",
+        }),
+    )
+    .await;
+    let feedback = ok(&r2);
+    let new_importance = feedback["new_importance"]
+        .as_f64()
+        .expect("feedback must return new_importance");
+    assert!(
+        new_importance > 0.5,
+        "upvote must raise importance above the initial 0.5, got {new_importance}"
+    );
+
+    let r3 = execute_tool(
+        &c,
+        "dakera_memory_feedback_get",
+        &json!({
+            "agent_id": agent_id,
+            "memory_id": memory_id,
+        }),
+    )
+    .await;
+    let history = ok(&r3);
+    let entries = history["entries"]
+        .as_array()
+        .expect("feedback history must return entries");
+    assert_eq!(entries.len(), 1, "exactly one feedback event recorded");
+    assert_eq!(entries[0]["signal"].as_str(), Some("upvote"));
+}
+
 #[tokio::test]
 async fn test_batch_forget() {
     let c = client();

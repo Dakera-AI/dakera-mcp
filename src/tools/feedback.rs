@@ -23,6 +23,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
+                    "agent_id": { "type": "string" },
                     "memory_id": {
                         "type": "string",
                         "description": "ID of the memory to give feedback on"
@@ -33,7 +34,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "description": "Feedback signal: upvote (increase importance), downvote (decrease), flag (mark for review)"
                     }
                 },
-                "required": ["memory_id", "signal"]
+                "required": ["agent_id", "memory_id", "signal"]
             }),
         },
         ToolDefinition {
@@ -43,12 +44,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
+                    "agent_id": { "type": "string" },
                     "memory_id": {
                         "type": "string",
                         "description": "ID of the memory to get feedback history for"
                     }
                 },
-                "required": ["memory_id"]
+                "required": ["agent_id", "memory_id"]
             }),
         },
         ToolDefinition {
@@ -83,6 +85,10 @@ async fn tool_memory_feedback(
     client: &DakeraApiClient,
     args: &serde_json::Value,
 ) -> CallToolResult {
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let memory_id = match require_string(args, "memory_id") {
         Ok(v) => v,
         Err(e) => return e,
@@ -93,7 +99,9 @@ async fn tool_memory_feedback(
     };
 
     let path = format!("/v1/memories/{}/feedback", urlencoding::encode(&memory_id));
-    let body = json!({ "signal": signal });
+    // Server contract (MemoryFeedbackRequest): agent_id is required to derive
+    // the memory namespace and authorize write scope — omitting it is a 422.
+    let body = json!({ "agent_id": agent_id, "signal": signal });
 
     match client.post_json(&path, &body).await {
         Ok(result) => ok_json(&result),
@@ -105,12 +113,20 @@ async fn tool_memory_feedback_get(
     client: &DakeraApiClient,
     args: &serde_json::Value,
 ) -> CallToolResult {
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let memory_id = match require_string(args, "memory_id") {
         Ok(v) => v,
         Err(e) => return e,
     };
 
-    let path = format!("/v1/memories/{}/feedback", urlencoding::encode(&memory_id));
+    let path = format!(
+        "/v1/memories/{}/feedback?agent_id={}",
+        urlencoding::encode(&memory_id),
+        urlencoding::encode(&agent_id)
+    );
     match client.get_json(&path).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
@@ -157,12 +173,44 @@ mod tests {
         assert!(names.iter().any(|n| n == "dakera_agent_feedback_summary"));
     }
 
+    /// Regression guard for the 422 schema/API drift: the MCP tool params must
+    /// match the server's deserialization contract — `feedback_by_id` requires
+    /// `agent_id` + `signal` in the body, `get_feedback_history` requires an
+    /// `agent_id` query parameter.
+    #[test]
+    fn test_schema_requires_agent_id() {
+        let defs = definitions();
+        let feedback = defs
+            .iter()
+            .find(|d| d.name == "dakera_memory_feedback")
+            .unwrap();
+        let required: Vec<&str> = feedback.input_schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert_eq!(required, vec!["agent_id", "memory_id", "signal"]);
+
+        let feedback_get = defs
+            .iter()
+            .find(|d| d.name == "dakera_memory_feedback_get")
+            .unwrap();
+        let required: Vec<&str> = feedback_get.input_schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert_eq!(required, vec!["agent_id", "memory_id"]);
+    }
+
     #[tokio::test]
     async fn test_feedback_dispatches() {
         let result = execute(
             &dummy_client(),
             "dakera_memory_feedback",
-            &json!({"memory_id": "mem_123", "signal": "upvote"}),
+            &json!({"agent_id": "core-engine", "memory_id": "mem_123", "signal": "upvote"}),
         )
         .await;
         assert!(result.is_some());
@@ -174,11 +222,39 @@ mod tests {
         let result = execute(
             &dummy_client(),
             "dakera_memory_feedback_get",
-            &json!({"memory_id": "mem_123"}),
+            &json!({"agent_id": "core-engine", "memory_id": "mem_123"}),
         )
         .await;
         assert!(result.is_some());
         assert_eq!(result.unwrap().is_error, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_feedback_missing_agent_id() {
+        let result = execute(
+            &dummy_client(),
+            "dakera_memory_feedback",
+            &json!({"memory_id": "mem_123", "signal": "upvote"}),
+        )
+        .await;
+        assert!(result.is_some());
+        let r = result.unwrap();
+        assert_eq!(r.is_error, Some(true));
+        assert!(r.content[0].text.contains("agent_id"));
+    }
+
+    #[tokio::test]
+    async fn test_feedback_get_missing_agent_id() {
+        let result = execute(
+            &dummy_client(),
+            "dakera_memory_feedback_get",
+            &json!({"memory_id": "mem_123"}),
+        )
+        .await;
+        assert!(result.is_some());
+        let r = result.unwrap();
+        assert_eq!(r.is_error, Some(true));
+        assert!(r.content[0].text.contains("agent_id"));
     }
 
     #[tokio::test]
@@ -198,7 +274,7 @@ mod tests {
         let result = execute(
             &dummy_client(),
             "dakera_memory_feedback",
-            &json!({"memory_id": "mem_123"}),
+            &json!({"agent_id": "core-engine", "memory_id": "mem_123"}),
         )
         .await;
         assert!(result.is_some());
