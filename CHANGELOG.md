@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.10] - 2026-07-03
+
+### Security
+
+- **quinn-proto 0.11.14 → 0.11.15 (RUSTSEC-2026-0185)** — fixes remote memory
+  exhaustion via unbounded out-of-order stream reassembly. CVSS 7.5 (high).
+  ([#132](https://github.com/Dakera-AI/dakera-mcp/pull/132))
+
 ### Added
 
 - **`dakera_tif_evaluate` tool (Power tier)** — wraps the T-I-F
@@ -16,14 +24,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and returns a reuse classification (`confident_reuse`, `surface_contradiction`,
   `ask_clarification`, `verify_before_use`). Pure arithmetic on feedback signals —
   no external LLM. Brings the `all` profile to 87 tools and `power` to 69.
-  Phase 3 of the T-I-F RFC
-  ([dakera-deploy#161](https://github.com/Dakera-AI/dakera-deploy/issues/161)).
 
 ### Fixed
 
-- **CI integration tests** — added an explicit GHCR `docker/login-action` step
-  before pulling the `dakera` image. The self-hosted ARM runner could accumulate a
-  stale GHCR credential, causing `denied: denied` on the public image pull.
+- **Memory feedback tools missing `agent_id`** — `dakera_memory_feedback` and
+  `dakera_memory_feedback_get` now forward the required `agent_id` field; all
+  agents' feedback calls previously returned 422. Restores the org-wide memory
+  reinforcement loop. ([#136](https://github.com/Dakera-AI/dakera-mcp/pull/136))
+- **CI integration tests** — added explicit GHCR `docker/login-action` step before
+  pulling the `dakera` image; stale credentials on self-hosted ARM runners caused
+  `denied: denied` on the public image pull.
+- **Docker port mapping** — corrected `3300:3300` → `3300:3000` in documentation.
+  ([#133](https://github.com/Dakera-AI/dakera-mcp/pull/133))
+- **Playground badge URL** — badge now links to `dakera.ai/playground` (frontend)
+  instead of the API endpoint.
+  ([#131](https://github.com/Dakera-AI/dakera-mcp/pull/131))
+- **MCP Registry org case** — restored `Dakera-AI` casing in `repository.url`
+  after a previous normalisation incorrectly lowercased it. (DAK-7032,
+  [#128](https://github.com/Dakera-AI/dakera-mcp/pull/128))
+
+### CI & Distribution
+
+- ARM runner lockfile-aware stale cache purge to prevent spurious compilation
+  failures. ([#135](https://github.com/Dakera-AI/dakera-mcp/pull/135))
+- Bumped `actions/checkout` v4 → v7 and `actions/cache` v5 → v6.
+  ([#127](https://github.com/Dakera-AI/dakera-mcp/pull/127),
+  [#130](https://github.com/Dakera-AI/dakera-mcp/pull/130),
+  [#134](https://github.com/Dakera-AI/dakera-mcp/pull/134))
 
 ## [0.10.4] - 2026-05-18
 
