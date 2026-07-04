@@ -83,7 +83,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "memory_id": { "type": "string", "description": "Source memory ID" },
                     "target_id": { "type": "string", "description": "Target memory ID to link to" },
-                    "agent_id": { "type": "string", "description": "Agent that owns both memories (authorizes the write)" }
+                    "agent_id": { "type": "string" }
                 },
                 "required": ["memory_id", "target_id", "agent_id"]
             }),
