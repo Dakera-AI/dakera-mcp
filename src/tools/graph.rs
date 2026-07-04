@@ -82,9 +82,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "memory_id": { "type": "string", "description": "Source memory ID" },
-                    "target_id": { "type": "string", "description": "Target memory ID to link to" }
+                    "target_id": { "type": "string", "description": "Target memory ID to link to" },
+                    "agent_id": { "type": "string", "description": "Agent that owns both memories (authorizes the write)" }
                 },
-                "required": ["memory_id", "target_id"]
+                "required": ["memory_id", "target_id", "agent_id"]
             }),
         },
         ToolDefinition {
@@ -198,9 +199,16 @@ async fn tool_graph_link_memory(
         Ok(v) => v,
         Err(e) => return e,
     };
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let encoded = urlencoding::encode(&memory_id);
     let path = format!("/v1/memories/{}/links", encoded);
-    let body = json!({ "target_id": target_id });
+    // Server contract (MemoryLinkRequest): agent_id is required for
+    // authorization — omitting it is a 422. Same drift class as the
+    // dakera_memory_feedback fix (#136).
+    let body = json!({ "target_id": target_id, "agent_id": agent_id });
     match client.post_json(&path, &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
@@ -307,6 +315,18 @@ mod tests {
         let result = tool_graph_link_memory(&dummy_client(), &json!({"memory_id": "mem_a"})).await;
         assert_eq!(result.is_error, Some(true));
         assert!(result.content[0].text.contains("target_id"));
+    }
+
+    #[tokio::test]
+    async fn test_graph_link_memory_missing_agent_id() {
+        // Server contract: MemoryLinkRequest.agent_id is required (422 without it).
+        let result = tool_graph_link_memory(
+            &dummy_client(),
+            &json!({"memory_id": "mem_a", "target_id": "mem_b"}),
+        )
+        .await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("agent_id"));
     }
 
     #[tokio::test]
