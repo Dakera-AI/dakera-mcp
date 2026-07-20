@@ -32,7 +32,7 @@ jobs:
     name: npx — dakera-mcp
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Install dakera-mcp via npx
