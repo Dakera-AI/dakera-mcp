@@ -20,6 +20,11 @@ jobs:
   check:
     name: Check
     runs-on: [self-hosted, linux, arm64]
+    # Serialize ARM cargo-build jobs org-wide (cli-arm, mcp-arm, dakera-arm share the host).
+    # Concurrent builds race on ~/.cargo/registry/src extraction (DAK-7483).
+    concurrency:
+      group: arm-cargo-host
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -28,12 +33,17 @@ jobs:
           prefix-key: v2
           shared-key: check
       - name: Purge stale build artifacts
-        run: rm -rf target/
+        run: |
+          rm -rf target/
+          rm -rf ~/.cargo/registry/src/
       - run: cargo check --all-targets
 
   clippy:
     name: Clippy
     runs-on: [self-hosted, linux, arm64]
+    concurrency:
+      group: arm-cargo-host
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +54,9 @@ jobs:
           prefix-key: v2
           shared-key: clippy
       - name: Purge stale build artifacts
-        run: rm -rf target/
+        run: |
+          rm -rf target/
+          rm -rf ~/.cargo/registry/src/
       - run: cargo clippy --all-targets -- -D warnings
 
   fmt:
@@ -60,6 +72,9 @@ jobs:
   test:
     name: Test
     runs-on: [self-hosted, linux, arm64]
+    concurrency:
+      group: arm-cargo-host
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -68,13 +83,18 @@ jobs:
           prefix-key: v2
           shared-key: test
       - name: Purge stale build artifacts
-        run: rm -rf target/
+        run: |
+          rm -rf target/
+          rm -rf ~/.cargo/registry/src/
       - run: cargo test --all-targets
 
   integration-test:
     name: Integration Tests
     needs: [check, clippy, fmt, test]
     runs-on: [self-hosted, linux, arm64]
+    concurrency:
+      group: arm-cargo-host
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -83,7 +103,9 @@ jobs:
           prefix-key: v2
           shared-key: integration
       - name: Purge stale build artifacts
-        run: rm -rf target/
+        run: |
+          rm -rf target/
+          rm -rf ~/.cargo/registry/src/
       - name: Log in to GHCR
         # The self-hosted ARM runner can accumulate a stale GHCR credential in its
         # docker config; once expired, docker presents the bad token instead of doing
