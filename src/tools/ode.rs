@@ -85,6 +85,7 @@ async fn tool_extract_entities(args: &serde_json::Value) -> CallToolResult {
 
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .user_agent(format!("dakera-mcp/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
