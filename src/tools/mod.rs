@@ -102,6 +102,7 @@ impl DakeraApiClient {
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(4)
             .tcp_keepalive(std::time::Duration::from_secs(60))
+            .user_agent(format!("dakera-mcp/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
