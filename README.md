@@ -8,7 +8,7 @@ Works with Claude, Claude Code, and any MCP-compatible framework.
 
 Part of [Dakera AI](https://dakera.ai) — the memory engine for AI agents.
 
-> The Dakera memory engine scores **88.2% on LoCoMo** (1,540 questions, standard eval) — [benchmark details](https://dakera.ai/benchmark)
+> The Dakera memory engine scores **88.2% Recall@20 on LoCoMo** (1,540 questions · LLM-judge scored) — [benchmark details](https://dakera.ai/benchmark)
 
 ---
 
@@ -209,4 +209,4 @@ The 14-tool default keeps your context window lean. The meta-tools let you expan
 
 **[dakera.ai](https://dakera.ai)** · [Documentation](https://dakera.ai/docs) · [Request Early Access](https://dakera.ai#cta)
 
-<sub>Part of the Dakera AI open-source ecosystem. Built with Rust. Self-hosted. Zero dependencies.</sub>
+<sub>Part of the Dakera AI open-core ecosystem. Built with Rust. Self-hosted. Zero dependencies.</sub>
