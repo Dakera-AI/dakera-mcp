@@ -84,7 +84,7 @@ The MCP server connects to a Dakera memory server. You need one running first:
 ```bash
 docker run -d \
   --name dakera \
-  -p 3300:3000 \
+  -p 3000:3000 \
   -e DAKERA_ROOT_API_KEY=dk-mykey \
   ghcr.io/dakera-ai/dakera:latest
 ```
@@ -157,7 +157,7 @@ Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop
     "dakera": {
       "command": "dakera-mcp",
       "env": {
-        "DAKERA_API_URL": "http://localhost:3300",
+        "DAKERA_API_URL": "http://localhost:3000",
         "DAKERA_API_KEY": "your-key"
       }
     }
@@ -173,7 +173,7 @@ To start with the power profile (exposes 68 tools):
     "dakera": {
       "command": "dakera-mcp",
       "env": {
-        "DAKERA_API_URL": "http://localhost:3300",
+        "DAKERA_API_URL": "http://localhost:3000",
         "DAKERA_API_KEY": "your-key",
         "DAKERA_MCP_PROFILE": "power"
       }
