@@ -33,7 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_import".into(),
-            description: "Import memories from a JSONL, CSV, Mem0, or Zep payload. Format is auto-detected unless specified. Returns import status with counts of imported and skipped records."
+            description: "Import memories from a Mem0 or Zep export, or from dakera_memory_export output (JSONL: one memory object per line; CSV: id,agent_id,content,importance,tags,created_at,memory_type). Format is auto-detected unless given. Needs write on the agent's namespace. Returns imported/skipped counts; nothing imported is an error."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -107,6 +107,11 @@ async fn tool_memory_import(client: &DakeraApiClient, args: &serde_json::Value) 
     let path = format!("/v1/import?{}", qs);
 
     match client.post_multipart_text(&path, &data).await {
+        // The server answers 200 with the finished job even when no record
+        // could be imported; say so as an error, with its per-record errors.
+        Ok(result) if result.get("status").and_then(|v| v.as_str()) == Some("failed") => {
+            CallToolResult::error(serde_json::to_string_pretty(&result).unwrap_or_default())
+        }
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }

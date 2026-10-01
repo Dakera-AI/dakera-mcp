@@ -59,9 +59,10 @@ fn memory_job_properties() -> Value {
         "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
         "session_id": { "type": "string" },
         "id": { "type": "string", "description": "Custom memory id" },
-        "lang": { "type": "string", "description": "Language of the text (ISO 639-1)" },
+        "lang": { "type": "string", "description": "Language (en, de, French, pt-BR, ...): skips detection" },
         "ttl_seconds": { "type": "integer" },
-        "wait_seconds": { "type": "integer", "description": "Wait up to this long (max 45) for the job; 0 returns the job at once" }
+        "metadata": { "type": "object", "description": "JSON metadata kept with the memory" },
+        "wait_seconds": { "type": "integer", "description": "Wait up to this long (max 45, counted from the call) for the job; 0 returns the job at once" }
     })
 }
 
@@ -131,8 +132,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_attachment_transcribe".into(),
-            description: "Transcribe a WAV attachment (English speech to text) into a memory for agent_id; runs as a background job. \
-                wait_seconds waits for it, else poll with dakera_attachment_job."
+            description: "Transcribe a WAV attachment (speech to text; the default model detects the language, lang forces one) into a memory for agent_id. \
+                Runs as a background job: wait_seconds waits for it, else poll with dakera_attachment_job (job_id, memory_id and status_url are always returned)."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -142,7 +143,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_attachment_index_image".into(),
-            description: "Index a PNG attachment as a visual memory for agent_id (needs DAKERA_VISION too); about 10 s per page on CPU, background job."
+            description: "Index a PNG attachment as a visual memory for agent_id (needs DAKERA_VISION too); about 10 s per page on CPU, background job. \
+                The visual lane stores page vectors, so use an agent (or a deployment) dedicated to images: an agent that already holds text memories fails with DIMENSION_MISMATCH."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -370,6 +372,7 @@ pub fn job_body(args: &Value, kind: &str, agent_id: &str) -> Value {
         "id",
         "lang",
         "ttl_seconds",
+        "metadata",
     ];
     for field in fields {
         if let Some(value) = args.get(field) {
@@ -391,6 +394,9 @@ fn str_field<'a>(v: &'a Value, name: &str) -> &'a str {
 }
 
 async fn tool_start_job(client: &DakeraApiClient, args: &Value, kind: &str) -> CallToolResult {
+    // The wait counts from the start of the call: the whole call must end
+    // before the 60 s tool limit, or the job id would be lost with it.
+    let started = Instant::now();
     let agent_id = match require_string(args, "agent_id") {
         Ok(a) => a,
         Err(e) => return e,
@@ -418,36 +424,63 @@ async fn tool_start_job(client: &DakeraApiClient, args: &Value, kind: &str) -> C
     if status_path.is_empty() {
         return ok_json(&accepted);
     }
-    wait_for_job(client, status_path, wait).await
+    let deadline = started + Duration::from_secs(wait);
+    wait_for_job(client, &accepted, status_path, deadline).await
 }
 
-/// Poll a job until it ends or `wait_secs` pass. A failed job is an error
+/// What a job-start call answers with: the identifiers of the `202` (job id,
+/// memory id, status URL) and, once polled, the job itself.
+pub fn job_result(accepted: &Value, job: Option<&Value>, still_running: bool) -> Value {
+    let mut out = json!({});
+    for field in [
+        "job_id",
+        "memory_id",
+        "attachment_ref",
+        "agent_id",
+        "model",
+        "status_url",
+    ] {
+        if let Some(v) = accepted.get(field) {
+            out[field] = v.clone();
+        }
+    }
+    if let Some(job) = job {
+        out["job"] = job.clone();
+    }
+    if still_running {
+        out["still_running"] = json!(true);
+        out["next"] = json!("poll with dakera_attachment_job (job_id above)");
+    }
+    out
+}
+
+/// Poll a job until it ends or `deadline` passes. A failed job is an error
 /// result carrying the job (its `error` has the status and code).
 async fn wait_for_job(
     client: &DakeraApiClient,
+    accepted: &Value,
     status_path: &str,
-    wait_secs: u64,
+    deadline: Instant,
 ) -> CallToolResult {
-    let started = Instant::now();
     loop {
         let job = match client.get_json(status_path).await {
             Ok(job) => job,
-            Err(e) => return CallToolResult::error(e),
+            Err(e) => {
+                let ids = job_result(accepted, None, false);
+                return CallToolResult::error(format!("{e}\nThe job was started: {ids}"));
+            }
         };
         match str_field(&job, "status") {
-            "Completed" => return ok_json(&job),
+            "Completed" => return ok_json(&job_result(accepted, Some(&job), false)),
             "Failed" | "Cancelled" => {
-                let text = serde_json::to_string_pretty(&job).unwrap_or_default();
+                let result = job_result(accepted, Some(&job), false);
+                let text = serde_json::to_string_pretty(&result).unwrap_or_default();
                 return CallToolResult::error(text);
             }
             _ => {}
         }
-        if started.elapsed().as_secs() >= wait_secs {
-            return ok_json(&json!({
-                "still_running": true,
-                "job": job,
-                "next": "poll with dakera_attachment_job",
-            }));
+        if Instant::now() + POLL_INTERVAL >= deadline {
+            return ok_json(&job_result(accepted, Some(&job), true));
         }
         tokio::time::sleep(POLL_INTERVAL).await;
     }

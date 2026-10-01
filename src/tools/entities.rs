@@ -11,7 +11,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_auto_tag".into(),
-            description: "Extract typed entity spans from text using GLiNER NER and optional rule-based pre-pass (dates, URLs, emails, IPs). Returns spans without storing. Use to preview extraction before enabling it on a namespace.".into(),
+            description: "Extract typed entity spans from text: a rule-based pass (dates, URLs, emails, IPs) plus GLiNER NER when its model is available. Returns spans without storing. Use to preview extraction before enabling it on a namespace.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -22,8 +22,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "entity_types": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Entity types to extract (e.g. [\"person\", \"organization\", \"location\"]). Empty list uses rule-based extraction only."
-                    }
+                        "description": "GLiNER entity types (default: person, organization, location)"
+                    },
+                    "lang": { "type": "string", "description": "Language of the text: en, de, fr, es, it, pt, nl; Dakera v0.12+" }
                 },
                 "required": ["content"]
             }),
@@ -104,9 +105,8 @@ async fn tool_auto_tag(client: &DakeraApiClient, args: &serde_json::Value) -> Ca
     let mut body = json!({ "content": content });
     if let Some(types) = args.get("entity_types").and_then(|v| v.as_array()) {
         body["entity_types"] = json!(types);
-    } else {
-        body["entity_types"] = json!([]);
     }
+    super::memory::forward_optional_strings(&mut body, args, &["lang"]);
     match client.post_json("/v1/memories/extract", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

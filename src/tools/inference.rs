@@ -42,7 +42,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                             "required": ["id", "text"]
                         }
                     },
-                    "model": { "type": "string", "description": "Embedding model" }
+                    "model": { "type": "string", "description": "Omit: the server's model is used (v0.12 refuses any other)" }
                 },
                 "required": ["namespace", "documents"]
             }),
@@ -62,7 +62,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "top_k": { "type": "integer", "description": "Number of results per query" },
                     "filter": { "type": "object", "description": "Optional filter for all queries" },
                     "include_vectors": { "type": "boolean", "description": "Include vectors in response" },
-                    "model": { "type": "string", "description": "Embedding model" }
+                    "model": { "type": "string", "description": "Omit: the server's model is used (v0.12 refuses any other)" }
                 },
                 "required": ["namespace", "queries"]
             }),

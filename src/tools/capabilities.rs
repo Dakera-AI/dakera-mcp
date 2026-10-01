@@ -33,6 +33,8 @@ pub enum CapabilityState {
 /// `records`) as enabled; `None` when it cannot be known.
 pub fn feature_enabled(state: &CapabilityState, feature: &str) -> Option<bool> {
     match state {
+        // Any server that serves /v1/capabilities is v0.12 or later.
+        CapabilityState::Known(_) if feature == SERVER_V012 => Some(true),
         CapabilityState::Known(doc) => {
             let section = doc.get(feature)?;
             section.get("enabled")?.as_bool()
@@ -42,8 +44,18 @@ pub fn feature_enabled(state: &CapabilityState, feature: &str) -> Option<bool> {
     }
 }
 
+/// Not a section of the document: what a tool calling a route that only a
+/// v0.12 server has needs (no opt-in variable).
+pub const SERVER_V012: &str = "server_v012";
+
+/// Tools whose routes are new in Dakera v0.12 but need no opt-in feature.
+const V012_ONLY_TOOLS: &[&str] = &["dakera_embed_migration_status", "dakera_encryption_status"];
+
 /// The capability sections an opt-in tool needs.
 pub fn required_features(tool: &str) -> &'static [&'static str] {
+    if V012_ONLY_TOOLS.contains(&tool) {
+        return &[SERVER_V012];
+    }
     if tool == "dakera_attachment_index_image" {
         return &["attachments", "vision"];
     }
@@ -180,6 +192,21 @@ mod tests {
         let reason = unavailable_reason("dakera_attachment_list", &state).unwrap();
         assert!(reason.contains("v0.12"));
         assert!(is_available("dakera_store", &state));
+    }
+
+    #[test]
+    fn v012_only_tools_are_dropped_on_a_v011_server_only() {
+        for tool in ["dakera_embed_migration_status", "dakera_encryption_status"] {
+            assert!(is_available(tool, &doc()));
+            assert!(is_available(tool, &CapabilityState::Unknown));
+            let reason = unavailable_reason(tool, &CapabilityState::NotSupported).unwrap();
+            assert!(reason.contains("v0.12"), "{reason}");
+        }
+        // Rotation works on v0.11 too (with new_key).
+        assert!(is_available(
+            "dakera_encryption_rotate_key",
+            &CapabilityState::NotSupported
+        ));
     }
 
     #[test]

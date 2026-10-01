@@ -22,8 +22,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
         ToolDefinition {
             name: "dakera_encryption_rotate_key".into(),
             description: "Rotate the at-rest encryption key of one namespace, or of everything when namespace is omitted. \
-                A random key is generated unless new_key (passphrase or 64-char hex) is given. The old key is kept; values are re-sealed in the background \
-                (see dakera_encryption_status). Needs a global admin key (not namespace-pinned)."
+                With encryption on, a random key is generated unless new_key (passphrase or 64-char hex) is given; with it off, a global rotation \
+                with new_key turns it on. The old key is kept; values are re-sealed in the background (see dakera_encryption_status). \
+                Needs a global admin key (not namespace-pinned). Servers before v0.12 require new_key."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -38,7 +39,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     },
                     "wait_secs": {
                         "type": "integer",
-                        "description": "Wait up to this long (max 300) for the re-seal before answering"
+                        "description": "Wait up to this long (max 20, server default 10) for the re-seal before answering; 0 answers at once"
                     }
                 },
                 "required": []
@@ -61,10 +62,19 @@ pub async fn execute(
 ) -> Option<CallToolResult> {
     match name {
         "dakera_encryption_rotate_key" => Some(tool_rotate_key(client, args).await),
-        "dakera_encryption_status" => Some(tool_status(client).await),
+        "dakera_encryption_status" => {
+            if let Some(reason) = client.unavailable_reason(name).await {
+                return Some(CallToolResult::error(reason));
+            }
+            Some(tool_status(client).await)
+        }
         _ => None,
     }
 }
+
+/// The longest re-seal wait asked of the server: it answers only after it, and
+/// the HTTP client gives up at 30 s (a rotation is never re-sent).
+pub const MAX_WAIT_SECS: u64 = 20;
 
 /// The body of `POST /admin/encryption/rotate-key`: only what was given.
 pub fn rotate_body(args: &serde_json::Value) -> serde_json::Value {
@@ -76,7 +86,7 @@ pub fn rotate_body(args: &serde_json::Value) -> serde_json::Value {
         body["namespace"] = json!(ns);
     }
     if let Some(secs) = args.get("wait_secs").and_then(|v| v.as_u64()) {
-        body["wait_secs"] = json!(secs);
+        body["wait_secs"] = json!(secs.min(MAX_WAIT_SECS));
     }
     body
 }
@@ -132,10 +142,17 @@ mod tests {
     #[test]
     fn test_rotate_body_sends_only_what_was_given() {
         assert_eq!(rotate_body(&json!({})), json!({}));
-        let body = rotate_body(&json!({"namespace": "team-a", "wait_secs": 30}));
-        assert_eq!(body, json!({"namespace": "team-a", "wait_secs": 30}));
+        let body = rotate_body(&json!({"namespace": "team-a", "wait_secs": 15}));
+        assert_eq!(body, json!({"namespace": "team-a", "wait_secs": 15}));
         let body = rotate_body(&json!({"new_key": "a-passphrase"}));
         assert_eq!(body, json!({"new_key": "a-passphrase"}));
+    }
+
+    #[test]
+    fn test_wait_secs_is_capped_below_the_http_timeout() {
+        let body = rotate_body(&json!({"wait_secs": 300}));
+        assert_eq!(body, json!({"wait_secs": MAX_WAIT_SECS}));
+        const { assert!(MAX_WAIT_SECS < 30) };
     }
 
     #[tokio::test]

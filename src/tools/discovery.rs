@@ -1,7 +1,7 @@
 //! MCP-8: Discovery meta-tools — dakera_discover_tools, dakera_load_tools
 //!
 //! These tools are always exposed (ToolTier::Meta) and let callers explore
-//! the full 169-tool catalog without loading all schemas upfront. Callers
+//! the full tool catalog without loading all schemas upfront. Callers
 //! can first discover tools by keyword or tier, then load only the schemas
 //! they actually need, saving ~35K tokens versus loading everything by default.
 

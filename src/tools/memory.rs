@@ -9,26 +9,28 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_store".into(),
-            description: "Persist a new memory for an agent with importance weighting and optional tags. Use to save facts, decisions, or context for future retrieval. importance defaults to 0.5; set 0.8–1.0 for critical memories that must survive decay.".into(),
+            description: "Persist a memory (fact, decision, context) for an agent. importance defaults to 0.5; use 0.8-1.0 for memories that must survive decay.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "agent_id": { "type": "string" },
                     "content": { "type": "string", "description": "Memory content text" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Memory type (episodic|semantic|procedural|working)" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
                     "importance": { "type": "number", "description": "Importance 0.0-1.0" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for filtering" },
                     "session_id": { "type": "string", "description": "Session to associate with" },
-                    "expires_at": { "type": "integer", "description": "Expiry Unix timestamp (seconds)" },
-                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" },
-                    "attachment_ref": { "type": "string", "description": "sha256:<hex> of an attachment in the agent's own namespace (v0.12, dakera_attachment_upload)" }
+                    "expires_at": { "type": "integer", "description": "Expiry, Unix seconds (wins over ttl_seconds)" },
+                    "ttl_seconds": { "type": "integer", "description": "Expire after N seconds" },
+                    "metadata": { "type": "object" },
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" },
+                    "attachment_ref": { "type": "string", "description": "sha256:<hex> uploaded to the agent's namespace (v0.12)" }
                 },
                 "required": ["agent_id", "content"]
             }),
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Retrieve top-k memories semantically closest to a query. Prefer over dakera_batch_recall for query-based retrieval. Set include_associated=true to expand results via KG edges (1-3 hops).".into(),
+            description: "Semantic recall: the top_k (default 5) memories closest to a query, optionally narrowed by tags, memory_type or session_id. include_associated adds KG neighbours one hop away (dakera_recall_associated goes deeper).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -37,9 +39,12 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "top_k": { "type": "integer", "description": "Max results to return" },
                     "min_importance": { "type": "number", "description": "Min importance threshold" },
                     "include_associated": { "type": "boolean", "description": "Include KG-linked memories in results" },
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
+                    "session_id": { "type": "string" },
                     "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
                     "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" },
-                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -59,7 +64,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_batch_recall".into(),
-            description: "Filter-based memory listing by tags, importance range, time window, type, or session. Prefer over dakera_recall when semantic search is not needed. At least one filter required.".into(),
+            description: "List memories by filters (tags, importance, time window, type, session) without a query; at most limit (default 100). Use instead of dakera_recall when no semantic search is needed.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -70,14 +75,15 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "created_after": { "type": "integer", "description": "After Unix timestamp" },
                     "created_before": { "type": "integer", "description": "Before Unix timestamp" },
                     "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"] },
-                    "session_id": { "type": "string" }
+                    "session_id": { "type": "string" },
+                    "limit": { "type": "integer" }
                 },
                 "required": ["agent_id"]
             }),
         },
         ToolDefinition {
             name: "dakera_batch_forget".into(),
-            description: "Bulk-delete memories matching filter criteria: tags, importance range, time window, or memory type. At least one filter is required to prevent accidental full-agent wipe. Deletion is permanent — use dakera_memory_importance to lower importance scores instead of deleting.".into(),
+            description: "Bulk-delete memories matching filters (tags, importance range, time window, type, session); at least one is required. Permanent: to demote instead, use dakera_memory_importance.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -104,14 +110,14 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "top_k": { "type": "integer", "description": "Number of results" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Filter by tags" },
                     "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" },
-                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" }
                 },
                 "required": ["agent_id", "query"]
             }),
         },
         ToolDefinition {
             name: "dakera_consolidate".into(),
-            description: "Merge a set of memories into a synthesized summary, de-duplicating overlap. Use after a burst of related episodic memories to reduce storage and improve recall. Source memories are retained unless explicitly deleted.".into(),
+            description: "Merge a set of memories into one consolidated memory, de-duplicating overlap. The source memories are deleted (the answer lists them). Since v0.12 a merge that would lose data (e.g. a source with a TTL) is refused with 400.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -123,7 +129,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_get".into(),
-            description: "Fetch a single memory by ID, returning the full object: content, tags, importance, timestamps, and embedding metadata.".into(),
+            description: "Fetch a single memory by ID, returning the full object: content, type, tags, importance, metadata and timestamps.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -144,7 +150,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "content": { "type": "string", "description": "New content (triggers re-embedding)" },
                     "importance": { "type": "number", "description": "New importance score 0.0-1.0" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Replace tags" },
-                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" }
                 },
                 "required": ["memory_id", "agent_id"]
             }),
@@ -163,7 +169,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "associated_memories_min_weight": { "type": "number", "description": "Min KG edge weight to follow (0.0–1.0)" },
                     "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
                     "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" },
-                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -249,8 +255,10 @@ async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallT
         "tags": args.get("tags").cloned().unwrap_or(json!([])),
         "session_id": args.get("session_id"),
     });
-    if let Some(exp) = args.get("expires_at") {
-        body["expires_at"] = exp.clone();
+    for field in ["expires_at", "ttl_seconds", "metadata"] {
+        if let Some(value) = args.get(field).filter(|v| !v.is_null()) {
+            body[field] = value.clone();
+        }
     }
     forward_optional_strings(&mut body, args, &["lang", "attachment_ref"]);
     match client.post_json("/v1/memory/store", &body).await {
@@ -283,11 +291,44 @@ async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> Call
     if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
         body["until"] = json!(until);
     }
-    forward_optional_strings(&mut body, args, &["lang"]);
+    if let Some(tags) = args
+        .get("tags")
+        .and_then(|v| v.as_array())
+        .filter(|a| !a.is_empty())
+    {
+        body["tags"] = json!(tags);
+    }
+    forward_optional_strings(&mut body, args, &["lang", "memory_type", "session_id"]);
     match client.post_json("/v1/memory/recall", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }
+}
+
+/// The `filter` of a batch recall / forget: the filter arguments that were
+/// given. A null value or an empty tag list is left out — the server counts
+/// `tags: []` as a filter that matches every memory.
+pub fn batch_filter(args: &serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+    let mut filter = serde_json::Map::new();
+    for field in [
+        "tags",
+        "min_importance",
+        "max_importance",
+        "created_after",
+        "created_before",
+        "memory_type",
+        "session_id",
+    ] {
+        let Some(value) = args.get(field) else {
+            continue;
+        };
+        let empty_list = value.as_array().is_some_and(|a| a.is_empty());
+        if value.is_null() || empty_list {
+            continue;
+        }
+        filter.insert(field.into(), value.clone());
+    }
+    filter
 }
 
 async fn tool_forget(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
@@ -328,31 +369,15 @@ async fn tool_batch_recall(client: &DakeraApiClient, args: &serde_json::Value) -
         Ok(v) => v,
         Err(e) => return e,
     };
-    let mut filter = serde_json::Map::new();
-    if let Some(v) = args.get("tags") {
-        filter.insert("tags".into(), v.clone());
-    }
-    if let Some(v) = args.get("min_importance") {
-        filter.insert("min_importance".into(), v.clone());
-    }
-    if let Some(v) = args.get("max_importance") {
-        filter.insert("max_importance".into(), v.clone());
-    }
-    if let Some(v) = args.get("created_after") {
-        filter.insert("created_after".into(), v.clone());
-    }
-    if let Some(v) = args.get("created_before") {
-        filter.insert("created_before".into(), v.clone());
-    }
-    if let Some(v) = args.get("memory_type") {
-        filter.insert("memory_type".into(), v.clone());
-    }
-    if let Some(v) = args.get("session_id") {
-        filter.insert("session_id".into(), v.clone());
-    }
     let mut body = serde_json::Map::new();
     body.insert("agent_id".into(), json!(agent_id));
-    body.insert("filter".into(), serde_json::Value::Object(filter));
+    body.insert(
+        "filter".into(),
+        serde_json::Value::Object(batch_filter(args)),
+    );
+    if let Some(limit) = args.get("limit").and_then(|v| v.as_u64()) {
+        body.insert("limit".into(), json!(limit));
+    }
     match client
         .post_json(
             "/v1/memories/recall/batch",
@@ -370,27 +395,13 @@ async fn tool_batch_forget(client: &DakeraApiClient, args: &serde_json::Value) -
         Ok(v) => v,
         Err(e) => return e,
     };
-    let mut filter = serde_json::Map::new();
-    if let Some(v) = args.get("tags") {
-        filter.insert("tags".into(), v.clone());
-    }
-    if let Some(v) = args.get("min_importance") {
-        filter.insert("min_importance".into(), v.clone());
-    }
-    if let Some(v) = args.get("max_importance") {
-        filter.insert("max_importance".into(), v.clone());
-    }
-    if let Some(v) = args.get("created_after") {
-        filter.insert("created_after".into(), v.clone());
-    }
-    if let Some(v) = args.get("created_before") {
-        filter.insert("created_before".into(), v.clone());
-    }
-    if let Some(v) = args.get("memory_type") {
-        filter.insert("memory_type".into(), v.clone());
-    }
-    if let Some(v) = args.get("session_id") {
-        filter.insert("session_id".into(), v.clone());
+    let filter = batch_filter(args);
+    if filter.is_empty() {
+        return CallToolResult::error(
+            "At least one filter is required (non-empty tags, min/max_importance, \
+             created_after/before, memory_type or session_id); nothing was deleted."
+                .to_string(),
+        );
     }
     let mut body = serde_json::Map::new();
     body.insert("agent_id".into(), json!(agent_id));
@@ -420,10 +431,15 @@ async fn tool_search(client: &DakeraApiClient, args: &serde_json::Value) -> Call
         "agent_id": agent_id,
         "query": query,
         "top_k": args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10),
-        "tags": args.get("tags").cloned().unwrap_or(json!([])),
-        "memory_type": args.get("memory_type"),
     });
-    forward_optional_strings(&mut body, args, &["lang"]);
+    if let Some(tags) = args
+        .get("tags")
+        .and_then(|v| v.as_array())
+        .filter(|a| !a.is_empty())
+    {
+        body["tags"] = json!(tags);
+    }
+    forward_optional_strings(&mut body, args, &["lang", "memory_type"]);
     match client.post_json("/v1/memory/search", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
@@ -566,14 +582,14 @@ async fn tool_memory_importance(
     let mut errors = Vec::new();
 
     for update in updates {
-        let memory_id = update
-            .get("memory_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let importance = update
-            .get("importance")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.5);
+        let memory_id = update.get("memory_id").and_then(|v| v.as_str());
+        let importance = update.get("importance").and_then(|v| v.as_f64());
+        let (Some(memory_id), Some(importance)) = (memory_id, importance) else {
+            errors.push(format!(
+                "{update}: needs memory_id (string) and importance (number)"
+            ));
+            continue;
+        };
 
         let body = json!({
             "memory_id": memory_id,

@@ -18,12 +18,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_extract".into(),
-            description: "Extract structured information (entities, topics, key phrases, summary) \
-                from arbitrary text using the configured provider hierarchy: per-request override \
-                → namespace default → server default → GLiNER local. Supported providers: \
-                `gliner` (zero-config local ONNX), `openai`, `anthropic`, `openrouter`, `ollama`, \
-                `none`. GLiNER types come from the namespace config; for ad-hoc types use \
-                dakera_auto_tag."
+            description: "Extract entities, topics, key phrases and a summary from text with the \
+                provider chain: extractor_override, then the namespace default, then the server \
+                default (GLiNER local). For ad-hoc GLiNER types use dakera_auto_tag. Needs a write \
+                key for the namespace (for all namespaces when neither namespace nor agent_id is given)."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -34,18 +32,16 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     },
                     "namespace": {
                         "type": "string",
-                        "description": "Namespace whose default extractor config is used. \
-                            If omitted: agent_id's memory namespace, else the server default."
+                        "description": "Namespace whose extractor config applies (default: agent_id's)"
                     },
                     "agent_id": { "type": "string" },
                     "lang": {
                         "type": "string",
-                        "description": "Language of the text (en, de, fr, es, it, pt, nl); Dakera v0.12+"
+                        "description": "en, de, fr, es, it, pt or nl (v0.12+)"
                     },
                     "extractor_override": {
                         "type": "object",
-                        "description": "Per-request provider override — highest priority in the \
-                            resolution hierarchy. Fields: provider, model, base_url, api_key.",
+                        "description": "Provider for this request only",
                         "properties": {
                             "provider": {
                                 "type": "string",
@@ -79,7 +75,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_extractor_set".into(),
-            description: "Set or update the default extraction provider for a namespace. \
+            description: "Set the default extraction provider for a namespace (replaces the whole config: \
+                omitted fields such as model are cleared). \
                 The config is stored server-side and used by all subsequent calls to \
                 dakera_extract (unless a per-request override is provided). \
                 Set provider=none to clear the namespace default. \

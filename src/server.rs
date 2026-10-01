@@ -28,8 +28,12 @@ impl McpServer {
         let stdout = Arc::new(Mutex::new(tokio::io::stdout()));
         let reader = BufReader::new(stdin);
         let mut lines = reader.lines();
+        // Requests run concurrently; at end of input the ones still running are
+        // awaited, so `printf '...' | dakera-mcp` gets every answer.
+        let mut in_flight = tokio::task::JoinSet::new();
 
         while let Some(line) = lines.next_line().await? {
+            while in_flight.try_join_next().is_some() {}
             let line = line.trim().to_string();
             if line.is_empty() {
                 continue;
@@ -54,12 +58,13 @@ impl McpServer {
 
             let client = Arc::clone(&self.client);
             let writer = Arc::clone(&stdout);
-            tokio::spawn(async move {
+            in_flight.spawn(async move {
                 let response = handle_request(&client, &request).await;
                 Self::write_response(&writer, &response).await;
             });
         }
 
+        while in_flight.join_next().await.is_some() {}
         Ok(())
     }
 
@@ -95,7 +100,7 @@ pub async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) 
                 },
                 "serverInfo": {
                     "name": "dakera-mcp",
-                    "version": "0.2.0"
+                    "version": env!("CARGO_PKG_VERSION")
                 }
             }),
         ),

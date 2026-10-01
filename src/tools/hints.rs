@@ -32,17 +32,38 @@ const HINT_TOO_LARGE: &str = "The request body is larger than the server accepts
      attachment, the limit is attachments.max_bytes in dakera_capabilities).";
 const HINT_DISABLED: &str = "This feature is switched off on the server; the message names the \
      environment variable that turns it on. dakera_capabilities shows what is enabled.";
+const HINT_NO_ROUTE: &str = "This server has no such route: it probably predates Dakera v0.12 \
+     (dakera_health shows its version).";
+const HINT_NEW_KEY: &str = "Dakera servers before v0.12 require new_key: pass a passphrase or a \
+     64-char hex key.";
 const HINT_UNSUPPORTED: &str = "The server's configuration cannot serve this request; the \
      details name the settings to change.";
 
 /// A hint for an error answer, from its status, JSON body and `Retry-After`
 /// header. `None` when the answer has no well-known v0.12 meaning.
 pub fn error_hint(status: u16, body: &str, retry_after_secs: Option<u64>) -> Option<String> {
-    if status == 503 || status == 429 {
+    if status == 503 {
         return Some(match retry_after_secs {
             Some(secs) => format!("The server is busy or starting; retry in {secs}s."),
             None => "The server is busy or starting; retry shortly.".to_string(),
         });
+    }
+    if status == 429 {
+        return Some(match retry_after_secs {
+            Some(secs) => {
+                format!("Rate limit reached for this key or namespace; retry in {secs}s.")
+            }
+            None => "Rate limit reached for this key or namespace; retry shortly.".to_string(),
+        });
+    }
+    // No body at all: the server has no such route (an axum 404), which for a
+    // tool written for Dakera v0.12 means an older server.
+    if status == 404 && body.trim().is_empty() {
+        return Some(HINT_NO_ROUTE.to_string());
+    }
+    // Dakera before v0.12 requires fields v0.12 made optional (rotate-key's new_key).
+    if status == 422 && body.contains("missing field `new_key`") {
+        return Some(HINT_NEW_KEY.to_string());
     }
     let parsed: Value = serde_json::from_str(body).unwrap_or(Value::Null);
     let code = field(&parsed, "code");
@@ -106,7 +127,10 @@ mod tests {
         let hint = error_hint(503, "{}", Some(5)).unwrap();
         assert!(hint.contains("retry in 5s"));
         let hint = error_hint(429, "{}", None).unwrap();
+        assert!(hint.contains("Rate limit"));
         assert!(hint.contains("retry shortly"));
+        let hint = error_hint(429, "{}", Some(12)).unwrap();
+        assert!(hint.contains("retry in 12s"));
     }
 
     #[test]
@@ -130,6 +154,15 @@ mod tests {
     fn unknown_answers_have_no_hint() {
         assert!(error_hint(404, "{}", None).is_none());
         assert!(error_hint(500, "not json", None).is_none());
+    }
+
+    #[test]
+    fn a_route_an_older_server_lacks() {
+        let hint = error_hint(404, "", None).unwrap();
+        assert!(hint.contains("predates Dakera v0.12"));
+        let body = "Failed to deserialize the JSON body into the target type: missing field `new_key` at line 1 column 2";
+        assert!(error_hint(422, body, None).unwrap().contains("new_key"));
+        assert!(error_hint(422, "other", None).is_none());
     }
 
     #[test]

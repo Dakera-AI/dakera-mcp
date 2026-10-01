@@ -36,20 +36,21 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_knowledge_deduplicate".into(),
-            description: "Scan for duplicate or near-duplicate memories above a cosine similarity threshold and optionally merge them. Set dry_run=true to preview before committing. Threshold defaults to 0.9.".into(),
+            description: "Find near-duplicate memories above a cosine similarity threshold (server default 0.92) and optionally merge them. dry_run defaults to TRUE here (report only): pass dry_run=false to merge. Since v0.12 an agent above 5000 memories must be narrowed with memory_type.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "agent_id": { "type": "string" },
                     "threshold": { "type": "number", "description": "Similarity threshold 0.0-1.0 for duplicates" },
-                    "dry_run": { "type": "boolean", "description": "If true, only report duplicates without merging" }
+                    "dry_run": { "type": "boolean", "description": "Report only (default true); false merges the duplicates" },
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Only this memory type" }
                 },
                 "required": ["agent_id"]
             }),
         },
         ToolDefinition {
             name: "dakera_knowledge_network_cross_agent".into(),
-            description: "Build a cross-agent similarity graph across agent memory stores. Returns nodes (memories) and edges (links). Requires Admin scope. Omit agent_ids to span all agents.".into(),
+            description: "Build a cross-agent similarity graph across agent memory stores. Returns nodes (memories) and edges (links). Omit agent_ids to span all agents. Needs a global admin key (not namespace-pinned).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -137,11 +138,20 @@ async fn tool_knowledge_deduplicate(
     client: &DakeraApiClient,
     args: &serde_json::Value,
 ) -> CallToolResult {
-    let body = json!({
-        "agent_id": args.get("agent_id").and_then(|v| v.as_str()).unwrap_or(""),
-        "threshold": args.get("threshold").and_then(|v| v.as_f64()).unwrap_or(0.9),
+    let agent_id = match super::require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let mut body = json!({
+        "agent_id": agent_id,
         "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(true),
     });
+    if let Some(t) = args.get("threshold").and_then(|v| v.as_f64()) {
+        body["threshold"] = json!(t);
+    }
+    if let Some(mt) = args.get("memory_type").and_then(|v| v.as_str()) {
+        body["memory_type"] = json!(mt);
+    }
     match client.post_json("/v1/knowledge/deduplicate", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

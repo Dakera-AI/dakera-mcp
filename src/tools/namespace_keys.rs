@@ -51,7 +51,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_key_list".into(),
-            description: "List API keys with access to a namespace (metadata only, no raw values). Use to audit access or find key IDs for revocation."
+            description: "List API keys with access to a namespace (metadata only, no raw values; needs admin on the namespace). Use to audit access or find key IDs for revocation."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -85,7 +85,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_key_usage".into(),
-            description: "Return request counts, last-used timestamp, and rate-limit status for a key. Use to audit activity before revoking."
+            description: "Return a key's request count and last-used timestamp (needs admin on the namespace). Use to audit activity before revoking."
                 .into(),
             input_schema: json!({
                 "type": "object",

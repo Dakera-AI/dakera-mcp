@@ -16,7 +16,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_get_job".into(),
-            description: "Fetch status, progress, and result for a background job by UUID. Poll until the job reaches done|failed|cancelled.".into(),
+            description: "Fetch status, progress and message of a background job by id (job_<run>_<n>). Poll until status is Completed, Failed (with error {status, code}) or Cancelled. Jobs are lost on a server restart. Needs a global admin key (not namespace-pinned).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
