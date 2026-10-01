@@ -112,7 +112,9 @@ pub async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) 
                 .unwrap_or_else(|| {
                     std::env::var("DAKERA_MCP_PROFILE").unwrap_or_else(|_| "core".to_string())
                 });
-            let all_tools = tools::filtered_definitions(&profile);
+            // Tools that need an opt-in feature the server has off (attachments,
+            // image indexing) are left out; see tools::capabilities.
+            let all_tools = tools::listed_definitions(client, &profile).await;
             // MCP cursor-based pagination — cursor is a decimal string offset.
             const PAGE_SIZE: usize = 100;
             let offset = request

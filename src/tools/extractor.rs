@@ -36,6 +36,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                         "description": "Namespace whose default extractor config is used. \
                             If omitted, the server-level default is used."
                     },
+                    "lang": {
+                        "type": "string",
+                        "description": "Language of the text (en, de, fr, es, it, pt, nl); Dakera v0.12+"
+                    },
                     "entity_types": {
                         "type": "array",
                         "items": { "type": "string" },
@@ -142,6 +146,7 @@ async fn tool_extract(client: &DakeraApiClient, args: &serde_json::Value) -> Cal
             body["entity_types"] = et.clone();
         }
     }
+    super::memory::forward_optional_strings(&mut body, args, &["lang"]);
     if let Some(ov) = args.get("extractor_override") {
         if ov.is_object() {
             body["extractor_override"] = ov.clone();

@@ -19,7 +19,9 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "importance": { "type": "number", "description": "Importance 0.0-1.0" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for filtering" },
                     "session_id": { "type": "string", "description": "Session to associate with" },
-                    "expires_at": { "type": "integer", "description": "Expiry Unix timestamp (seconds)" }
+                    "expires_at": { "type": "integer", "description": "Expiry Unix timestamp (seconds)" },
+                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" },
+                    "attachment_ref": { "type": "string", "description": "sha256:<hex> of an attachment in the agent's own namespace (v0.12, dakera_attachment_upload)" }
                 },
                 "required": ["agent_id", "content"]
             }),
@@ -36,7 +38,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "min_importance": { "type": "number", "description": "Min importance threshold" },
                     "include_associated": { "type": "boolean", "description": "Include KG-linked memories in results" },
                     "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
-                    "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" }
+                    "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" },
+                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -100,7 +103,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "query": { "type": "string", "description": "Search query text" },
                     "top_k": { "type": "integer", "description": "Number of results" },
                     "tags": { "type": "array", "items": { "type": "string" }, "description": "Filter by tags" },
-                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" }
+                    "memory_type": { "type": "string", "enum": ["episodic", "semantic", "procedural", "working"], "description": "Filter by memory type" },
+                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -139,7 +143,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "agent_id": { "type": "string" },
                     "content": { "type": "string", "description": "New content (triggers re-embedding)" },
                     "importance": { "type": "number", "description": "New importance score 0.0-1.0" },
-                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Replace tags" }
+                    "tags": { "type": "array", "items": { "type": "string" }, "description": "Replace tags" },
+                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
                 },
                 "required": ["memory_id", "agent_id"]
             }),
@@ -157,7 +162,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "associated_memories_depth": { "type": "integer", "description": "KG traversal depth (1–3 hops)", "minimum": 1, "maximum": 3 },
                     "associated_memories_min_weight": { "type": "number", "description": "Min KG edge weight to follow (0.0–1.0)" },
                     "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
-                    "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" }
+                    "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" },
+                    "lang": { "type": "string", "description": "Language code (en, de, fr, es, it, pt, nl); Dakera v0.12+" }
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -209,6 +215,23 @@ pub async fn execute(
     }
 }
 
+/// Copy the named string arguments into a request body when they were given.
+///
+/// `lang` (the language of the text, Dakera v0.12) and `attachment_ref` are sent
+/// only when the caller supplies them, so the same tools keep working against a
+/// v0.11.108 server.
+pub fn forward_optional_strings(
+    body: &mut serde_json::Value,
+    args: &serde_json::Value,
+    names: &[&str],
+) {
+    for name in names {
+        if let Some(value) = args.get(*name).and_then(|v| v.as_str()) {
+            body[*name] = json!(value);
+        }
+    }
+}
+
 async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
@@ -229,6 +252,7 @@ async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallT
     if let Some(exp) = args.get("expires_at") {
         body["expires_at"] = exp.clone();
     }
+    forward_optional_strings(&mut body, args, &["lang", "attachment_ref"]);
     match client.post_json("/v1/memory/store", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
@@ -259,6 +283,7 @@ async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> Call
     if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
         body["until"] = json!(until);
     }
+    forward_optional_strings(&mut body, args, &["lang"]);
     match client.post_json("/v1/memory/recall", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
@@ -391,13 +416,14 @@ async fn tool_search(client: &DakeraApiClient, args: &serde_json::Value) -> Call
         Ok(v) => v,
         Err(e) => return e,
     };
-    let body = json!({
+    let mut body = json!({
         "agent_id": agent_id,
         "query": query,
         "top_k": args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(10),
         "tags": args.get("tags").cloned().unwrap_or(json!([])),
         "memory_type": args.get("memory_type"),
     });
+    forward_optional_strings(&mut body, args, &["lang"]);
     match client.post_json("/v1/memory/search", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
@@ -456,6 +482,9 @@ async fn tool_memory_update(client: &DakeraApiClient, args: &serde_json::Value) 
     if let Some(tags) = args.get("tags") {
         body.insert("tags".into(), tags.clone());
     }
+    if let Some(lang) = args.get("lang").and_then(|v| v.as_str()) {
+        body.insert("lang".into(), json!(lang));
+    }
     let encoded_id = urlencoding::encode(&memory_id);
     let encoded_agent = urlencoding::encode(&agent_id);
     let path = format!(
@@ -508,6 +537,7 @@ async fn tool_recall_associated(
     if let Some(until) = args.get("until").and_then(|v| v.as_str()) {
         body["until"] = json!(until);
     }
+    forward_optional_strings(&mut body, args, &["lang"]);
     match client.post_json("/v1/memory/recall", &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-01
+
+Support for Dakera server v0.12.0. Compatible with v0.11.108 and v0.12.0 servers: every existing tool
+keeps its name and arguments, and the v0.12 additions are optional arguments or new tools.
+
+### Added
+
+- **`dakera_capabilities`**: `GET /v1/capabilities` (model, search mode, scoring strategy, accepted
+  `lang` values, opt-in features). On a pre-v0.12 server it answers `capabilities_available: false`.
+- **Attachment tools** (opt-in on the server: `DAKERA_ATTACHMENTS`, `DAKERA_VISION`):
+  `dakera_attachment_upload`, `_list`, `_download`, `_delete`, `_transcribe` (speech to text),
+  `_index_image` (visual memory) and `_job`; `wait_seconds` waits for a background job.
+- **Graceful disabling**: tools that need an opt-in feature are left out of `tools/list` and
+  `dakera_discover_tools` while `/v1/capabilities` says the feature is off (or the server predates
+  v0.12); a direct call answers with the variable that turns it on. Nothing is hidden when the server
+  cannot be asked, and the `core` profile never asks.
+- **`dakera_health`** (`GET /health`: status, degraded components, config warnings, embed migration),
+  **`dakera_embed_migration_status`** and **`dakera_encryption_status`**.
+- **Per-request `lang`** on `dakera_store`, `dakera_recall`, `dakera_recall_associated`, `dakera_search`,
+  `dakera_memory_update` and `dakera_extract`, and **`attachment_ref`** on `dakera_store`; sent only when given.
+- **Error hints**: a `Hint:` line for the v0.12 answers (key pinned to namespaces -> 403 on node-wide
+  routes, `super_admin` needed, 413, 501, 503) and `Retry-After` honoured by the retry logic (up to 8 s).
+- README: what is new, compatibility with v0.11.108 and v0.12.0, capability gating.
+
+### Changed
+
+- The `all` profile has 98 tools (was 87), `power` 78, `admin` 34; the all-profile token test budget is
+  20000 (was 17000). `core` is unchanged at 14 tools.
+- `dakera_encryption_rotate_key`: `new_key` is optional (the server generates one) and `wait_secs` is
+  accepted; the description no longer says SuperAdmin (v0.12 needs a global admin key).
+
 ## [0.10.10] - 2026-07-03
 
 ### Security
