@@ -1,6 +1,6 @@
 {
   "name": "@dakera-ai/dakera-mcp-linux-x64",
-  "version": "0.10.7",
+  "version": "0.11.0",
   "description": "Dakera MCP Server \u2014 linux x64 binary",
   "files": [
     "bin/",

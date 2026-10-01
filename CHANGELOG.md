@@ -29,18 +29,67 @@ keeps its name and arguments, and the v0.12 additions are optional arguments or 
   `dakera_memory_update` and `dakera_extract`, and **`attachment_ref`** on `dakera_store`; sent only when given.
 - **Error hints**: a `Hint:` line for the v0.12 answers (key pinned to namespaces -> 403 on node-wide
   routes, `super_admin` needed, 413, 501, 503) and `Retry-After` honoured by the retry logic (up to 8 s).
-- README: what is new, compatibility with v0.11.108 and v0.12.0, capability gating.
+- **`dakera_wake_up`** (`GET /v1/agents/{id}/wake-up`, v0.11+): an agent's startup context in one
+  call (top memories by importance x recency, no query, no embedding).
+- Optional arguments, sent only when given: `ttl_seconds` and `metadata` on `dakera_store`; `tags`,
+  `memory_type`, `session_id` on `dakera_recall`; `limit` on `dakera_batch_recall`; `limit` / `offset`
+  on `dakera_session_list`, `dakera_session_memories`, `dakera_agent_sessions`; `memory_type` on
+  `dakera_knowledge_deduplicate`; `dedup_on_store` / `dedup_threshold` on `dakera_memory_policy_set`;
+  `lang` on `dakera_auto_tag`; `metadata` on the attachment jobs.
+- README: what is new, compatibility table (v0.11.108 / v0.12.0), capability gating.
 
 ### Tests
 
 - `tests/route_audit.rs`: every server path a tool calls must be a route of the v0.12.0 server (list in `tests/server_routes_v0.12.txt`, from the server router). A sweep of all tool routes against the router found no missing route.
+- `tests/v012.rs`: every tool is called with arguments made from its own input schema against a mock
+  server, and every request it sends must match a route of the v0.12.0 router by method **and** path.
 
 ### Changed
 
-- The `all` profile has 98 tools (was 87), `power` 78, `admin` 34; the all-profile token test budget is
-  20000 (was 17000). `core` is unchanged at 14 tools.
-- `dakera_encryption_rotate_key`: `new_key` is optional (the server generates one) and `wait_secs` is
-  accepted; the description no longer says SuperAdmin (v0.12 needs a global admin key).
+- The `all` profile has 99 tools (was 87), `power` 79, `admin` 34; the all-profile token test budget is
+  20000 (was 17000). `core` is unchanged at 14 tools (core descriptions were shortened to stay
+  under its 3500-token budget).
+- `dakera_encryption_rotate_key`: `new_key` is optional on v0.12 once encryption is on (the server
+  generates one) and `wait_secs` (at most 20) is accepted; the description no longer says SuperAdmin
+  (v0.12 needs a global admin key).
+- `initialize` reports the crate version (it said `0.2.0`).
+- A request that timed out is retried only for GET / PUT / DELETE; a POST or PATCH that may have
+  reached the server (store, import, consolidate, key rotation) is never re-sent.
+- On a server without `/v1/capabilities` (v0.11), `dakera_encryption_status` and
+  `dakera_embed_migration_status` are not listed and a direct call says they need v0.12 (they
+  answered a bare `404`). A failed capability probe is remembered for 10 s.
+- Descriptions corrected against the v0.12.0 server: scopes (global admin key for autopilot, decay,
+  audit, ops metrics, jobs and the cross-agent network; write for `dakera_extract`), what
+  `dakera_namespace_list` / `_get`, `dakera_agent_stats`, `dakera_agent_feedback_summary`,
+  `dakera_namespace_key_usage`, `dakera_get_job` and `dakera_health` return,
+  `dakera_consolidate` (deletes its sources; v0.12 refuses a lossy merge), transcription (any language,
+  not English only), `dakera_extractor_set` (replaces the config), the `model` field of the text
+  tools (v0.12 refuses a model other than the server's) and `dakera_memory_import` (accepted formats).
+
+### Fixed (audit of every tool against the v0.12.0 server source and live servers)
+
+- `dakera_batch_forget` with `tags: []` deleted **every** memory of the agent: the server counts an
+  empty tag list as a filter that matches everything. Empty or null filters are no longer sent, and a
+  call with no filter left is refused before any request.
+- `dakera_memory_import` named its upload `import.jsonl`, and the server picks the format from the
+  file name first, so a CSV, Mem0 or Zep payload sent without `format` was always parsed as JSONL. An
+  import that imported nothing (`status: failed`) is now an error result with the server's reasons.
+- `dakera_memory_policy_set` offered the decay curve `step`, which the server rejects (`step_function`),
+  and sent back the read-only `consolidated_count`, which v0.12 refuses once it changed.
+- `dakera_encryption_rotate_key` with `wait_secs` above ~28 timed out on the client and the retry
+  rotated the key again (up to four times); the wait is capped at 20 s and POSTs are not retried on
+  timeout.
+- `dakera_attachment_transcribe` / `_index_image` with `wait_seconds` could pass the 60 s tool limit
+  and lose the job id; the wait counts from the start of the call and the answer always carries the
+  `job_id`, `memory_id` and `status_url` (the job under `job`).
+- `dakera_auto_tag` sent `entity_types: []` when none were given; on v0.12 the server then uses its
+  defaults (person, organization, location) anyway, so it is now left out.
+- `dakera_knowledge_deduplicate` sent a 0.9 threshold the server does not default to (0.92) and an
+  empty `agent_id` when it was missing.
+- `dakera_memory_importance` sent an empty id and importance 0.5 for a malformed item; it now reports it.
+- A `429` was described as a busy server; it is now a rate-limit hint.
+- An ODE error body with non-ASCII text could panic the process (byte slicing).
+- `printf '...' | dakera-mcp`: requests still running when input ended were dropped unanswered.
 
 ### Fixed (live sweep of every tool against `ghcr.io/dakera-ai/dakera:0.12.0`)
 

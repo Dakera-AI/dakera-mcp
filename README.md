@@ -42,10 +42,10 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 
 | Profile | Tools | ~Tokens | How to enable |
 |---|---|---|---|
-| **core** | 14 | ~3,150 | Default — always loaded |
-| **admin** | 34 | ~6,350 | `DAKERA_MCP_PROFILE=admin` |
-| **power** | 78 | ~16,050 | `DAKERA_MCP_PROFILE=power` |
-| **all** | 98 | ~18,800 | `DAKERA_MCP_PROFILE=all` |
+| **core** | 14 | ~3,350 | Default — always loaded |
+| **admin** | 34 | ~6,700 | `DAKERA_MCP_PROFILE=admin` |
+| **power** | 79 | ~16,600 | `DAKERA_MCP_PROFILE=power` |
+| **all** | 99 | ~19,950 | `DAKERA_MCP_PROFILE=all` |
 
 Token figures are estimates (JSON bytes / 3). The attachment tools below count in `power` and `all`,
 but only appear while the connected server has the feature on (see [Dakera v0.12](#dakera-v012)).
@@ -76,7 +76,7 @@ The profile controls which tools appear in `tools/list`. Three ways to set it:
 DAKERA_MCP_PROFILE=power
 ```
 
-**3. Default**: `core` (14 tools, ~3,150 tokens)
+**3. Default**: `core` (14 tools, ~3,350 tokens)
 
 ---
 
@@ -86,24 +86,38 @@ dakera-mcp 0.11 works against **Dakera v0.11.108 and v0.12.0** servers. Every v0
 its name and arguments; the v0.12 additions are optional arguments that are sent only when you
 supply them, and tools that call v0.12 routes.
 
+| Dakera server | dakera-mcp 0.11 |
+|---|---|
+| v0.12.0 | every tool; the attachment tools while `DAKERA_ATTACHMENTS` (and `DAKERA_VISION` for images) is on |
+| v0.11.108 | every v0.11 tool unchanged; the attachment tools, `dakera_encryption_status` and `dakera_embed_migration_status` are not listed (a direct call says they need v0.12); `dakera_encryption_rotate_key` needs `new_key` |
+| older | not tested |
+
 ### What is new
 
 | Tool | Tier | Needs | What it does |
 |---|---|---|---|
 | `dakera_capabilities` | power | v0.12 | `GET /v1/capabilities`: active model, search mode, scoring strategy, accepted `lang` values, which opt-in features are on. On a v0.11 server it answers `capabilities_available: false` |
-| `dakera_health` | power | any | `GET /health`: status, `degraded`, `config_warnings`, `embed_migration` (a starting server answers 503 with a retry hint) |
+| `dakera_health` | power | any | `GET /health`: status and version; on v0.12 also `degraded`, `config_warnings`, `embed_migration` |
+| `dakera_wake_up` | power | any | an agent's startup context in one call: its top memories by importance x recency, no query, no embedding |
 | `dakera_embed_migration_status` | admin | v0.12 | progress of the one-time background re-embed after the upgrade |
 | `dakera_encryption_status` | admin | v0.12 | the encryption keyring and the background re-seal (never key material) |
-| `dakera_encryption_rotate_key` | admin | v0.11+ | now `new_key` is optional (the server generates one), plus `wait_secs`; `namespace` rotates one namespace |
+| `dakera_encryption_rotate_key` | admin | v0.11+ | `new_key` is optional on v0.12 once encryption is on (the server generates a key; with encryption off, `new_key` turns it on); `wait_secs` (at most 20); `namespace` rotates one namespace |
 | `dakera_attachment_upload` / `_list` / `_download` / `_delete` | power | v0.12 + `DAKERA_ATTACHMENTS` | files (or text) a memory can reference with `dakera_store` `attachment_ref` |
-| `dakera_attachment_transcribe` | power | v0.12 + `DAKERA_ATTACHMENTS` | WAV speech to text into a memory (background job, `wait_seconds` waits for it) |
-| `dakera_attachment_index_image` | power | v0.12 + `DAKERA_ATTACHMENTS` + `DAKERA_VISION` | PNG page as a visual memory |
+| `dakera_attachment_transcribe` | power | v0.12 + `DAKERA_ATTACHMENTS` | WAV speech to text in any language the model knows (`lang` forces one) into a memory; a background job, `wait_seconds` (at most 45) waits for it |
+| `dakera_attachment_index_image` | power | v0.12 + `DAKERA_ATTACHMENTS` + `DAKERA_VISION` | PNG page as a visual memory (use an agent dedicated to images: the visual lane stores page vectors) |
 | `dakera_attachment_job` | power | v0.12 + `DAKERA_ATTACHMENTS` | status of a transcription / index job |
 
 Per-request **`lang`** (`en`, `de`, `fr`, `es`, `it`, `pt`, `nl`; v0.12) is accepted by `dakera_store`,
-`dakera_recall`, `dakera_recall_associated`, `dakera_search`, `dakera_memory_update` and `dakera_extract`;
+`dakera_recall`, `dakera_recall_associated`, `dakera_search`, `dakera_memory_update`, `dakera_extract`,
+`dakera_auto_tag` and the attachment jobs;
 `dakera_store` also takes `attachment_ref` (`sha256:<hex>` of an attachment in the agent's own namespace,
 `_dakera_agent_<agent_id>`). Neither is sent unless given, so the same calls work on a v0.11.108 server.
+
+Other optional arguments (all servers): `ttl_seconds` and `metadata` on `dakera_store`; `tags`,
+`memory_type` and `session_id` filters on `dakera_recall`; `limit` on `dakera_batch_recall`;
+`limit` / `offset` on `dakera_session_list`, `dakera_session_memories` and `dakera_agent_sessions`
+(the server pages at 50); `memory_type` on `dakera_knowledge_deduplicate`; `dedup_on_store` /
+`dedup_threshold` on `dakera_memory_policy_set`.
 
 ### Features the server has off are left out
 
@@ -114,7 +128,9 @@ dakera-mcp asks `GET /v1/capabilities` (once a minute, 3 s timeout) before it li
   listed and not returned by `dakera_discover_tools`; a direct call answers with the variable to set
   (`DAKERA_ATTACHMENTS=1`) and makes no request.
 * `vision` off: `dakera_attachment_index_image` is left out (`DAKERA_VISION=1` turns it on).
-* The server cannot be asked (down, starting, key refused): nothing is hidden.
+* A server without `/v1/capabilities` (v0.11) also hides `dakera_encryption_status` and
+  `dakera_embed_migration_status`, whose routes are new in v0.12.
+* The server cannot be asked (down, starting, key refused): nothing is hidden (asked again after 10 s).
 
 The default `core` profile has no opt-in tools, so it never makes that request.
 
@@ -123,7 +139,10 @@ The default `core` profile has no opt-in tools, so it never makes that request.
 Error answers keep the server's text and add a `Hint:` line for the v0.12 cases: a key **pinned to
 namespaces** gets `403` on node-wide `/admin` routes (backups, encryption, quotas, config); backup
 download, upload and restore need `super_admin`; `413` (body over a limit, or a hard quota), `501`
-(feature off) and `503` (`Retry-After`, which the retry logic now honours, up to 8 s).
+(feature off), `503` (`Retry-After`, which the retry logic now honours, up to 8 s) and `429` (rate
+limit). A route the server lacks (an older server) and a v0.11 rotation without `new_key` get a hint
+too. A request that timed out is retried only when it is safe to repeat (GET, PUT, DELETE): a store,
+an import or a key rotation is never sent twice.
 
 ---
 
@@ -215,7 +234,7 @@ Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop
 }
 ```
 
-To start with the power profile (exposes up to 78 tools):
+To start with the power profile (exposes up to 79 tools):
 
 ```json
 {
