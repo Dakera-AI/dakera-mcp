@@ -16,7 +16,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Builder
 # ---------------------------------------------------------------------------
-FROM rust:1.92-bookworm AS builder
+FROM rust:1.95.0-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
     libssl-dev \
