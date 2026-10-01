@@ -22,7 +22,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 from arbitrary text using the configured provider hierarchy: per-request override \
                 → namespace default → server default → GLiNER local. Supported providers: \
                 `gliner` (zero-config local ONNX), `openai`, `anthropic`, `openrouter`, `ollama`, \
-                `none`."
+                `none`. GLiNER types come from the namespace config; for ad-hoc types use \
+                dakera_auto_tag."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -34,17 +35,12 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "namespace": {
                         "type": "string",
                         "description": "Namespace whose default extractor config is used. \
-                            If omitted, the server-level default is used."
+                            If omitted: agent_id's memory namespace, else the server default."
                     },
+                    "agent_id": { "type": "string" },
                     "lang": {
                         "type": "string",
                         "description": "Language of the text (en, de, fr, es, it, pt, nl); Dakera v0.12+"
-                    },
-                    "entity_types": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "GLiNER entity type labels (e.g. [\"person\", \"org\", \"location\"]). \
-                            Only used when provider is `gliner`."
                     },
                     "extractor_override": {
                         "type": "object",
@@ -141,12 +137,10 @@ async fn tool_extract(client: &DakeraApiClient, args: &serde_json::Value) -> Cal
     if let Some(ns) = args.get("namespace").and_then(|v| v.as_str()) {
         body["namespace"] = json!(ns);
     }
-    if let Some(et) = args.get("entity_types") {
-        if et.is_array() {
-            body["entity_types"] = et.clone();
-        }
-    }
-    super::memory::forward_optional_strings(&mut body, args, &["lang"]);
+    // POST /v1/extract has no `entity_types` (ExtractRequest): GLiNER takes the
+    // namespace's entity config, so the tool no longer offers a field the
+    // server drops. `agent_id` selects the agent's memory namespace.
+    super::memory::forward_optional_strings(&mut body, args, &["lang", "agent_id"]);
     if let Some(ov) = args.get("extractor_override") {
         if ov.is_object() {
             body["extractor_override"] = ov.clone();

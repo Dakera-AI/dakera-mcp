@@ -42,6 +42,19 @@ keeps its name and arguments, and the v0.12 additions are optional arguments or 
 - `dakera_encryption_rotate_key`: `new_key` is optional (the server generates one) and `wait_secs` is
   accepted; the description no longer says SuperAdmin (v0.12 needs a global admin key).
 
+### Fixed (live sweep of every tool against `ghcr.io/dakera-ai/dakera:0.12.0`)
+
+- `dakera_graph_traverse` with `agent_id` and no `root_id`/`memory_id` failed with
+  "Missing required parameter: memory_id"; the server's `GET /v1/knowledge/query` takes
+  `root_id` as optional and answers the agent's whole graph. It now does that;
+  `depth` (`max_depth`) is sent only with `root_id`, where the server uses it.
+- `dakera_tif_evaluate` listed `agent_id` as optional, but `GET /v1/memories/{id}/feedback`
+  answers 400 without it; it is now required (checked before the request).
+- `dakera_extract` offered `entity_types`, which `POST /v1/extract` does not read (GLiNER
+  takes the namespace's entity config), so it was silently dropped; the parameter is
+  removed (use `dakera_auto_tag` for ad-hoc types) and `agent_id`, which the server
+  does read to pick the agent's memory-namespace extractor, is added.
+
 ## [0.10.10] - 2026-07-03
 
 ### Security

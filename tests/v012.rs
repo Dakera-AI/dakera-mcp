@@ -874,3 +874,90 @@ async fn a_persistent_503_ends_with_the_retry_hint() {
     assert!(text.contains("503"));
     assert!(text.contains("Hint: The server is busy or starting; retry in 0s"));
 }
+
+// ---------------------------------------------------------------------------
+// Live contract sweep against ghcr.io/dakera-ai/dakera:0.12.0
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn graph_traverse_agent_only_queries_the_whole_agent_graph() {
+    // KgQueryParams.root_id is optional; agent_id alone used to fail with
+    // "Missing required parameter: memory_id".
+    let server = MockServer::start(|_| Reply::json(200, json!({"edges": []}))).await;
+    let args = json!({"agent_id": "a b", "edge_type": "linked_by", "limit": 5});
+    let r = execute_tool(&server.client(), "dakera_graph_traverse", &args).await;
+    assert_ne!(r.is_error, Some(true), "{}", r.content[0].text);
+    let paths = server.paths();
+    assert_eq!(
+        paths.last().unwrap(),
+        "GET /v1/knowledge/query?agent_id=a%20b&edge_type=linked_by&limit=5"
+    );
+}
+
+#[tokio::test]
+async fn graph_traverse_with_root_sends_root_and_depth() {
+    let server = MockServer::start(|_| Reply::json(200, json!({"edges": []}))).await;
+    let args = json!({"agent_id": "a", "root_id": "m1", "depth": 9});
+    execute_tool(&server.client(), "dakera_graph_traverse", &args).await;
+    assert_eq!(
+        server.paths().last().unwrap(),
+        "GET /v1/knowledge/query?agent_id=a&root_id=m1&max_depth=5"
+    );
+}
+
+#[tokio::test]
+async fn graph_traverse_memory_anchored_with_agent_uses_the_memory_graph() {
+    let server = MockServer::start(|_| Reply::json(200, json!({"nodes": []}))).await;
+    let args = json!({"agent_id": "a", "memory_id": "m1", "depth": 2});
+    execute_tool(&server.client(), "dakera_graph_traverse", &args).await;
+    assert_eq!(
+        server.paths().last().unwrap(),
+        "GET /v1/memories/m1/graph?depth=2"
+    );
+}
+
+#[tokio::test]
+async fn tif_evaluate_requires_agent_id_and_sends_it() {
+    let server = MockServer::start(|_| Reply::json(200, json!({"entries": []}))).await;
+    let client = server.client();
+    let r = execute_tool(&client, "dakera_tif_evaluate", &json!({"memory_id": "m1"})).await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(r.content[0].text.contains("agent_id"));
+    assert!(server.paths().is_empty(), "no request without agent_id");
+
+    let args = json!({"memory_id": "m1", "agent_id": "a"});
+    let r = execute_tool(&client, "dakera_tif_evaluate", &args).await;
+    assert_ne!(r.is_error, Some(true), "{}", r.content[0].text);
+    assert_eq!(
+        server.paths().last().unwrap(),
+        "GET /v1/memories/m1/feedback?agent_id=a"
+    );
+}
+
+#[tokio::test]
+async fn extract_sends_agent_id_and_no_entity_types() {
+    // POST /v1/extract has no entity_types field; it was silently dropped.
+    let server = MockServer::start(|_| Reply::json(200, json!({"entities": []}))).await;
+    let args = json!({"text": "t", "agent_id": "a", "entity_types": ["person"]});
+    execute_tool(&server.client(), "dakera_extract", &args).await;
+    let sent = server.last("/v1/extract").json();
+    assert_eq!(sent, json!({"text": "t", "agent_id": "a"}));
+}
+
+#[tokio::test]
+async fn extract_schema_offers_no_entity_types() {
+    let server = MockServer::start(|_| Reply::json(200, json!({}))).await;
+    let defs = listed_definitions(&server.client(), "all").await;
+    let extract = defs.iter().find(|d| d.name == "dakera_extract").unwrap();
+    let props = &extract.input_schema["properties"];
+    assert!(props.get("entity_types").is_none());
+    assert!(props.get("agent_id").is_some());
+    let tif = defs
+        .iter()
+        .find(|d| d.name == "dakera_tif_evaluate")
+        .unwrap();
+    assert_eq!(
+        tif.input_schema["required"],
+        json!(["memory_id", "agent_id"])
+    );
+}

@@ -1564,3 +1564,39 @@ fn test_token_count_before_after_measurement() {
         core_bytes as f64 / 3.5
     );
 }
+
+/// Live contract sweep (v0.12.0): agent-scoped graph traversal without a
+/// root, and T-I-F evaluation with the agent the server requires.
+#[tokio::test]
+async fn test_graph_traverse_agent_only_and_tif_with_agent() {
+    let c = client();
+    let a = agent("graph-agent-only");
+    let mut ids = Vec::new();
+    for content in [
+        "Anna leads the Alpha project",
+        "Anna presents Alpha on Friday",
+    ] {
+        let r = execute_tool(
+            &c,
+            "dakera_store",
+            &json!({"agent_id": a, "content": content, "tags": [TEST_TAG]}),
+        )
+        .await;
+        ids.push(ok(&r)["memory"]["id"].as_str().unwrap().to_string());
+    }
+    let link = json!({"agent_id": a, "memory_id": ids[0], "target_id": ids[1]});
+    ok(&execute_tool(&c, "dakera_graph_link_memory", &link).await);
+
+    let traverse = json!({"agent_id": a, "edge_type": "linked_by"});
+    let v = ok(&execute_tool(&c, "dakera_graph_traverse", &traverse).await);
+    assert!(
+        v["edge_count"].as_u64().unwrap_or(0) >= 1,
+        "agent-wide graph must hold the link: {v}"
+    );
+
+    let tif = json!({"agent_id": a, "memory_id": ids[0]});
+    let v = ok(&execute_tool(&c, "dakera_tif_evaluate", &tif).await);
+    assert_eq!(v["memory_id"], ids[0]);
+
+    cleanup(&c, &a).await;
+}
