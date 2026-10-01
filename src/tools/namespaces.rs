@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_namespace_list".into(),
-            description: "List all namespaces with dimensions, distance metrics, and vector counts. Use to discover available namespaces or verify one exists before inserting vectors.".into(),
+            description: "List the names of the namespaces this API key can see (use dakera_namespace_get for a namespace's dimension, metric and count). Agent memories live in _dakera_agent_<agent_id>.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -18,7 +18,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_namespace_get".into(),
-            description: "Fetch a namespace's configuration and stats: dimensions, distance metric, vector count, and HNSW parameters. Use to verify settings or confirm dimension compatibility.".into(),
+            description: "Fetch a namespace's dimension, distance metric, vector count, index type and estimated storage. Use to confirm dimension compatibility before upserting.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -77,7 +77,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_memory_policy_set".into(),
-            description: "Update the memory lifecycle policy for a namespace. Only provided fields are overwritten. Decay curves: exponential|linear|step|power_law|logarithmic|flat. Use to tune memory TTLs or enable auto-consolidation.".into(),
+            description: "Update the memory lifecycle policy for a namespace. Only provided fields are overwritten. Decay curves: exponential|linear|step_function|power_law|logarithmic|flat. Use to tune memory TTLs, store-time dedup or auto-consolidation. Needs write on the namespace.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -86,18 +86,20 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "episodic_ttl_seconds": { "type": "integer", "description": "TTL for episodic memories (seconds)" },
                     "semantic_ttl_seconds": { "type": "integer", "description": "TTL for semantic memories (seconds)" },
                     "procedural_ttl_seconds": { "type": "integer", "description": "TTL for procedural memories (seconds)" },
-                    "working_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Working decay curve" },
-                    "episodic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Episodic decay curve" },
-                    "semantic_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Semantic decay curve" },
-                    "procedural_decay": { "type": "string", "enum": ["exponential", "linear", "step", "power_law", "logarithmic", "flat"], "description": "Procedural decay curve" },
+                    "working_decay": { "type": "string", "enum": ["exponential", "linear", "step_function", "power_law", "logarithmic", "flat"], "description": "Working decay curve" },
+                    "episodic_decay": { "type": "string", "enum": ["exponential", "linear", "step_function", "power_law", "logarithmic", "flat"], "description": "Episodic decay curve" },
+                    "semantic_decay": { "type": "string", "enum": ["exponential", "linear", "step_function", "power_law", "logarithmic", "flat"], "description": "Semantic decay curve" },
+                    "procedural_decay": { "type": "string", "enum": ["exponential", "linear", "step_function", "power_law", "logarithmic", "flat"], "description": "Procedural decay curve" },
                     "spaced_repetition_factor": { "type": "number", "description": "TTL extension multiplier per recall (0.0 disables)" },
                     "spaced_repetition_base_interval_seconds": { "type": "integer", "description": "Base interval for spaced repetition (seconds)" },
                     "consolidation_enabled": { "type": "boolean", "description": "Enable background deduplication" },
                     "consolidation_threshold": { "type": "number", "description": "Cosine similarity threshold for merging (0.85–0.99)" },
                     "consolidation_interval_hours": { "type": "integer", "description": "Deduplication job interval (hours)" },
                     "rate_limit_enabled": { "type": "boolean", "description": "Enable rate limiting" },
-                    "rate_limit_stores_per_minute": { "type": "integer", "description": "Max store ops/min (null = unlimited)" },
-                    "rate_limit_recalls_per_minute": { "type": "integer", "description": "Max recall ops/min (null = unlimited)" }
+                    "rate_limit_stores_per_minute": { "type": ["integer", "null"], "description": "Max store ops/min (null = unlimited)" },
+                    "rate_limit_recalls_per_minute": { "type": ["integer", "null"], "description": "Max recall ops/min (null = unlimited)" },
+                    "dedup_on_store": { "type": "boolean", "description": "Reject a store whose nearest memory is at least dedup_threshold similar (returns the existing id)" },
+                    "dedup_threshold": { "type": "number", "description": "Similarity for dedup_on_store (server default 0.95)" }
                 },
                 "required": ["namespace"]
             }),
@@ -256,6 +258,8 @@ async fn tool_memory_policy_set(
         "rate_limit_enabled",
         "rate_limit_stores_per_minute",
         "rate_limit_recalls_per_minute",
+        "dedup_on_store",
+        "dedup_threshold",
     ];
     for field in &fields {
         if let Some(v) = args.get(*field) {
@@ -263,9 +267,19 @@ async fn tool_memory_policy_set(
         }
     }
 
+    strip_read_only_policy_fields(&mut policy);
     match client.put_json(&policy_path, &policy).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
+    }
+}
+
+/// Drop what the policy GET reports but a PUT must not set: `consolidated_count`
+/// is the server's own counter (v0.12 refuses a PUT that changes it, and the
+/// background consolidation can move it between the GET and the PUT).
+pub fn strip_read_only_policy_fields(policy: &mut serde_json::Value) {
+    if let Some(obj) = policy.as_object_mut() {
+        obj.remove("consolidated_count");
     }
 }
 

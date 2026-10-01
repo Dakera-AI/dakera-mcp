@@ -108,7 +108,7 @@ async fn tool_extract_entities(args: &serde_json::Value) -> CallToolResult {
                 CallToolResult::error(format!(
                     "ODE API error ({}): {}",
                     status,
-                    &text[..text.len().min(200)]
+                    text.chars().take(200).collect::<String>()
                 ))
             }
         }

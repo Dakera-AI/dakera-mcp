@@ -55,7 +55,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_agent_feedback_summary".into(),
-            description: "Get aggregate feedback stats for an agent's memories: total upvotes, downvotes, flags, and the top-rated/most-flagged memories."
+            description: "Get aggregate feedback stats for an agent's memories: upvotes, downvotes, flags, total feedback and a health score."
                 .into(),
             input_schema: json!({
                 "type": "object",

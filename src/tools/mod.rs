@@ -4,8 +4,10 @@
 //! calling the Dakera API for each tool invocation.
 
 pub mod agents;
+pub mod attachments;
 pub mod audit;
 pub mod autopilot;
+pub mod capabilities;
 pub mod decay;
 pub mod discovery;
 pub mod encryption;
@@ -15,6 +17,7 @@ pub mod feedback;
 pub mod fulltext;
 pub mod graph;
 pub mod health;
+pub mod hints;
 pub mod inference;
 pub mod knowledge;
 pub mod memory;
@@ -68,6 +71,7 @@ fn assign_tier(name: &str) -> ToolTier {
         || name.starts_with("dakera_audit")
         || name == "dakera_memory_export"
         || name == "dakera_memory_import"
+        || name == "dakera_embed_migration_status"
         || name.contains("_bulk_")
     {
         return ToolTier::Admin;
@@ -79,15 +83,65 @@ fn assign_tier(name: &str) -> ToolTier {
 const MAX_RETRIES: u32 = 3;
 const RETRY_DELAYS_MS: [u64; 3] = [100, 500, 2000];
 
+/// The longest a `Retry-After` from the server is honoured between retries.
+const MAX_RETRY_AFTER_MS: u64 = 8_000;
+
+/// How long `/v1/capabilities` is remembered.
+const CAPABILITY_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// How long a failed probe (server down, starting, key refused) is remembered,
+/// so a down server does not cost every `tools/list` the probe timeout.
+const CAPABILITY_RETRY_TTL: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Timeout of the capability probe: it runs before `tools/list` is answered.
+const CAPABILITY_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Timeout of an attachment upload / download (up to 25 MiB by default),
+/// inside the 60 s a tool call may take.
+const TRANSFER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(55);
+
+/// When `/v1/capabilities` was last read, and what it said.
+type CapabilityCache =
+    std::sync::Mutex<Option<(std::time::Instant, capabilities::CapabilityState)>>;
+
 /// API client for calling Dakera endpoints
 pub struct DakeraApiClient {
     base_url: String,
     api_key: Option<String>,
     client: reqwest::Client,
+    capabilities: CapabilityCache,
 }
 
-fn is_retryable_error(err: &reqwest::Error) -> bool {
-    err.is_connect() || err.is_timeout() || err.is_request()
+/// The `Retry-After` header of a response, in seconds.
+fn retry_after_secs(resp: &reqwest::Response) -> Option<u64> {
+    let value = resp.headers().get("retry-after")?;
+    value.to_str().ok()?.trim().parse::<u64>().ok()
+}
+
+/// An error answer's text with a `Hint:` line when v0.12 gives it a known meaning.
+fn add_hint(status: reqwest::StatusCode, text: String, retry_after: Option<u64>) -> String {
+    if status.is_success() {
+        return text;
+    }
+    match hints::error_hint(status.as_u16(), &text, retry_after) {
+        Some(hint) => format!("{text}\nHint: {hint}"),
+        None => text,
+    }
+}
+
+/// Whether a failed send may be repeated. A connection that was never made is
+/// always safe to retry; a timeout (or a request that broke after it was sent)
+/// only for an idempotent method — the server may have acted on a POST/PATCH
+/// already (a store, an import, a key rotation), and resending it would act twice.
+fn is_retryable_error(err: &reqwest::Error, method: &reqwest::Method) -> bool {
+    if err.is_connect() {
+        return true;
+    }
+    let idempotent = matches!(
+        *method,
+        reqwest::Method::GET | reqwest::Method::PUT | reqwest::Method::DELETE
+    );
+    idempotent && (err.is_timeout() || err.is_request())
 }
 
 fn is_retryable_status(status: reqwest::StatusCode) -> bool {
@@ -110,6 +164,7 @@ impl DakeraApiClient {
             base_url,
             api_key,
             client,
+            capabilities: std::sync::Mutex::new(None),
         }
     }
 
@@ -129,12 +184,18 @@ impl DakeraApiClient {
         body: Option<&serde_json::Value>,
     ) -> Result<(reqwest::StatusCode, String), String> {
         let mut last_err = String::new();
+        let mut retry_after_ms: Option<u64> = None;
         for attempt in 0..=MAX_RETRIES {
             if attempt > 0 {
-                let delay = RETRY_DELAYS_MS
+                let default_ms = RETRY_DELAYS_MS
                     .get((attempt - 1) as usize)
                     .copied()
                     .unwrap_or(2000);
+                // A v0.12 server says when to come back (`Retry-After` on every 503).
+                let delay = match retry_after_ms.take() {
+                    Some(ms) => ms.clamp(default_ms, MAX_RETRY_AFTER_MS),
+                    None => default_ms,
+                };
                 tracing::warn!(attempt, delay_ms = delay, path, "Retrying request");
                 tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             }
@@ -147,9 +208,11 @@ impl DakeraApiClient {
             match req.send().await {
                 Ok(resp) => {
                     let status = resp.status();
+                    let retry_after = retry_after_secs(&resp);
                     if is_retryable_status(status) && attempt < MAX_RETRIES {
                         let text = resp.text().await.unwrap_or_default();
                         last_err = format!("API error ({}): {}", status, text);
+                        retry_after_ms = retry_after.map(|s| s.saturating_mul(1000));
                         tracing::warn!(attempt, status = %status, path, "Retryable status");
                         continue;
                     }
@@ -157,10 +220,10 @@ impl DakeraApiClient {
                         .text()
                         .await
                         .map_err(|e| format!("Read body failed: {}", e))?;
-                    return Ok((status, text));
+                    return Ok((status, add_hint(status, text, retry_after)));
                 }
                 Err(e) => {
-                    if is_retryable_error(&e) && attempt < MAX_RETRIES {
+                    if is_retryable_error(&e, &method) && attempt < MAX_RETRIES {
                         last_err = format!("HTTP request failed: {}", e);
                         tracing::warn!(attempt, error = %e, path, "Retryable error");
                         continue;
@@ -252,13 +315,153 @@ impl DakeraApiClient {
         }
     }
 
+    /// POST raw bytes (an attachment) with a `Content-Type` and parse the JSON answer.
+    pub async fn post_bytes(
+        &self,
+        path: &str,
+        content_type: &str,
+        data: Vec<u8>,
+    ) -> Result<serde_json::Value, String> {
+        let resp = self
+            .request(reqwest::Method::POST, path)
+            .timeout(TRANSFER_TIMEOUT)
+            .header("Content-Type", content_type)
+            .body(data)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+        let status = resp.status();
+        let retry_after = retry_after_secs(&resp);
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+        Self::parse_json_response(status, &add_hint(status, text, retry_after))
+    }
+
+    /// GET the bytes of an attachment: its media type and content.
+    pub async fn get_bytes(&self, path: &str) -> Result<(String, Vec<u8>), String> {
+        let resp = self
+            .request(reqwest::Method::GET, path)
+            .timeout(TRANSFER_TIMEOUT)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let retry_after = retry_after_secs(&resp);
+            let text = resp.text().await.unwrap_or_default();
+            let text = add_hint(status, text, retry_after);
+            return Err(format!("API error ({}): {}", status, text));
+        }
+        let default_type = "application/octet-stream";
+        let content_type = match resp.headers().get("content-type") {
+            Some(v) => v.to_str().unwrap_or(default_type).to_string(),
+            None => default_type.to_string(),
+        };
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+        Ok((content_type, bytes.to_vec()))
+    }
+
+    /// DELETE a resource whose success answer has no body (`204`).
+    pub async fn delete_empty(&self, path: &str) -> Result<(), String> {
+        let (status, text) = self
+            .send_with_retry(reqwest::Method::DELETE, path, None)
+            .await?;
+        if status.is_success() {
+            Ok(())
+        } else {
+            Err(format!("API error ({}): {}", status, text))
+        }
+    }
+
+    /// Ask `/v1/capabilities` once, without retries. `Ok` when the server
+    /// answered (a document, or "no such route": a pre-v0.12 server); `Err`
+    /// with the reason when it could not be read.
+    pub async fn probe_capabilities(&self) -> Result<capabilities::CapabilityState, String> {
+        let req = self
+            .request(reqwest::Method::GET, "/v1/capabilities")
+            .timeout(CAPABILITY_PROBE_TIMEOUT);
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?;
+        let status = resp.status();
+        if status == reqwest::StatusCode::NOT_FOUND
+            || status == reqwest::StatusCode::METHOD_NOT_ALLOWED
+        {
+            return Ok(capabilities::CapabilityState::NotSupported);
+        }
+        let retry_after = retry_after_secs(&resp);
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Read body failed: {}", e))?;
+        if !status.is_success() {
+            let text = add_hint(status, text, retry_after);
+            return Err(format!("API error ({}): {}", status, text));
+        }
+        match serde_json::from_str(&text) {
+            Ok(doc) => Ok(capabilities::CapabilityState::Known(doc)),
+            Err(e) => Err(format!("JSON parse failed: {}", e)),
+        }
+    }
+
+    /// What the server reports it supports, remembered for a minute. A server
+    /// that cannot be asked is `Unknown` (nothing is hidden because of it).
+    pub async fn capability_state(&self) -> capabilities::CapabilityState {
+        if let Ok(guard) = self.capabilities.lock() {
+            if let Some((at, state)) = guard.as_ref() {
+                let ttl = match state {
+                    capabilities::CapabilityState::Unknown => CAPABILITY_RETRY_TTL,
+                    _ => CAPABILITY_TTL,
+                };
+                if at.elapsed() < ttl {
+                    return state.clone();
+                }
+            }
+        }
+        match self.probe_capabilities().await {
+            Ok(state) => {
+                if let Ok(mut guard) = self.capabilities.lock() {
+                    *guard = Some((std::time::Instant::now(), state.clone()));
+                }
+                state
+            }
+            Err(e) => {
+                tracing::debug!(error = %e, "capabilities unavailable");
+                let state = capabilities::CapabilityState::Unknown;
+                if let Ok(mut guard) = self.capabilities.lock() {
+                    *guard = Some((std::time::Instant::now(), state.clone()));
+                }
+                state
+            }
+        }
+    }
+
+    /// The explanation to answer a call of `tool` with when the server has the
+    /// feature it needs switched off (or predates v0.12); `None` to go ahead.
+    pub async fn unavailable_reason(&self, tool: &str) -> Option<String> {
+        if capabilities::required_features(tool).is_empty() {
+            return None;
+        }
+        let state = self.capability_state().await;
+        capabilities::unavailable_reason(tool, &state)
+    }
+
     pub async fn post_multipart_text(
         &self,
         path: &str,
         text: &str,
     ) -> Result<serde_json::Value, String> {
         let part = reqwest::multipart::Part::text(text.to_string())
-            .file_name("import.jsonl")
+            // No extension: the server picks the format from the file name
+            // before it looks at the bytes, so `import.jsonl` made every
+            // CSV / Mem0 / Zep payload sent without `format` parse as JSONL.
+            .file_name(IMPORT_FILE_NAME)
             .mime_str("application/octet-stream")
             .map_err(|e| format!("Multipart build failed: {}", e))?;
         let form = reqwest::multipart::Form::new().part("file", part);
@@ -275,14 +478,19 @@ impl DakeraApiClient {
             .map_err(|e| format!("HTTP request failed: {}", e))?;
 
         let status = resp.status();
+        let retry_after = retry_after_secs(&resp);
         let body = resp
             .text()
             .await
             .map_err(|e| format!("Read body failed: {}", e))?;
 
-        Self::parse_json_response(status, &body)
+        Self::parse_json_response(status, &add_hint(status, body, retry_after))
     }
 }
+
+/// The file name of an import upload: no extension, so the server detects the
+/// format from the content when the call names none.
+pub const IMPORT_FILE_NAME: &str = "import";
 
 /// Helper to extract a required string parameter, returning an error CallToolResult on failure.
 pub fn require_string(args: &serde_json::Value, field: &str) -> Result<String, CallToolResult> {
@@ -325,6 +533,8 @@ pub fn full_catalog() -> Vec<ToolCatalogEntry> {
     raw.extend(ode::definitions());
     raw.extend(health::definitions());
     raw.extend(ops::definitions());
+    raw.extend(capabilities::definitions());
+    raw.extend(attachments::definitions());
     // Meta-tools are always exposed regardless of profile.
     raw.extend(discovery::definitions());
 
@@ -363,6 +573,33 @@ pub fn filtered_definitions(profile: &str) -> Vec<ToolDefinition> {
         })
         .map(|entry| entry.def)
         .collect()
+}
+
+/// Drop the tools the server cannot serve: those that need an opt-in feature
+/// (attachments, image indexing) its `/v1/capabilities` reports as off, or any
+/// feature at all on a server that predates v0.12.
+pub fn available_definitions(
+    defs: Vec<ToolDefinition>,
+    state: &capabilities::CapabilityState,
+) -> Vec<ToolDefinition> {
+    defs.into_iter()
+        .filter(|def| capabilities::is_available(&def.name, state))
+        .collect()
+}
+
+/// The definitions `tools/list` answers with: the profile's tools, minus the
+/// ones the server cannot serve. The server is asked (once a minute) only when
+/// the profile holds a tool that needs an opt-in feature.
+pub async fn listed_definitions(client: &DakeraApiClient, profile: &str) -> Vec<ToolDefinition> {
+    let defs = filtered_definitions(profile);
+    let gated = defs
+        .iter()
+        .any(|d| !capabilities::required_features(&d.name).is_empty());
+    if !gated {
+        return defs;
+    }
+    let state = client.capability_state().await;
+    available_definitions(defs, &state)
 }
 
 /// Return all tool definitions across every tier (test helper).
@@ -453,6 +690,12 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = ops::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = capabilities::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = attachments::execute(client, name, arguments).await {
         return result;
     }
     CallToolResult::error(format!("Unknown tool: {}", name))
@@ -911,13 +1154,15 @@ mod tests {
     #[test]
     fn test_total_tool_count() {
         let all = filtered_definitions("all");
-        // Exact count: 87 tools total (86 after PR#84 prune + dakera_tif_evaluate, DAK-6561).
+        // Exact count: 99 tools total (86 after PR#84 prune + dakera_tif_evaluate, DAK-6561,
+        // + 12 for Dakera v0.12: capabilities, health, embed migration status, encryption
+        // status, the 7 attachment tools and dakera_wake_up).
         // If this fails, run filtered_definitions("all").len() to discover the new count
         // and update this assertion. Catches accidental add/remove.
         assert_eq!(
             all.len(),
-            87,
-            "Expected exactly 87 tools in 'all' profile. Actual: {}. \
+            99,
+            "Expected exactly 99 tools in 'all' profile. Actual: {}. \
              Update this constant after intentional catalog changes.",
             all.len()
         );
@@ -965,6 +1210,9 @@ mod tests {
             "dakera_audit_query",
             "dakera_memory_export",
             "dakera_memory_import",
+            "dakera_encryption_rotate_key",
+            "dakera_encryption_status",
+            "dakera_embed_migration_status",
         ] {
             assert_eq!(
                 tier_map.get(name).copied(),
@@ -982,6 +1230,10 @@ mod tests {
             "dakera_memory_get",
             "dakera_graph_traverse",
             "dakera_vector_unified_query",
+            "dakera_capabilities",
+            "dakera_health",
+            "dakera_attachment_upload",
+            "dakera_attachment_transcribe",
         ] {
             assert_eq!(
                 tier_map.get(name).copied(),
@@ -1108,15 +1360,15 @@ mod tests {
 
     #[test]
     fn test_token_size_all_profile_within_budget() {
-        // All-profile (86 tools) after description compression. Budget: 17000 estimated
-        // tokens (JSON bytes / 3). With MCP pagination at 100 tools/page, per-request
-        // cost is ~3500 tokens — well within LLM context budgets.
+        // All-profile (99 tools) after description compression. Budget: 20000 estimated
+        // tokens (JSON bytes / 3; it was 17000 for 87 tools before the v0.12 tools). With
+        // MCP pagination at 100 tools/page, one page holds the whole catalog.
         let defs = filtered_definitions("all");
         let json_bytes = serde_json::to_string(&defs).unwrap().len();
         let estimated_tokens = json_bytes / 3;
         assert!(
-            estimated_tokens < 17000,
-            "All profile estimated tokens {} exceeds 17000 budget (JSON bytes: {})",
+            estimated_tokens < 20000,
+            "All profile estimated tokens {} exceeds 20000 budget (JSON bytes: {})",
             estimated_tokens,
             json_bytes
         );

@@ -9,7 +9,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_agent_stats".into(),
-            description: "Return an agent's memory footprint: count, session count, approximate storage, and top tags. Use to monitor memory growth or compare agents.".into(),
+            description: "Return an agent's memory statistics: total and per-type memory counts, average importance, oldest/newest timestamps, session counts. Use to monitor memory growth or compare agents.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -33,11 +33,26 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_agent_sessions".into(),
-            description: "List all sessions (active and closed) for an agent with timestamps and summaries. Use to find a session_id for dakera_session_memories.".into(),
+            description: "List an agent's sessions (active and closed) with timestamps and summaries, one page (default 50; use limit/offset). Use to find a session_id for dakera_session_memories.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "agent_id": { "type": "string" }
+                    "agent_id": { "type": "string" },
+                    "limit": { "type": "integer", "description": "Page size" },
+                    "offset": { "type": "integer", "description": "Pagination offset" }
+                },
+                "required": ["agent_id"]
+            }),
+        },
+        ToolDefinition {
+            name: "dakera_wake_up".into(),
+            description: "Load an agent's startup context in one call: its top_n memories (default 20, max 100) ranked by importance x recency of use, with no query and no embedding. Use at the start of a run, before any dakera_recall.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "agent_id": { "type": "string" },
+                    "top_n": { "type": "integer", "description": "Memories to return (default 20, max 100)" },
+                    "min_importance": { "type": "number", "description": "Skip memories below this importance (0.0-1.0)" }
                 },
                 "required": ["agent_id"]
             }),
@@ -54,6 +69,7 @@ pub async fn execute(
         "dakera_agent_stats" => Some(tool_agent_stats(client, args).await),
         "dakera_agent_memories" => Some(tool_agent_memories(client, args).await),
         "dakera_agent_sessions" => Some(tool_agent_sessions(client, args).await),
+        "dakera_wake_up" => Some(tool_wake_up(client, args).await),
         _ => None,
     }
 }
@@ -101,7 +117,31 @@ async fn tool_agent_sessions(client: &DakeraApiClient, args: &serde_json::Value)
         Err(e) => return e,
     };
     let encoded = urlencoding::encode(&agent_id);
-    let path = format!("/v1/agents/{}/sessions", encoded);
+    let path = format!(
+        "/v1/agents/{}/sessions?{}",
+        encoded,
+        super::sessions::page_query(args)
+    );
+    match client.get_json(&path).await {
+        Ok(result) => ok_json(&result),
+        Err(e) => CallToolResult::error(e),
+    }
+}
+
+async fn tool_wake_up(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let mut path = format!("/v1/agents/{}/wake-up", urlencoding::encode(&agent_id));
+    let mut sep = '?';
+    if let Some(n) = args.get("top_n").and_then(|v| v.as_u64()) {
+        path.push_str(&format!("{sep}top_n={n}"));
+        sep = '&';
+    }
+    if let Some(min) = args.get("min_importance").and_then(|v| v.as_f64()) {
+        path.push_str(&format!("{sep}min_importance={min}"));
+    }
     match client.get_json(&path).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

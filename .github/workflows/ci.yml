@@ -96,14 +96,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Pull dakera image
-        run: docker pull ghcr.io/dakera-ai/dakera:latest
+        run: docker pull ghcr.io/dakera-ai/dakera:0.12.0
       - name: Start dakera container
         run: |
           docker run -d \
             --name dakera-integration-${{ github.run_id }} \
             -p 3388:3000 \
             -e DAKERA_ROOT_API_KEY=integration-test-key \
-            ghcr.io/dakera-ai/dakera:latest
+            ghcr.io/dakera-ai/dakera:0.12.0
       - name: Wait for dakera health
         run: |
           for i in $(seq 1 30); do

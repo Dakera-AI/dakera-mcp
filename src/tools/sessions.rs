@@ -34,13 +34,15 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_list".into(),
-            description: "List sessions for an agent, newest first. Set active_only=true to detect a lingering open session before starting a new one."
+            description: "List sessions for an agent, newest first, one page (default 50, max 1000; use limit/offset). Set active_only=true to detect a lingering open session before starting a new one."
                 .into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "agent_id": { "type": "string" },
-                    "active_only": { "type": "boolean", "description": "Only return active sessions" }
+                    "active_only": { "type": "boolean", "description": "Only return active sessions" },
+                    "limit": { "type": "integer", "description": "Page size" },
+                    "offset": { "type": "integer", "description": "Pagination offset" }
                 },
                 "required": ["agent_id"]
             }),
@@ -59,11 +61,13 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_session_memories".into(),
-            description: "Return all memories stored under a specific session. Use to audit a single agent run without fetching the agent's entire memory history.".into(),
+            description: "Return the memories stored under a session, one page at a time (default 50, max 500; use limit/offset). Use to audit a single agent run without fetching the agent's entire memory history.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "session_id": { "type": "string", "description": "Session ID" }
+                    "session_id": { "type": "string", "description": "Session ID" },
+                    "limit": { "type": "integer", "description": "Page size" },
+                    "offset": { "type": "integer", "description": "Pagination offset" }
                 },
                 "required": ["session_id"]
             }),
@@ -128,13 +132,26 @@ async fn tool_session_list(client: &DakeraApiClient, args: &serde_json::Value) -
         .unwrap_or(false);
     let encoded = urlencoding::encode(&agent_id);
     let path = format!(
-        "/v1/sessions?agent_id={}&active_only={}",
-        encoded, active_only
+        "/v1/sessions?agent_id={}&active_only={}{}",
+        encoded,
+        active_only,
+        page_query(args)
     );
     match client.get_json(&path).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),
     }
+}
+
+/// `&limit=N&offset=M` for the paging arguments that were given (empty when none).
+pub fn page_query(args: &serde_json::Value) -> String {
+    let mut query = String::new();
+    for name in ["limit", "offset"] {
+        if let Some(n) = args.get(name).and_then(|v| v.as_u64()) {
+            query.push_str(&format!("&{name}={n}"));
+        }
+    }
+    query
 }
 
 async fn tool_session_get(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
@@ -159,7 +176,7 @@ async fn tool_session_memories(
         Err(e) => return e,
     };
     let encoded = urlencoding::encode(&session_id);
-    let path = format!("/v1/sessions/{}/memories", encoded);
+    let path = format!("/v1/sessions/{}/memories?{}", encoded, page_query(args));
     match client.get_json(&path).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

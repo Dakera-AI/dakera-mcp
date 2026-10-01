@@ -791,11 +791,11 @@ fn test_profile_all_larger_than_admin() {
 #[test]
 fn test_total_tool_count_regression() {
     let all = filtered_definitions("all");
-    // 87 tools after PR#123 added dakera_tif_evaluate. Update this constant after intentional catalog changes.
+    // 99 tools: 87 after PR#123 added dakera_tif_evaluate, +12 for Dakera v0.12 (incl. dakera_wake_up). Update this constant after intentional catalog changes.
     assert_eq!(
         all.len(),
-        87,
-        "Total tool count must be exactly 87. Actual: {}. \
+        99,
+        "Total tool count must be exactly 99. Actual: {}. \
          If you intentionally added/removed tools, update this constant.",
         all.len()
     );
@@ -965,8 +965,8 @@ async fn test_protocol_tools_list_all_returns_87() {
         }
     }
     assert_eq!(
-        total, 87,
-        "tools/list profile=all must return exactly 87 tools across all pages"
+        total, 99,
+        "tools/list profile=all must return exactly 99 tools across all pages"
     );
 }
 
@@ -1434,7 +1434,7 @@ async fn test_pagination_core_profile_single_page() {
 
 #[tokio::test]
 async fn test_pagination_all_profile_first_page() {
-    // all profile (87 tools) with page_size=100 fits in one page — no nextCursor.
+    // all profile (99 tools) with page_size=100 fits in one page — no nextCursor.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1447,12 +1447,12 @@ async fn test_pagination_all_profile_first_page() {
     let tools = result["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        87,
-        "all profile must return all 87 tools in one page"
+        99,
+        "all profile must return all 99 tools in one page"
     );
     assert!(
         result.get("nextCursor").is_none(),
-        "'all' profile (87 tools) fits in one page — no nextCursor expected"
+        "'all' profile (99 tools) fits in one page — no nextCursor expected"
     );
 }
 
@@ -1463,7 +1463,7 @@ async fn test_pagination_cursor_advances_page() {
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
     let req: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"87"}}"#).unwrap();
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"99"}}"#).unwrap();
     let resp = handle_request(&c, &req).await;
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
@@ -1476,7 +1476,7 @@ async fn test_pagination_cursor_advances_page() {
 
 #[tokio::test]
 async fn test_pagination_all_tools_across_pages() {
-    // Paginating through all pages of 'all' profile must cover all 87 tools exactly once.
+    // Paginating through all pages of 'all' profile must cover all 99 tools exactly once.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1516,8 +1516,8 @@ async fn test_pagination_all_tools_across_pages() {
 
     assert_eq!(
         all_names.len(),
-        87,
-        "Paginating through 'all' profile must yield all 87 tools, got: {}",
+        99,
+        "Paginating through 'all' profile must yield all 99 tools, got: {}",
         all_names.len()
     );
 }
@@ -1529,7 +1529,7 @@ fn test_token_count_before_after_measurement() {
     // Measure JSON byte size of each profile's tools/list response.
     // Token estimate: bytes / 3.5 (conservative avg chars/token for JSON).
     // Pre-optimization all-profile baseline: ~72000 bytes (~20571 tokens).
-    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 87, 0)];
+    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 99, 0)];
     for (profile, expected_count, _) in &profiles {
         let defs = dakera_mcp::tools::filtered_definitions(profile);
         if *expected_count > 0 {
@@ -1563,4 +1563,40 @@ fn test_token_count_before_after_measurement() {
         core_bytes,
         core_bytes as f64 / 3.5
     );
+}
+
+/// Live contract sweep (v0.12.0): agent-scoped graph traversal without a
+/// root, and T-I-F evaluation with the agent the server requires.
+#[tokio::test]
+async fn test_graph_traverse_agent_only_and_tif_with_agent() {
+    let c = client();
+    let a = agent("graph-agent-only");
+    let mut ids = Vec::new();
+    for content in [
+        "Anna leads the Alpha project",
+        "Anna presents Alpha on Friday",
+    ] {
+        let r = execute_tool(
+            &c,
+            "dakera_store",
+            &json!({"agent_id": a, "content": content, "tags": [TEST_TAG]}),
+        )
+        .await;
+        ids.push(ok(&r)["memory"]["id"].as_str().unwrap().to_string());
+    }
+    let link = json!({"agent_id": a, "memory_id": ids[0], "target_id": ids[1]});
+    ok(&execute_tool(&c, "dakera_graph_link_memory", &link).await);
+
+    let traverse = json!({"agent_id": a, "edge_type": "linked_by"});
+    let v = ok(&execute_tool(&c, "dakera_graph_traverse", &traverse).await);
+    assert!(
+        v["edge_count"].as_u64().unwrap_or(0) >= 1,
+        "agent-wide graph must hold the link: {v}"
+    );
+
+    let tif = json!({"agent_id": a, "memory_id": ids[0]});
+    let v = ok(&execute_tool(&c, "dakera_tif_evaluate", &tif).await);
+    assert_eq!(v["memory_id"], ids[0]);
+
+    cleanup(&c, &a).await;
 }

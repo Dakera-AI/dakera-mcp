@@ -33,7 +33,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 },
                 "agent_id": { "type": "string" }
             },
-            "required": ["memory_id"]
+            "required": ["memory_id", "agent_id"]
         }),
     }]
 }
@@ -151,14 +151,17 @@ async fn tool_tif_evaluate(client: &DakeraApiClient, args: &serde_json::Value) -
         Ok(v) => v,
         Err(e) => return e,
     };
-    let agent_id = args.get("agent_id").and_then(|v| v.as_str());
-
-    // GET /v1/memories/:id/feedback — the engine requires agent_id as a query param
-    // (returns InvalidRequest without it), so forward it when the caller supplies one.
-    let mut path = format!("/v1/memories/{}/feedback", urlencoding::encode(&memory_id));
-    if let Some(aid) = agent_id {
-        path.push_str(&format!("?agent_id={}", urlencoding::encode(aid)));
-    }
+    // GET /v1/memories/:id/feedback requires agent_id as a query parameter
+    // (400 "agent_id query parameter required" without it).
+    let agent_id = match require_string(args, "agent_id") {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let path = format!(
+        "/v1/memories/{}/feedback?agent_id={}",
+        urlencoding::encode(&memory_id),
+        urlencoding::encode(&agent_id)
+    );
 
     let response = match client.get_json(&path).await {
         Ok(r) => r,

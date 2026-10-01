@@ -1,12 +1,13 @@
 //! MCP-8: Discovery meta-tools — dakera_discover_tools, dakera_load_tools
 //!
 //! These tools are always exposed (ToolTier::Meta) and let callers explore
-//! the full 169-tool catalog without loading all schemas upfront. Callers
+//! the full tool catalog without loading all schemas upfront. Callers
 //! can first discover tools by keyword or tier, then load only the schemas
 //! they actually need, saving ~35K tokens versus loading everything by default.
 
 use serde_json::json;
 
+use super::capabilities::{self, CapabilityState};
 use super::{ok_json, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
 
@@ -52,18 +53,27 @@ pub fn definitions() -> Vec<ToolDefinition> {
 }
 
 pub async fn execute(
-    _client: &DakeraApiClient,
+    client: &DakeraApiClient,
     name: &str,
     args: &serde_json::Value,
 ) -> Option<CallToolResult> {
     match name {
-        "dakera_discover_tools" => Some(discover_tools(args)),
+        "dakera_discover_tools" => {
+            // Tools that need an opt-in feature the server has off are not offered.
+            let state = client.capability_state().await;
+            Some(discover_tools_for(args, &state))
+        }
         "dakera_load_tools" => Some(load_tools(args)),
         _ => None,
     }
 }
 
+#[cfg(test)]
 fn discover_tools(args: &serde_json::Value) -> CallToolResult {
+    discover_tools_for(args, &CapabilityState::Unknown)
+}
+
+fn discover_tools_for(args: &serde_json::Value, state: &CapabilityState) -> CallToolResult {
     let query = args
         .get("query")
         .and_then(|v| v.as_str())
@@ -74,6 +84,9 @@ fn discover_tools(args: &serde_json::Value) -> CallToolResult {
     let tools: Vec<serde_json::Value> = catalog
         .into_iter()
         .filter(|entry| {
+            if !capabilities::is_available(&entry.def.name, state) {
+                return false;
+            }
             let tier_ok = match tier_filter {
                 "core" => entry.tier == crate::protocol::ToolTier::Core,
                 "power" => entry.tier == crate::protocol::ToolTier::Power,
@@ -151,6 +164,31 @@ fn load_tools(args: &serde_json::Value) -> CallToolResult {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn attachment_tool_names(state: &CapabilityState) -> Vec<String> {
+        let result = discover_tools_for(&json!({"query": "dakera_attachment_"}), state);
+        let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
+        let mut names = Vec::new();
+        for tool in val["tools"].as_array().unwrap() {
+            names.push(tool["name"].as_str().unwrap().to_string());
+        }
+        names.retain(|n| n.starts_with("dakera_attachment_"));
+        names
+    }
+
+    #[test]
+    fn test_discover_hides_tools_the_server_cannot_serve() {
+        let off = CapabilityState::Known(json!({
+            "attachments": {"enabled": false}, "vision": {"enabled": false}
+        }));
+        assert!(attachment_tool_names(&off).is_empty());
+        let on = CapabilityState::Known(json!({
+            "attachments": {"enabled": true}, "vision": {"enabled": false}
+        }));
+        let names = attachment_tool_names(&on);
+        assert!(names.contains(&"dakera_attachment_upload".to_string()));
+        assert!(!names.contains(&"dakera_attachment_index_image".to_string()));
+    }
 
     #[test]
     fn test_definitions_returns_two_tools() {

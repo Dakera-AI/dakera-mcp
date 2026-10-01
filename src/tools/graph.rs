@@ -16,7 +16,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
             name: "dakera_graph_traverse".into(),
             description: "Traverse the memory knowledge graph via BFS to discover connected memories. \
                 Memory-anchored mode: provide memory_id to explore outbound links from a known memory. \
-                Agent-scoped mode: provide agent_id + root_id with optional edge-type or min-weight filters. \
+                Agent-scoped mode: provide agent_id (without memory_id) for the agent's whole graph, \
+                or agent_id + root_id to start a BFS at root_id; edge-type, min-weight and limit filters apply. \
                 Returns connected memories and edge metadata up to the specified depth (1–5)."
                 .into(),
             input_schema: json!({
@@ -31,7 +32,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     },
                     "root_id": {
                         "type": "string",
-                        "description": "Root memory ID for agent-scoped traversal"
+                        "description": "Optional root memory ID for agent-scoped traversal (omit for the agent's whole graph)"
                     },
                     "depth": {
                         "type": "integer",
@@ -124,19 +125,23 @@ pub async fn execute(
 }
 
 async fn tool_graph_traverse(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
-    // KG-2 mode: both agent_id and root_id must be present
-    if let (Some(agent_id), Some(root_id)) = (
-        args.get("agent_id").and_then(|v| v.as_str()),
-        args.get("root_id").and_then(|v| v.as_str()),
-    ) {
-        let encoded_agent = urlencoding::encode(agent_id);
-        let encoded_root = urlencoding::encode(root_id);
+    // KG-2 mode: agent_id with root_id, or agent_id alone (no memory_id). The
+    // server's `root_id` is optional: without it the answer is the agent's
+    // whole graph (GET /v1/knowledge/query, KgQueryParams).
+    let agent_id = args.get("agent_id").and_then(|v| v.as_str());
+    let root_id = args.get("root_id").and_then(|v| v.as_str());
+    let memory_id_given = args.get("memory_id").and_then(|v| v.as_str()).is_some();
+    if let Some(agent_id) = agent_id.filter(|_| root_id.is_some() || !memory_id_given) {
         let mut qs = format!(
-            "/v1/knowledge/query?agent_id={}&root_id={}",
-            encoded_agent, encoded_root
+            "/v1/knowledge/query?agent_id={}",
+            urlencoding::encode(agent_id)
         );
-        if let Some(d) = args.get("depth").and_then(|v| v.as_u64()) {
-            qs.push_str(&format!("&max_depth={}", d.min(5)));
+        if let Some(root_id) = root_id {
+            qs.push_str(&format!("&root_id={}", urlencoding::encode(root_id)));
+            // `max_depth` only applies to the BFS from root_id.
+            if let Some(d) = args.get("depth").and_then(|v| v.as_u64()) {
+                qs.push_str(&format!("&max_depth={}", d.min(5)));
+            }
         }
         if let Some(et) = args.get("edge_type").and_then(|v| v.as_str()) {
             qs.push_str(&format!("&edge_type={}", urlencoding::encode(et)));
@@ -153,7 +158,7 @@ async fn tool_graph_traverse(client: &DakeraApiClient, args: &serde_json::Value)
         };
     }
 
-    // CE-5 mode: memory_id required
+    // CE-5 mode: memory_id required (or agent_id for the KG-2 mode above)
     let memory_id = match require_string(args, "memory_id") {
         Ok(v) => v,
         Err(e) => return e,

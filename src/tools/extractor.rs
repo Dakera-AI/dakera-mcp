@@ -18,11 +18,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_extract".into(),
-            description: "Extract structured information (entities, topics, key phrases, summary) \
-                from arbitrary text using the configured provider hierarchy: per-request override \
-                → namespace default → server default → GLiNER local. Supported providers: \
-                `gliner` (zero-config local ONNX), `openai`, `anthropic`, `openrouter`, `ollama`, \
-                `none`."
+            description: "Extract entities, topics, key phrases and a summary from text with the \
+                provider chain: extractor_override, then the namespace default, then the server \
+                default (GLiNER local). For ad-hoc GLiNER types use dakera_auto_tag. Needs a write \
+                key for the namespace (for all namespaces when neither namespace nor agent_id is given)."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -33,19 +32,16 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     },
                     "namespace": {
                         "type": "string",
-                        "description": "Namespace whose default extractor config is used. \
-                            If omitted, the server-level default is used."
+                        "description": "Namespace whose extractor config applies (default: agent_id's)"
                     },
-                    "entity_types": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "GLiNER entity type labels (e.g. [\"person\", \"org\", \"location\"]). \
-                            Only used when provider is `gliner`."
+                    "agent_id": { "type": "string" },
+                    "lang": {
+                        "type": "string",
+                        "description": "en, de, fr, es, it, pt or nl (v0.12+)"
                     },
                     "extractor_override": {
                         "type": "object",
-                        "description": "Per-request provider override — highest priority in the \
-                            resolution hierarchy. Fields: provider, model, base_url, api_key.",
+                        "description": "Provider for this request only",
                         "properties": {
                             "provider": {
                                 "type": "string",
@@ -79,7 +75,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_extractor_set".into(),
-            description: "Set or update the default extraction provider for a namespace. \
+            description: "Set the default extraction provider for a namespace (replaces the whole config: \
+                omitted fields such as model are cleared). \
                 The config is stored server-side and used by all subsequent calls to \
                 dakera_extract (unless a per-request override is provided). \
                 Set provider=none to clear the namespace default. \
@@ -137,11 +134,10 @@ async fn tool_extract(client: &DakeraApiClient, args: &serde_json::Value) -> Cal
     if let Some(ns) = args.get("namespace").and_then(|v| v.as_str()) {
         body["namespace"] = json!(ns);
     }
-    if let Some(et) = args.get("entity_types") {
-        if et.is_array() {
-            body["entity_types"] = et.clone();
-        }
-    }
+    // POST /v1/extract has no `entity_types` (ExtractRequest): GLiNER takes the
+    // namespace's entity config, so the tool no longer offers a field the
+    // server drops. `agent_id` selects the agent's memory namespace.
+    super::memory::forward_optional_strings(&mut body, args, &["lang", "agent_id"]);
     if let Some(ov) = args.get("extractor_override") {
         if ov.is_object() {
             body["extractor_override"] = ov.clone();
