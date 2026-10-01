@@ -374,9 +374,12 @@ async fn discover_tools_leaves_out_what_the_server_cannot_serve() {
     let result = execute_tool(&server.client(), "dakera_discover_tools", &args).await;
     let found = json_of(&result);
     let listed = found["tools"].as_array().unwrap();
-    let hidden = listed
-        .iter()
-        .all(|t| !t["name"].as_str().unwrap().starts_with("dakera_attachment_"));
+    let hidden = listed.iter().all(|t| {
+        !t["name"]
+            .as_str()
+            .unwrap()
+            .starts_with("dakera_attachment_")
+    });
     assert!(hidden);
 
     let server = v012_server(true, true).await;
