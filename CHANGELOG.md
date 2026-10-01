@@ -31,6 +31,10 @@ keeps its name and arguments, and the v0.12 additions are optional arguments or 
   routes, `super_admin` needed, 413, 501, 503) and `Retry-After` honoured by the retry logic (up to 8 s).
 - README: what is new, compatibility with v0.11.108 and v0.12.0, capability gating.
 
+### Tests
+
+- `tests/route_audit.rs`: every server path a tool calls must be a route of the v0.12.0 server (list in `tests/server_routes_v0.12.txt`, from the server router). A sweep of all tool routes against the router found no missing route.
+
 ### Changed
 
 - The `all` profile has 98 tools (was 87), `power` 78, `admin` 34; the all-profile token test budget is
