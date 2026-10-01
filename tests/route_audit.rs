@@ -89,12 +89,21 @@ fn every_route_a_tool_calls_exists_on_the_v012_server() {
         }
     }
     assert!(checked > 30, "found only {checked} route literals");
-    assert!(missing.is_empty(), "routes the server does not serve: {missing:#?}");
+    assert!(
+        missing.is_empty(),
+        "routes the server does not serve: {missing:#?}"
+    );
 }
 
 #[test]
 fn normalize_turns_parameters_into_stars() {
-    assert_eq!(normalize("/v1/namespaces/{}/attachments"), "/v1/namespaces/*/attachments");
+    assert_eq!(
+        normalize("/v1/namespaces/{}/attachments"),
+        "/v1/namespaces/*/attachments"
+    );
     assert_eq!(normalize("/v1/sessions?agent_id={}"), "/v1/sessions");
-    assert_eq!(normalize("/admin/keys/{key_id}/usage"), "/admin/keys/*/usage");
+    assert_eq!(
+        normalize("/admin/keys/{key_id}/usage"),
+        "/admin/keys/*/usage"
+    );
 }
