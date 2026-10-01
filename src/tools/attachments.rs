@@ -387,10 +387,7 @@ pub fn job_body(args: &Value, kind: &str, agent_id: &str) -> Value {
 }
 
 fn str_field<'a>(v: &'a Value, name: &str) -> &'a str {
-    match v.get(name).and_then(|x| x.as_str()) {
-        Some(s) => s,
-        None => "",
-    }
+    v.get(name).and_then(|x| x.as_str()).unwrap_or_default()
 }
 
 async fn tool_start_job(client: &DakeraApiClient, args: &Value, kind: &str) -> CallToolResult {

@@ -184,7 +184,10 @@ mod tests {
 
     #[test]
     fn unknown_state_keeps_every_tool() {
-        assert!(is_available("dakera_attachment_upload", &CapabilityState::Unknown));
+        assert!(is_available(
+            "dakera_attachment_upload",
+            &CapabilityState::Unknown
+        ));
     }
 
     #[test]

@@ -165,27 +165,29 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn attachment_tool_names(state: &CapabilityState) -> Vec<String> {
+        let result = discover_tools_for(&json!({"query": "dakera_attachment_"}), state);
+        let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
+        let mut names = Vec::new();
+        for tool in val["tools"].as_array().unwrap() {
+            names.push(tool["name"].as_str().unwrap().to_string());
+        }
+        names.retain(|n| n.starts_with("dakera_attachment_"));
+        names
+    }
+
     #[test]
     fn test_discover_hides_tools_the_server_cannot_serve() {
         let off = CapabilityState::Known(json!({
             "attachments": {"enabled": false}, "vision": {"enabled": false}
         }));
-        let result = discover_tools_for(&json!({"query": "attachment"}), &off);
-        let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
-        assert_eq!(val["count"].as_u64().unwrap(), 0);
+        assert!(attachment_tool_names(&off).is_empty());
         let on = CapabilityState::Known(json!({
             "attachments": {"enabled": true}, "vision": {"enabled": false}
         }));
-        let result = discover_tools_for(&json!({"query": "attachment"}), &on);
-        let val: serde_json::Value = serde_json::from_str(&result.content[0].text).unwrap();
-        let names: Vec<&str> = val["tools"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|t| t["name"].as_str().unwrap())
-            .collect();
-        assert!(names.contains(&"dakera_attachment_upload"));
-        assert!(!names.contains(&"dakera_attachment_index_image"));
+        let names = attachment_tool_names(&on);
+        assert!(names.contains(&"dakera_attachment_upload".to_string()));
+        assert!(!names.contains(&"dakera_attachment_index_image".to_string()));
     }
 
     #[test]

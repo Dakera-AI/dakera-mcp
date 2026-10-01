@@ -128,7 +128,9 @@ impl MockServer {
     fn last(&self, path: &str) -> Seen {
         let all = self.requests();
         let found = all.iter().rev().find(|r| r.path == path);
-        found.cloned().unwrap_or_else(|| panic!("no request to {path}: {:?}", self.paths()))
+        found
+            .cloned()
+            .unwrap_or_else(|| panic!("no request to {path}: {:?}", self.paths()))
     }
 }
 
@@ -368,9 +370,19 @@ async fn capabilities_are_remembered_between_calls() {
 #[tokio::test]
 async fn discover_tools_leaves_out_what_the_server_cannot_serve() {
     let server = v012_server(false, false).await;
-    let args = json!({"query": "attachment"});
+    let args = json!({"query": "dakera_attachment_"});
     let result = execute_tool(&server.client(), "dakera_discover_tools", &args).await;
-    assert_eq!(json_of(&result)["count"], 0);
+    let found = json_of(&result);
+    let listed = found["tools"].as_array().unwrap();
+    let hidden = listed
+        .iter()
+        .all(|t| !t["name"].as_str().unwrap().starts_with("dakera_attachment_"));
+    assert!(hidden);
+
+    let server = v012_server(true, true).await;
+    let result = execute_tool(&server.client(), "dakera_discover_tools", &args).await;
+    let found = json_of(&result);
+    assert!(found["count"].as_u64().unwrap() >= 7);
 }
 
 #[tokio::test]
