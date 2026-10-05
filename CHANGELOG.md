@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Docker image rebuilt on `distroless/static`**: the binary is now linked statically against musl
+  (it was already OpenSSL-free via rustls), so the runtime image carries no shell, package manager or
+  OS libraries. Trivy findings drop from 250 (4 critical, 55 high, from `debian:bookworm-slim`) to
+  none beyond base-image data updates; the image shrinks from 135 MB to 14 MB. It still runs as
+  non-root (uid 65532 instead of the `dakera` user).
+
+### Fixed
+
+- **LICENSE detected as MIT**: removed the extra SPDX header and folded the author line into the
+  copyright line, so GitHub (and registries that read it, such as Glama) identify the license
+  instead of reporting it as unidentifiable.
+- **Docker dependency caching**: the dependency pre-build stage now stubs `src/lib.rs` too; it was
+  failing silently, so every image build recompiled all dependencies.
+
 ## [0.11.0] - 2026-10-01
 
 Support for Dakera server v0.12.0. Compatible with v0.11.108 and v0.12.0 servers: every existing tool
