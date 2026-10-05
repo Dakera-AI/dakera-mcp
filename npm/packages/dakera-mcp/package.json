@@ -1,6 +1,6 @@
 {
   "name": "@dakera-ai/dakera-mcp",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Dakera MCP Server — Model Context Protocol server for AI agent memory",
   "bin": {
     "dakera-mcp": "bin/dakera-mcp"
@@ -10,9 +10,9 @@
     "README.md"
   ],
   "optionalDependencies": {
-    "@dakera-ai/dakera-mcp-linux-x64": "0.11.0",
-    "@dakera-ai/dakera-mcp-darwin-arm64": "0.11.0",
-    "@dakera-ai/dakera-mcp-darwin-x64": "0.11.0"
+    "@dakera-ai/dakera-mcp-linux-x64": "0.12.0",
+    "@dakera-ai/dakera-mcp-darwin-arm64": "0.12.0",
+    "@dakera-ai/dakera-mcp-darwin-x64": "0.12.0"
   },
   "engines": {
     "node": ">=16"
