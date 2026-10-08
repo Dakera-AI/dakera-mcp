@@ -50,7 +50,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_knowledge_network_cross_agent".into(),
-            description: "Build a cross-agent similarity graph across agent memory stores. Returns nodes (memories) and edges (links). Omit agent_ids to span all agents. Needs a global admin key (not namespace-pinned).".into(),
+            description: "Build a cross-agent similarity graph across agent memory stores. Returns nodes (memories, content cut to content_preview_chars, default 500) and edges. Omit agent_ids to span all agents. Needs a global admin key (not namespace-pinned).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -58,7 +58,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "min_similarity": { "type": "number", "description": "Min cosine similarity for a cross-agent edge" },
                     "max_nodes_per_agent": { "type": "integer", "description": "Max memories per agent (top by importance)" },
                     "min_importance": { "type": "number", "description": "Min importance for included memories" },
-                    "max_cross_edges": { "type": "integer", "description": "Max cross-agent edges to return" }
+                    "max_cross_edges": { "type": "integer", "description": "Max cross-agent edges to return" },
+                    "content_preview_chars": { "type": "integer", "description": "Characters of content per node (1-10000, 0 = full)" }
                 },
                 "required": []
             }),
@@ -162,6 +163,10 @@ async fn tool_knowledge_network_cross_agent(
     client: &DakeraApiClient,
     args: &serde_json::Value,
 ) -> CallToolResult {
+    let preview = match super::content_preview_chars(args) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let mut body = json!({
         "min_similarity": args.get("min_similarity").and_then(|v| v.as_f64()).unwrap_or(0.3),
         "max_nodes_per_agent": args.get("max_nodes_per_agent").and_then(|v| v.as_u64()).unwrap_or(50),
@@ -170,6 +175,11 @@ async fn tool_knowledge_network_cross_agent(
     });
     if let Some(ids) = args.get("agent_ids").and_then(|v| v.as_array()) {
         body["agent_ids"] = json!(ids);
+    }
+    // v0.12.2: nodes carry content_len / content_truncated; an older server
+    // ignores the field and returns full content.
+    if let Some(n) = preview {
+        body["content_preview_chars"] = json!(n);
     }
     match client
         .post_json("/v1/knowledge/network/cross-agent", &body)

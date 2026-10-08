@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-10-08
+
+Support for Dakera server v0.12.2 ([Dakera-AI/dakera#916](https://github.com/Dakera-AI/dakera/pull/916)).
+Compatible with v0.12.0 and v0.12.1 servers (and v0.11.108 as before): every tool keeps its name and
+arguments, new arguments are optional (sent only when given, or ignored by an older server), and the
+new tools answer gracefully on a server without their route (`404` / `405`).
+
+### Added
+
+- **`dakera_session_touch`** (`POST /v1/sessions/{id}/touch`): keeps a session open while the agent
+  works without storing or recalling. Answers `session_state` (`active` with `idle_deadline_at`, or
+  `ended`, followed by a note to start a new session). On a server before v0.12.2, which never ends
+  sessions for inactivity, it answers `touch_supported: false` with a note (not an error).
+- **`dakera_agent_create`** (`POST /v1/agents`): creates an agent's memory namespace before its first
+  memory; `created: false` for an existing agent. On a server before v0.12.2 (`405`) it answers that
+  the first stored memory creates the agent (not an error).
+- **`dakera_whoami`** (`GET /v1/auth/whoami`): the key's scope, namespaces (including `p*` prefix
+  patterns), `unrestricted`, `expires_at`, `inert_namespaces`. On an older server it says it needs
+  v0.12.2.
+- `idle_timeout_secs` on `dakera_session_start` (`0` = never ended for inactivity; sent only when given).
+- `content_preview_chars` on `dakera_agent_memories`, `dakera_session_memories` and
+  `dakera_knowledge_network_cross_agent`, **500 by default** so a page of large memories does not flood
+  the context (`content_len` / `content_truncated` mark a cut memory; `0` returns full content; values
+  above 10000 are refused before any request). `dakera_memory_get` and recall still return memories in
+  full. A server before v0.12.2 ignores the parameter and returns full content.
+- `include_derived` on `dakera_agent_memories` and `dakera_wake_up` (v0.12.2 leaves derived sentence
+  sub-memories out of both by default; sent only when `true`).
+- Error hints: a `400 INVALID_REQUEST` whose message names a field (`content: content exceeds maximum
+  of 100000 bytes …`, `tags[1]: … reserved …`, `memories[1].content: …`) keeps the server's message and
+  adds a hint naming the field (content limit in UTF-8 bytes, reserved markers). Coded `ROUTE_NOT_FOUND`
+  (`404`) and `405` answers get the "older server" hint; the `403` hints point at `dakera_whoami`.
+
+### Changed
+
+- **`dakera_store`**: when the answer says `session_state: "ended"` (the session was ended by
+  `dakera_session_end` or by the server after inactivity, 4 h by default), a second text item tells the
+  agent to start a new session. The first item is still the server's JSON, unchanged.
+- **`dakera_session_end`**: a note when the server had already ended the session for inactivity (the
+  summary passed is then not saved: v0.12.2 keeps the persisted state) or when no session of that id is
+  reachable with the key (the server's idempotent answer with an empty `agent_id`).
+- Session tool descriptions mention `last_activity_at`, `ended_reason` (`client` | `idle`) and
+  `idle_since`, which the server's session objects carry since v0.12.2.
+- `tools/list` pages hold 128 tools (was 100), so the `all` profile (102 tools, was 99) stays on one
+  page for clients that do not follow `nextCursor`. `power` has 82 tools (was 79); `core` (14) and
+  `admin` (34) are unchanged. The all-profile token test budget is 21000 (was 20000).
+- Version 0.12.2, following the server version (crate, npm packages, `server.json`).
+
+### Tests
+
+- `tests/v012.rs`: mock-server tests for the new tools and arguments, the ended-session notes, the
+  v0.12.0 / v0.12.1 fallbacks (`ROUTE_NOT_FOUND`, bodiless `404`, `405`), preview defaults and bounds,
+  `include_derived`, and a field-named `400` passed through with its hint.
+- `tests/server_routes_v0.12.txt` lists the v0.12.2 routes (`POST /v1/agents`, `GET /v1/auth/whoami`,
+  `POST /v1/sessions/*/touch`, the PATCH key routes, the derivation routes); the route audits check
+  every tool against it.
+- `tests/integration.rs`: a live test of the new tools written to pass against v0.12.0 (CI) and
+  v0.12.2.
+
 ## [0.12.0] - 2026-10-05
 
 ### Security

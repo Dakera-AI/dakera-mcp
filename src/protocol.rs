@@ -134,6 +134,16 @@ impl CallToolResult {
             is_error: Some(true),
         }
     }
+
+    /// Add a second text item after the result (a note for the agent), so the
+    /// first item stays the server's JSON answer, unchanged.
+    pub fn with_note(mut self, note: String) -> Self {
+        self.content.push(ToolContent {
+            content_type: "text".to_string(),
+            text: note,
+        });
+        self
+    }
 }
 
 #[cfg(test)]
@@ -198,6 +208,16 @@ mod tests {
         assert_eq!(r.content.len(), 1);
         assert_eq!(r.content[0].content_type, "text");
         assert_eq!(r.content[0].text, "hello world");
+    }
+
+    #[test]
+    fn test_call_tool_result_with_note_keeps_the_answer_first() {
+        let r = CallToolResult::text("{}".to_string()).with_note("Note: x".to_string());
+        assert!(r.is_error.is_none());
+        assert_eq!(r.content.len(), 2);
+        assert_eq!(r.content[0].text, "{}");
+        assert_eq!(r.content[1].content_type, "text");
+        assert_eq!(r.content[1].text, "Note: x");
     }
 
     #[test]
