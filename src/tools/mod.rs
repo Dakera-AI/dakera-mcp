@@ -18,6 +18,7 @@ pub mod fulltext;
 pub mod graph;
 pub mod health;
 pub mod hints;
+pub mod identity;
 pub mod inference;
 pub mod knowledge;
 pub mod memory;
@@ -244,6 +245,20 @@ impl DakeraApiClient {
         } else {
             Err(format!("API error ({}): {}", status, text))
         }
+    }
+
+    /// Send a request (with the usual retries) and return the status and the
+    /// body text, without turning an error status into `Err`: a tool calling a
+    /// route that is new in Dakera v0.12.2 tells "this server has no such
+    /// route" (see [`route_missing`]) apart from other refusals. `Err` only
+    /// when no answer was received.
+    pub async fn send_raw(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(reqwest::StatusCode, String), String> {
+        self.send_with_retry(method, path, body).await
     }
 
     pub async fn post_json(
@@ -492,6 +507,56 @@ impl DakeraApiClient {
 /// format from the content when the call names none.
 pub const IMPORT_FILE_NAME: &str = "import";
 
+/// Whether an answer says the server has no such route or method — an older
+/// server than the one a route is new in — as opposed to a refusal by a route
+/// it has (such as `404` "Session not found"). Covers `405` (the path exists
+/// with other methods: `POST /v1/agents` before v0.12.2), a bodiless `404`
+/// (v0.11) and the JSON `ROUTE_NOT_FOUND` / `METHOD_NOT_ALLOWED` answers of
+/// v0.12.0 and later. `text` may carry the `Hint:` line [`add_hint`] adds.
+pub fn route_missing(status: reqwest::StatusCode, text: &str) -> bool {
+    match status.as_u16() {
+        405 => true,
+        404 => {
+            let body = text.split("\nHint: ").next().unwrap_or("").trim();
+            if body.is_empty() || body.starts_with("Hint: ") {
+                return true;
+            }
+            let parsed: serde_json::Value =
+                serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
+            matches!(
+                parsed.get("code").and_then(|c| c.as_str()),
+                Some("ROUTE_NOT_FOUND") | Some("METHOD_NOT_ALLOWED")
+            )
+        }
+        _ => false,
+    }
+}
+
+/// The preview size the list-style tools ask for when the caller names none:
+/// enough to tell memories apart, without pulling up to 100 kB per memory into
+/// the context. `dakera_memory_get` returns a memory in full.
+pub const DEFAULT_CONTENT_PREVIEW_CHARS: u64 = 500;
+
+/// The largest `content_preview_chars` the server accepts.
+pub const MAX_CONTENT_PREVIEW_CHARS: u64 = 10_000;
+
+/// The `content_preview_chars` to send for a list-style tool: the caller's value
+/// (`0` = full content, nothing sent), else [`DEFAULT_CONTENT_PREVIEW_CHARS`].
+/// A server before v0.12.2 ignores the parameter and returns full content.
+pub fn content_preview_chars(args: &serde_json::Value) -> Result<Option<u64>, CallToolResult> {
+    let Some(value) = args.get("content_preview_chars").filter(|v| !v.is_null()) else {
+        return Ok(Some(DEFAULT_CONTENT_PREVIEW_CHARS));
+    };
+    match value.as_u64() {
+        Some(0) => Ok(None),
+        Some(n) if n <= MAX_CONTENT_PREVIEW_CHARS => Ok(Some(n)),
+        _ => Err(CallToolResult::error(format!(
+            "content_preview_chars must be an integer from 1 to {MAX_CONTENT_PREVIEW_CHARS}, \
+             or 0 for the full content; got {value}"
+        ))),
+    }
+}
+
 /// Helper to extract a required string parameter, returning an error CallToolResult on failure.
 pub fn require_string(args: &serde_json::Value, field: &str) -> Result<String, CallToolResult> {
     args.get(field)
@@ -532,6 +597,7 @@ pub fn full_catalog() -> Vec<ToolCatalogEntry> {
     raw.extend(encryption::definitions());
     raw.extend(ode::definitions());
     raw.extend(health::definitions());
+    raw.extend(identity::definitions());
     raw.extend(ops::definitions());
     raw.extend(capabilities::definitions());
     raw.extend(attachments::definitions());
@@ -689,6 +755,9 @@ pub async fn execute_tool(
     if let Some(result) = health::execute(client, name, arguments).await {
         return result;
     }
+    if let Some(result) = identity::execute(client, name, arguments).await {
+        return result;
+    }
     if let Some(result) = ops::execute(client, name, arguments).await {
         return result;
     }
@@ -740,6 +809,49 @@ mod tests {
         let args = json!({"key": null});
         let err = require_string(&args, "key").unwrap_err();
         assert_eq!(err.is_error, Some(true));
+    }
+
+    #[test]
+    fn test_route_missing_tells_an_older_server_from_a_refusal() {
+        use reqwest::StatusCode;
+        let coded = r#"{"error":"No route","code":"ROUTE_NOT_FOUND","status":404}"#;
+        assert!(route_missing(StatusCode::NOT_FOUND, coded));
+        assert!(route_missing(StatusCode::METHOD_NOT_ALLOWED, "{}"));
+        // A bodiless 404 (v0.11), with or without the hint line added to it.
+        assert!(route_missing(StatusCode::NOT_FOUND, ""));
+        assert!(route_missing(
+            StatusCode::NOT_FOUND,
+            "\nHint: This server has no such route"
+        ));
+        let session =
+            r#"{"error":"Session not found: s1","code":"VECTOR_NOT_FOUND","resource":"session"}"#;
+        assert!(!route_missing(StatusCode::NOT_FOUND, session));
+        assert!(!route_missing(StatusCode::FORBIDDEN, coded));
+        assert!(!route_missing(StatusCode::OK, ""));
+    }
+
+    #[test]
+    fn test_content_preview_chars_defaults_and_bounds() {
+        assert_eq!(
+            content_preview_chars(&json!({})).unwrap(),
+            Some(DEFAULT_CONTENT_PREVIEW_CHARS)
+        );
+        assert_eq!(
+            content_preview_chars(&json!({"content_preview_chars": null})).unwrap(),
+            Some(DEFAULT_CONTENT_PREVIEW_CHARS)
+        );
+        assert_eq!(
+            content_preview_chars(&json!({"content_preview_chars": 0})).unwrap(),
+            None
+        );
+        assert_eq!(
+            content_preview_chars(&json!({"content_preview_chars": 10000})).unwrap(),
+            Some(10000)
+        );
+        for bad in [json!(10001), json!(-3), json!(1.5), json!("200")] {
+            let err = content_preview_chars(&json!({"content_preview_chars": bad})).unwrap_err();
+            assert_eq!(err.is_error, Some(true));
+        }
     }
 
     #[test]
@@ -1154,15 +1266,16 @@ mod tests {
     #[test]
     fn test_total_tool_count() {
         let all = filtered_definitions("all");
-        // Exact count: 99 tools total (86 after PR#84 prune + dakera_tif_evaluate, DAK-6561,
+        // Exact count: 102 tools total (86 after PR#84 prune + dakera_tif_evaluate, DAK-6561,
         // + 12 for Dakera v0.12: capabilities, health, embed migration status, encryption
-        // status, the 7 attachment tools and dakera_wake_up).
+        // status, the 7 attachment tools and dakera_wake_up; + 3 for Dakera v0.12.2:
+        // dakera_session_touch, dakera_agent_create and dakera_whoami).
         // If this fails, run filtered_definitions("all").len() to discover the new count
         // and update this assertion. Catches accidental add/remove.
         assert_eq!(
             all.len(),
-            99,
-            "Expected exactly 99 tools in 'all' profile. Actual: {}. \
+            102,
+            "Expected exactly 102 tools in 'all' profile. Actual: {}. \
              Update this constant after intentional catalog changes.",
             all.len()
         );
@@ -1234,6 +1347,9 @@ mod tests {
             "dakera_health",
             "dakera_attachment_upload",
             "dakera_attachment_transcribe",
+            "dakera_session_touch",
+            "dakera_agent_create",
+            "dakera_whoami",
         ] {
             assert_eq!(
                 tier_map.get(name).copied(),
@@ -1360,15 +1476,16 @@ mod tests {
 
     #[test]
     fn test_token_size_all_profile_within_budget() {
-        // All-profile (99 tools) after description compression. Budget: 20000 estimated
-        // tokens (JSON bytes / 3; it was 17000 for 87 tools before the v0.12 tools). With
-        // MCP pagination at 100 tools/page, one page holds the whole catalog.
+        // All-profile (102 tools) after description compression. Budget: 21000 estimated
+        // tokens (JSON bytes / 3; it was 17000 for 87 tools before the v0.12 tools and 20000
+        // for 99 before the v0.12.2 session, agent and identity tools). With MCP pagination
+        // at 128 tools/page, one page holds the whole catalog.
         let defs = filtered_definitions("all");
         let json_bytes = serde_json::to_string(&defs).unwrap().len();
         let estimated_tokens = json_bytes / 3;
         assert!(
-            estimated_tokens < 20000,
-            "All profile estimated tokens {} exceeds 20000 budget (JSON bytes: {})",
+            estimated_tokens < 21000,
+            "All profile estimated tokens {} exceeds 21000 budget (JSON bytes: {})",
             estimated_tokens,
             json_bytes
         );

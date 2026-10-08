@@ -262,7 +262,15 @@ async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallT
     }
     forward_optional_strings(&mut body, args, &["lang", "attachment_ref"]);
     match client.post_json("/v1/memory/store", &body).await {
-        Ok(result) => ok_json(&result),
+        Ok(result) => {
+            // v0.12.2: storing into a session the server ended for inactivity
+            // succeeds; the answer says so, and the agent should start a new one.
+            let answer = ok_json(&result);
+            match super::sessions::ended_session_note(&result) {
+                Some(note) => answer.with_note(note),
+                None => answer,
+            }
+        }
         Err(e) => CallToolResult::error(e),
     }
 }

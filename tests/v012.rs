@@ -4,7 +4,10 @@
 //! Covered: `dakera_capabilities`, graceful disabling of the attachment tools
 //! from `/v1/capabilities` (in `tools/list`, `dakera_discover_tools` and direct
 //! calls), the attachment tools, `lang` / `attachment_ref` forwarding, the
-//! encryption / health / embed-migration tools, `Retry-After` and error hints.
+//! encryption / health / embed-migration tools, `Retry-After` and error hints;
+//! and the Dakera v0.12.2 additions: session idle timeout / touch / ended state,
+//! agent creation, whoami, content previews and `include_derived` on listings,
+//! field-named validation errors, and the fallbacks for v0.12.0 / v0.12.1.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -1128,7 +1131,7 @@ async fn session_and_agent_lists_page() {
     let client = server.client();
     let args = json!({"session_id": "s1", "limit": 100, "offset": 50});
     execute_tool(&client, "dakera_session_memories", &args).await;
-    server.last("/v1/sessions/s1/memories?&limit=100&offset=50");
+    server.last("/v1/sessions/s1/memories?&limit=100&offset=50&content_preview_chars=500");
     let args = json!({"agent_id": "bot", "limit": 10});
     execute_tool(&client, "dakera_agent_sessions", &args).await;
     server.last("/v1/agents/bot/sessions?&limit=10");
@@ -1167,8 +1170,469 @@ async fn initialize_reports_the_crate_version() {
 }
 
 // ---------------------------------------------------------------------------
+// Dakera v0.12.2: sessions, agents, whoami, previews, validation errors
+// ---------------------------------------------------------------------------
+
+fn note_of(result: &CallToolResult) -> Option<String> {
+    result.content.get(1).map(|c| c.text.clone())
+}
+
+fn session(id: &str, extra: Value) -> Value {
+    let mut s = json!({"id": id, "agent_id": "bot", "started_at": 1791392203, "memory_count": 1});
+    if let (Some(obj), Some(more)) = (s.as_object_mut(), extra.as_object()) {
+        for (k, v) in more {
+            obj.insert(k.clone(), v.clone());
+        }
+    }
+    s
+}
+
+#[tokio::test]
+async fn session_start_sends_idle_timeout_only_when_given() {
+    let server =
+        MockServer::start(|_| Reply::json(200, json!({"session": session("s1", json!({}))}))).await;
+    let client = server.client();
+    let args = json!({"agent_id": "bot", "idle_timeout_secs": 7200});
+    json_of(&execute_tool(&client, "dakera_session_start", &args).await);
+    let body = server.last("/v1/sessions/start").json();
+    assert_eq!(body["idle_timeout_secs"], 7200);
+    assert_eq!(body["agent_id"], "bot");
+
+    json_of(&execute_tool(&client, "dakera_session_start", &json!({"agent_id": "bot"})).await);
+    let body = server.last("/v1/sessions/start").json();
+    assert!(body.get("idle_timeout_secs").is_none(), "{body}");
+
+    // 0 (never ended for inactivity) is a value, not "unset".
+    let args = json!({"agent_id": "bot", "idle_timeout_secs": 0});
+    execute_tool(&client, "dakera_session_start", &args).await;
+    assert_eq!(
+        server.last("/v1/sessions/start").json()["idle_timeout_secs"],
+        0
+    );
+
+    let before = server.requests().len();
+    let args = json!({"agent_id": "bot", "idle_timeout_secs": -5});
+    let result = execute_tool(&client, "dakera_session_start", &args).await;
+    assert_eq!(result.is_error, Some(true));
+    assert!(text_of(&result).contains("idle_timeout_secs"));
+    assert_eq!(server.requests().len(), before, "nothing sent");
+}
+
+#[tokio::test]
+async fn storing_into_an_ended_session_tells_the_agent_to_start_a_new_one() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            200,
+            json!({
+                "memory": {"id": "m1", "content": "x", "session_id": "s-old"},
+                "embedding_time_ms": 3,
+                "session_state": "ended"
+            }),
+        )
+    })
+    .await;
+    let args = json!({"agent_id": "bot", "content": "x", "session_id": "s-old"});
+    let result = execute_tool(&server.client(), "dakera_store", &args).await;
+    // The server's answer stays first and unchanged; the note follows it.
+    let doc = json_of(&result);
+    assert_eq!(doc["session_state"], "ended");
+    let note = note_of(&result).expect("a note");
+    assert!(note.contains("s-old"), "{note}");
+    assert!(note.contains("dakera_session_start"), "{note}");
+}
+
+#[tokio::test]
+async fn storing_into_an_active_session_or_on_an_older_server_adds_no_note() {
+    let server = MockServer::start(|req| {
+        let body = req.json();
+        if body["session_id"] == "s1" {
+            return Reply::json(
+                200,
+                json!({"memory": {"id": "m1", "session_id": "s1"}, "session_state": "active"}),
+            );
+        }
+        // v0.12.0 / v0.12.1: no session_state at all.
+        Reply::json(200, json!({"memory": {"id": "m2"}, "embedding_time_ms": 1}))
+    })
+    .await;
+    let client = server.client();
+    let args = json!({"agent_id": "bot", "content": "x", "session_id": "s1"});
+    let result = execute_tool(&client, "dakera_store", &args).await;
+    json_of(&result);
+    assert_eq!(result.content.len(), 1);
+    let result = execute_tool(
+        &client,
+        "dakera_store",
+        &json!({"agent_id": "bot", "content": "y"}),
+    )
+    .await;
+    json_of(&result);
+    assert_eq!(result.content.len(), 1);
+}
+
+#[tokio::test]
+async fn touch_keeps_an_open_session_alive() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            200,
+            json!({
+                "session": session("s1", json!({"last_activity_at": 1791393000})),
+                "session_state": "active",
+                "idle_deadline_at": 1791407400
+            }),
+        )
+    })
+    .await;
+    let args = json!({"session_id": "s1"});
+    let result = execute_tool(&server.client(), "dakera_session_touch", &args).await;
+    let doc = json_of(&result);
+    assert_eq!(doc["session_state"], "active");
+    assert_eq!(doc["idle_deadline_at"], 1791407400);
+    assert_eq!(result.content.len(), 1);
+    assert_eq!(server.last("/v1/sessions/s1/touch").method, "POST");
+}
+
+#[tokio::test]
+async fn touching_an_ended_session_says_so() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            200,
+            json!({
+                "session": session("s1", json!({"ended_at": 1791406603, "ended_reason": "idle", "idle_since": 1791392803})),
+                "session_state": "ended"
+            }),
+        )
+    })
+    .await;
+    let args = json!({"session_id": "s1"});
+    let result = execute_tool(&server.client(), "dakera_session_touch", &args).await;
+    let doc = json_of(&result);
+    assert_eq!(doc["session"]["ended_reason"], "idle");
+    let note = note_of(&result).expect("a note");
+    assert!(note.contains("session s1 has ended"), "{note}");
+}
+
+#[tokio::test]
+async fn touch_on_a_server_before_v0122_is_a_no_op() {
+    // v0.12.0 / v0.12.1: JSON ROUTE_NOT_FOUND; v0.11: a bodiless 404.
+    for reply in [
+        || {
+            Reply::json(
+                404,
+                json!({"error": "No route", "code": "ROUTE_NOT_FOUND", "status": 404}),
+            )
+        },
+        || Reply::empty(404),
+        || {
+            Reply::json(
+                405,
+                json!({"error": "Method not allowed", "code": "METHOD_NOT_ALLOWED"}),
+            )
+        },
+    ] {
+        let server = MockServer::start(move |_| reply()).await;
+        let args = json!({"session_id": "s1"});
+        let result = execute_tool(&server.client(), "dakera_session_touch", &args).await;
+        let doc = json_of(&result);
+        assert_eq!(doc["touch_supported"], false);
+        assert!(doc["note"].as_str().unwrap().contains("v0.12.2"));
+    }
+}
+
+#[tokio::test]
+async fn touching_an_unknown_session_is_an_error() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            404,
+            json!({"error": "Session not found: s9", "code": "VECTOR_NOT_FOUND", "resource": "session"}),
+        )
+    })
+    .await;
+    let args = json!({"session_id": "s9"});
+    let result = execute_tool(&server.client(), "dakera_session_touch", &args).await;
+    assert_eq!(result.is_error, Some(true));
+    assert!(text_of(&result).contains("Session not found: s9"));
+}
+
+#[tokio::test]
+async fn ending_a_session_the_server_already_ended_says_the_summary_was_not_saved() {
+    let server = MockServer::start(|req| {
+        if req.path.starts_with("/v1/sessions/idle") {
+            return Reply::json(
+                200,
+                json!({
+                    "session": session("idle1", json!({"ended_at": 1791406603, "ended_reason": "idle", "summary": "auto"})),
+                    "memory_count": 4
+                }),
+            );
+        }
+        if req.path.starts_with("/v1/sessions/gone") {
+            return Reply::json(
+                200,
+                json!({
+                    "session": {"id": "gone", "agent_id": "", "started_at": 0, "ended_at": 0, "summary": null, "memory_count": 0},
+                    "memory_count": 0
+                }),
+            );
+        }
+        Reply::json(
+            200,
+            json!({"session": session("s1", json!({"ended_at": 1791406603, "ended_reason": "client"})), "memory_count": 1}),
+        )
+    })
+    .await;
+    let client = server.client();
+    let args = json!({"session_id": "idle1", "summary": "mine"});
+    let result = execute_tool(&client, "dakera_session_end", &args).await;
+    json_of(&result);
+    let note = note_of(&result).expect("a note");
+    assert!(note.contains("already ended"), "{note}");
+    assert!(note.contains("not saved"), "{note}");
+
+    let result = execute_tool(
+        &client,
+        "dakera_session_end",
+        &json!({"session_id": "gone"}),
+    )
+    .await;
+    json_of(&result);
+    assert!(note_of(&result).unwrap().contains("nothing was ended"));
+
+    let result = execute_tool(&client, "dakera_session_end", &json!({"session_id": "s1"})).await;
+    json_of(&result);
+    assert_eq!(result.content.len(), 1, "a normal end has no note");
+}
+
+#[tokio::test]
+async fn agent_create_posts_the_agent_id() {
+    let server = MockServer::start(|req| {
+        let id = req.json()["agent_id"].as_str().unwrap_or("").to_string();
+        let created = id == "new-agent";
+        Reply::json(
+            if created { 201 } else { 200 },
+            json!({"agent_id": id, "namespace": format!("_dakera_agent_{id}"), "created": created, "dimension": 1024, "model": "bge-large"}),
+        )
+    })
+    .await;
+    let client = server.client();
+    let doc = json_of(
+        &execute_tool(
+            &client,
+            "dakera_agent_create",
+            &json!({"agent_id": "new-agent"}),
+        )
+        .await,
+    );
+    assert_eq!(doc["created"], true);
+    let sent = server.last("/v1/agents");
+    assert_eq!(sent.method, "POST");
+    assert_eq!(sent.json(), json!({"agent_id": "new-agent"}));
+    let doc =
+        json_of(&execute_tool(&client, "dakera_agent_create", &json!({"agent_id": "old"})).await);
+    assert_eq!(doc["created"], false);
+}
+
+#[tokio::test]
+async fn agent_create_on_a_server_before_v0122_is_a_no_op() {
+    // GET /v1/agents exists there, so the POST is a 405.
+    let server = MockServer::start(|_| {
+        Reply::json(
+            405,
+            json!({"error": "Method not allowed", "code": "METHOD_NOT_ALLOWED", "status": 405}),
+        )
+    })
+    .await;
+    let result = execute_tool(
+        &server.client(),
+        "dakera_agent_create",
+        &json!({"agent_id": "a"}),
+    )
+    .await;
+    let doc = json_of(&result);
+    assert_eq!(doc["created"], Value::Null);
+    assert!(doc["note"]
+        .as_str()
+        .unwrap()
+        .contains("first stored memory"));
+}
+
+#[tokio::test]
+async fn agent_create_passes_a_refusal_through() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            403,
+            json!({"error": "Access denied", "code": "NAMESPACE_ACCESS_DENIED", "details": "namespace: _dakera_agent_x"}),
+        )
+    })
+    .await;
+    let result = execute_tool(
+        &server.client(),
+        "dakera_agent_create",
+        &json!({"agent_id": "x"}),
+    )
+    .await;
+    assert_eq!(result.is_error, Some(true));
+    let text = text_of(&result);
+    assert!(text.contains("403"), "{text}");
+    assert!(text.contains("dakera_whoami"), "{text}");
+}
+
+#[tokio::test]
+async fn whoami_shows_the_key() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            200,
+            json!({
+                "key_id": "dk_key_1a2b3c4d", "name": "dev", "scope": "write",
+                "namespaces": ["_dakera_agent_mlx-*"], "unrestricted": false, "expires_at": null,
+                "grants_version": 1, "inert_namespaces": [], "auth_enabled": true
+            }),
+        )
+    })
+    .await;
+    let doc = json_of(&execute_tool(&server.client(), "dakera_whoami", &json!({})).await);
+    assert_eq!(doc["scope"], "write");
+    assert_eq!(doc["namespaces"][0], "_dakera_agent_mlx-*");
+    assert_eq!(server.last("/v1/auth/whoami").method, "GET");
+}
+
+#[tokio::test]
+async fn whoami_on_an_older_server_says_what_it_needs() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            404,
+            json!({"error": "No route", "code": "ROUTE_NOT_FOUND", "status": 404}),
+        )
+    })
+    .await;
+    let result = execute_tool(&server.client(), "dakera_whoami", &json!({})).await;
+    assert_eq!(result.is_error, Some(true));
+    assert!(text_of(&result).contains("v0.12.2"), "{}", text_of(&result));
+}
+
+#[tokio::test]
+async fn listings_ask_for_a_content_preview_by_default() {
+    let server = MockServer::start(|_| Reply::json(200, json!([]))).await;
+    let client = server.client();
+    execute_tool(
+        &client,
+        "dakera_agent_memories",
+        &json!({"agent_id": "bot"}),
+    )
+    .await;
+    server.last("/v1/agents/bot/memories?limit=50&offset=0&content_preview_chars=500");
+    let args = json!({"agent_id": "bot", "content_preview_chars": 120, "include_derived": true});
+    execute_tool(&client, "dakera_agent_memories", &args).await;
+    server.last(
+        "/v1/agents/bot/memories?limit=50&offset=0&content_preview_chars=120&include_derived=true",
+    );
+    // 0 = the full content: the parameter is not sent.
+    let args = json!({"agent_id": "bot", "content_preview_chars": 0, "include_derived": false});
+    execute_tool(&client, "dakera_agent_memories", &args).await;
+    server.last("/v1/agents/bot/memories?limit=50&offset=0");
+
+    execute_tool(
+        &client,
+        "dakera_session_memories",
+        &json!({"session_id": "s1"}),
+    )
+    .await;
+    server.last("/v1/sessions/s1/memories?&content_preview_chars=500");
+    let args = json!({"session_id": "s1", "limit": 10, "content_preview_chars": 0});
+    execute_tool(&client, "dakera_session_memories", &args).await;
+    server.last("/v1/sessions/s1/memories?&limit=10");
+}
+
+#[tokio::test]
+async fn an_out_of_range_preview_is_refused_before_any_request() {
+    let server = MockServer::start(|_| Reply::json(200, json!([]))).await;
+    let client = server.client();
+    for args in [
+        json!({"agent_id": "bot", "content_preview_chars": 10001}),
+        json!({"agent_id": "bot", "content_preview_chars": -1}),
+        json!({"agent_id": "bot", "content_preview_chars": "big"}),
+    ] {
+        let result = execute_tool(&client, "dakera_agent_memories", &args).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(text_of(&result).contains("content_preview_chars"));
+    }
+    assert!(server.requests().is_empty(), "{:?}", server.paths());
+}
+
+#[tokio::test]
+async fn memory_get_and_recall_still_return_full_content() {
+    let server = MockServer::start(|_| Reply::json(200, json!({}))).await;
+    let client = server.client();
+    let args = json!({"agent_id": "bot", "memory_id": "m1"});
+    execute_tool(&client, "dakera_memory_get", &args).await;
+    server.last("/v1/memory/get/m1?agent_id=bot");
+    execute_tool(
+        &client,
+        "dakera_recall",
+        &json!({"agent_id": "bot", "query": "q"}),
+    )
+    .await;
+    let body = server.last("/v1/memory/recall").json();
+    assert!(body.get("content_preview_chars").is_none(), "{body}");
+}
+
+#[tokio::test]
+async fn wake_up_can_include_derived_memories() {
+    let server = MockServer::start(|_| Reply::json(200, json!({"memories": []}))).await;
+    let client = server.client();
+    let args = json!({"agent_id": "bot", "include_derived": true});
+    execute_tool(&client, "dakera_wake_up", &args).await;
+    server.last("/v1/agents/bot/wake-up?include_derived=true");
+    let args = json!({"agent_id": "bot", "top_n": 3, "include_derived": true});
+    execute_tool(&client, "dakera_wake_up", &args).await;
+    server.last("/v1/agents/bot/wake-up?top_n=3&include_derived=true");
+}
+
+#[tokio::test]
+async fn the_cross_agent_network_previews_node_content() {
+    let server = MockServer::start(|_| Reply::json(200, json!({"nodes": []}))).await;
+    let client = server.client();
+    execute_tool(&client, "dakera_knowledge_network_cross_agent", &json!({})).await;
+    let body = server.last("/v1/knowledge/network/cross-agent").json();
+    assert_eq!(body["content_preview_chars"], 500);
+    let args = json!({"content_preview_chars": 0});
+    execute_tool(&client, "dakera_knowledge_network_cross_agent", &args).await;
+    let body = server.last("/v1/knowledge/network/cross-agent").json();
+    assert!(body.get("content_preview_chars").is_none(), "{body}");
+}
+
+#[tokio::test]
+async fn a_field_named_validation_error_reaches_the_agent() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            400,
+            json!({
+                "error": "content: content exceeds maximum of 100000 bytes (100001 bytes)",
+                "code": "INVALID_REQUEST",
+                "status": 400
+            }),
+        )
+    })
+    .await;
+    let args = json!({"agent_id": "bot", "content": "x"});
+    let result = execute_tool(&server.client(), "dakera_store", &args).await;
+    assert_eq!(result.is_error, Some(true));
+    let text = text_of(&result);
+    assert!(
+        text.contains("content exceeds maximum of 100000 bytes"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Hint: The server refused `content`"),
+        "{text}"
+    );
+    // A 400 is not retried.
+    assert_eq!(server.requests().len(), 1);
+}
+
+// ---------------------------------------------------------------------------
 // Method-aware route audit: every tool, called with arguments made from its
-// own input schema, may only send requests the v0.12.0 router serves (method
+// own input schema, may only send requests the v0.12.2 router serves (method
 // AND path). `tests/route_audit.rs` checks the path literals; this checks
 // what is actually sent.
 // ---------------------------------------------------------------------------

@@ -791,11 +791,11 @@ fn test_profile_all_larger_than_admin() {
 #[test]
 fn test_total_tool_count_regression() {
     let all = filtered_definitions("all");
-    // 99 tools: 87 after PR#123 added dakera_tif_evaluate, +12 for Dakera v0.12 (incl. dakera_wake_up). Update this constant after intentional catalog changes.
+    // 102 tools: 87 after PR#123 added dakera_tif_evaluate, +12 for Dakera v0.12 (incl. dakera_wake_up), +3 for v0.12.2 (session touch, agent create, whoami). Update this constant after intentional catalog changes.
     assert_eq!(
         all.len(),
-        99,
-        "Total tool count must be exactly 99. Actual: {}. \
+        102,
+        "Total tool count must be exactly 102. Actual: {}. \
          If you intentionally added/removed tools, update this constant.",
         all.len()
     );
@@ -965,8 +965,8 @@ async fn test_protocol_tools_list_all_returns_87() {
         }
     }
     assert_eq!(
-        total, 99,
-        "tools/list profile=all must return exactly 99 tools across all pages"
+        total, 102,
+        "tools/list profile=all must return exactly 102 tools across all pages"
     );
 }
 
@@ -1409,7 +1409,7 @@ async fn test_meta_roundtrip_discover_load_invoke() {
 
 #[tokio::test]
 async fn test_pagination_core_profile_single_page() {
-    // Core profile has 14 tools which fit in one page (page_size=100).
+    // Core profile has 14 tools which fit in one page (page_size=128).
     // No nextCursor should be returned.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
@@ -1434,7 +1434,7 @@ async fn test_pagination_core_profile_single_page() {
 
 #[tokio::test]
 async fn test_pagination_all_profile_first_page() {
-    // all profile (99 tools) with page_size=100 fits in one page — no nextCursor.
+    // all profile (102 tools) with page_size=128 fits in one page — no nextCursor.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1447,12 +1447,12 @@ async fn test_pagination_all_profile_first_page() {
     let tools = result["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        99,
-        "all profile must return all 99 tools in one page"
+        102,
+        "all profile must return all 102 tools in one page"
     );
     assert!(
         result.get("nextCursor").is_none(),
-        "'all' profile (99 tools) fits in one page — no nextCursor expected"
+        "'all' profile (102 tools) fits in one page — no nextCursor expected"
     );
 }
 
@@ -1463,7 +1463,7 @@ async fn test_pagination_cursor_advances_page() {
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
     let req: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"99"}}"#).unwrap();
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"102"}}"#).unwrap();
     let resp = handle_request(&c, &req).await;
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
@@ -1476,7 +1476,7 @@ async fn test_pagination_cursor_advances_page() {
 
 #[tokio::test]
 async fn test_pagination_all_tools_across_pages() {
-    // Paginating through all pages of 'all' profile must cover all 99 tools exactly once.
+    // Paginating through all pages of 'all' profile must cover all 102 tools exactly once.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1516,8 +1516,8 @@ async fn test_pagination_all_tools_across_pages() {
 
     assert_eq!(
         all_names.len(),
-        99,
-        "Paginating through 'all' profile must yield all 99 tools, got: {}",
+        102,
+        "Paginating through 'all' profile must yield all 102 tools, got: {}",
         all_names.len()
     );
 }
@@ -1529,7 +1529,7 @@ fn test_token_count_before_after_measurement() {
     // Measure JSON byte size of each profile's tools/list response.
     // Token estimate: bytes / 3.5 (conservative avg chars/token for JSON).
     // Pre-optimization all-profile baseline: ~72000 bytes (~20571 tokens).
-    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 99, 0)];
+    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 102, 0)];
     for (profile, expected_count, _) in &profiles {
         let defs = dakera_mcp::tools::filtered_definitions(profile);
         if *expected_count > 0 {
@@ -1597,6 +1597,61 @@ async fn test_graph_traverse_agent_only_and_tif_with_agent() {
     let tif = json!({"agent_id": a, "memory_id": ids[0]});
     let v = ok(&execute_tool(&c, "dakera_tif_evaluate", &tif).await);
     assert_eq!(v["memory_id"], ids[0]);
+
+    cleanup(&c, &a).await;
+}
+
+/// Dakera v0.12.2 tools and arguments, written to pass against v0.12.0 / v0.12.1
+/// too (CI runs v0.12.0): agent creation, the session idle timeout, touch, the
+/// ended-session note on store, and the default content preview of listings.
+#[tokio::test]
+async fn test_v0122_session_agent_and_preview_tools_on_any_v012_server() {
+    let c = client();
+    let a = agent("v0122");
+    cleanup(&c, &a).await;
+
+    // Created now (v0.12.2), already there, or "created by its first memory" (older).
+    let v = ok(&execute_tool(&c, "dakera_agent_create", &json!({"agent_id": a})).await);
+    assert_eq!(v["agent_id"], a.as_str(), "{v}");
+
+    let start = json!({"agent_id": a, "idle_timeout_secs": 3600});
+    let v = ok(&execute_tool(&c, "dakera_session_start", &start).await);
+    let sid = v["session"]["id"].as_str().unwrap().to_string();
+
+    let v = ok(&execute_tool(&c, "dakera_session_touch", &json!({"session_id": sid})).await);
+    let supported = v.get("touch_supported") != Some(&json!(false));
+    if supported {
+        assert_eq!(v["session_state"], "active", "{v}");
+    }
+
+    let long = "Integration preview test sentence number one is long enough. ".repeat(20);
+    let store = json!({"agent_id": a, "content": long, "session_id": sid, "tags": [TEST_TAG]});
+    let r = execute_tool(&c, "dakera_store", &store).await;
+    let v = ok(&r);
+    if supported {
+        assert_eq!(v["session_state"], "active", "{v}");
+    }
+
+    let listed = ok(&execute_tool(&c, "dakera_agent_memories", &json!({"agent_id": a})).await);
+    let first = &listed.as_array().expect("an array")[0];
+    if first.get("content_truncated") == Some(&json!(true)) {
+        let chars = first["content"].as_str().unwrap().chars().count();
+        assert_eq!(
+            chars as u64,
+            dakera_mcp::tools::DEFAULT_CONTENT_PREVIEW_CHARS
+        );
+    }
+
+    ok(&execute_tool(&c, "dakera_session_end", &json!({"session_id": sid})).await);
+    let store =
+        json!({"agent_id": a, "content": "after the end", "session_id": sid, "tags": [TEST_TAG]});
+    let r = execute_tool(&c, "dakera_store", &store).await;
+    let v = ok(&r);
+    if supported {
+        assert_eq!(v["session_state"], "ended", "{v}");
+        let note = r.content.get(1).map(|n| n.text.clone()).unwrap_or_default();
+        assert!(note.contains("dakera_session_start"), "{note}");
+    }
 
     cleanup(&c, &a).await;
 }

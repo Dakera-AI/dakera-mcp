@@ -42,10 +42,10 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 
 | Profile | Tools | ~Tokens | How to enable |
 |---|---|---|---|
-| **core** | 14 | ~3,350 | Default — always loaded |
-| **admin** | 34 | ~6,700 | `DAKERA_MCP_PROFILE=admin` |
-| **power** | 79 | ~16,600 | `DAKERA_MCP_PROFILE=power` |
-| **all** | 99 | ~19,950 | `DAKERA_MCP_PROFILE=all` |
+| **core** | 14 | ~3,400 | Default — always loaded |
+| **admin** | 34 | ~6,750 | `DAKERA_MCP_PROFILE=admin` |
+| **power** | 82 | ~17,250 | `DAKERA_MCP_PROFILE=power` |
+| **all** | 102 | ~20,600 | `DAKERA_MCP_PROFILE=all` |
 
 Token figures are estimates (JSON bytes / 3). The attachment tools below count in `power` and `all`,
 but only appear while the connected server has the feature on (see [Dakera v0.12](#dakera-v012)).
@@ -76,21 +76,36 @@ The profile controls which tools appear in `tools/list`. Three ways to set it:
 DAKERA_MCP_PROFILE=power
 ```
 
-**3. Default**: `core` (14 tools, ~3,350 tokens)
+**3. Default**: `core` (14 tools, ~3,400 tokens)
 
 ---
 
 ## Dakera v0.12
 
-dakera-mcp 0.11 works against **Dakera v0.11.108 and v0.12.0** servers. Every v0.11 tool keeps
-its name and arguments; the v0.12 additions are optional arguments that are sent only when you
-supply them, and tools that call v0.12 routes.
+dakera-mcp 0.12.2 works against **Dakera v0.11.108 and v0.12.0 – v0.12.2** servers. Every tool keeps
+its name and arguments; the additions are optional arguments that are sent only when you supply them
+(or that an older server ignores), and tools that call new routes and say so on a server without them.
 
-| Dakera server | dakera-mcp 0.11 |
+| Dakera server | dakera-mcp 0.12.2 |
 |---|---|
-| v0.12.0 | every tool; the attachment tools while `DAKERA_ATTACHMENTS` (and `DAKERA_VISION` for images) is on |
-| v0.11.108 | every v0.11 tool unchanged; the attachment tools, `dakera_encryption_status` and `dakera_embed_migration_status` are not listed (a direct call says they need v0.12); `dakera_encryption_rotate_key` needs `new_key` |
+| v0.12.2 | every tool; the attachment tools while `DAKERA_ATTACHMENTS` (and `DAKERA_VISION` for images) is on |
+| v0.12.0, v0.12.1 | every tool; `dakera_session_touch` and `dakera_agent_create` answer that nothing is needed (sessions are not ended for inactivity there, and an agent is created by its first memory); `dakera_whoami` says it needs v0.12.2; listings return full content (no preview) and include derived sentence sub-memories |
+| v0.11.108 | as v0.12.0, and the attachment tools, `dakera_encryption_status` and `dakera_embed_migration_status` are not listed (a direct call says they need v0.12); `dakera_encryption_rotate_key` needs `new_key` |
 | older | not tested |
+
+### New with Dakera v0.12.2
+
+| Tool / argument | Tier | What it does |
+|---|---|---|
+| `dakera_session_start` `idle_timeout_secs` | core | the server ends a session idle for 4 h by default; this sets the session's own timeout (`0` = never, at most 30 days) |
+| `dakera_session_touch` | power | `POST /v1/sessions/{id}/touch`: keeps a session open while the agent works without storing or recalling; answers `session_state` (`active` with `idle_deadline_at`, or `ended`) |
+| `dakera_store` | core | storing into an ended session still succeeds; the answer's `session_state: "ended"` is followed by a note telling the agent to start a new session |
+| `dakera_session_end` | core | a note when the server had already ended the session for inactivity (the summary passed is then not saved) or when no such session is reachable |
+| `dakera_session_list` / `_get` / `dakera_agent_sessions` | power | sessions carry `last_activity_at`, `ended_reason` (`client` or `idle`) and `idle_since` |
+| `dakera_agent_create` | power | `POST /v1/agents`: creates an agent (its memory namespace) before its first memory; `created: false` for an existing one |
+| `dakera_whoami` | power | `GET /v1/auth/whoami`: the key's scope, namespaces (prefix patterns such as `_dakera_agent_mlx-*`), expiry and inert entries; the first thing to call on a `403` |
+| `dakera_agent_memories` / `dakera_session_memories` / `dakera_knowledge_network_cross_agent` `content_preview_chars` | power | content cut to 500 characters by default (`content_len` / `content_truncated` mark it; `0` = full content); `dakera_memory_get` and recall return memories in full |
+| `dakera_agent_memories` / `dakera_wake_up` `include_derived` | power | derived sentence sub-memories are left out of listings by default since v0.12.2; `true` lists them too |
 
 ### What is new
 
@@ -116,7 +131,8 @@ Per-request **`lang`** (`en`, `de`, `fr`, `es`, `it`, `pt`, `nl`; v0.12) is acce
 Other optional arguments (all servers): `ttl_seconds` and `metadata` on `dakera_store`; `tags`,
 `memory_type` and `session_id` filters on `dakera_recall`; `limit` on `dakera_batch_recall`;
 `limit` / `offset` on `dakera_session_list`, `dakera_session_memories` and `dakera_agent_sessions`
-(the server pages at 50); `memory_type` on `dakera_knowledge_deduplicate`; `dedup_on_store` /
+(the server pages at 50); `content_preview_chars` on the memory listings and `include_derived` on
+`dakera_agent_memories` / `dakera_wake_up` (v0.12.2, ignored by older servers); `memory_type` on `dakera_knowledge_deduplicate`; `dedup_on_store` /
 `dedup_threshold` on `dakera_memory_policy_set`.
 
 ### Features the server has off are left out
@@ -141,7 +157,10 @@ namespaces** gets `403` on node-wide `/admin` routes (backups, encryption, quota
 download, upload and restore need `super_admin`; `413` (body over a limit, or a hard quota), `501`
 (feature off), `503` (`Retry-After`, which the retry logic now honours, up to 8 s) and `429` (rate
 limit). A route the server lacks (an older server) and a v0.11 rotation without `new_key` get a hint
-too. A request that timed out is retried only when it is safe to repeat (GET, PUT, DELETE): a store,
+too. Since Dakera v0.12.2 a refused argument gets `400` with a message naming the field
+(`content: content exceeds maximum of 100000 bytes …`, `tags[1]: … reserved …`); the message is
+passed on and the hint names the field to correct (the content limit counts UTF-8 bytes). The `403`
+hints point at `dakera_whoami`. A request that timed out is retried only when it is safe to repeat (GET, PUT, DELETE): a store,
 an import or a key rotation is never sent twice.
 
 ---
@@ -234,7 +253,7 @@ Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop
 }
 ```
 
-To start with the power profile (exposes up to 79 tools):
+To start with the power profile (exposes up to 82 tools):
 
 ```json
 {

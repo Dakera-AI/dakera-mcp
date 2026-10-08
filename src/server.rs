@@ -121,7 +121,9 @@ pub async fn handle_request(client: &DakeraApiClient, request: &JsonRpcRequest) 
             // image indexing) are left out; see tools::capabilities.
             let all_tools = tools::listed_definitions(client, &profile).await;
             // MCP cursor-based pagination — cursor is a decimal string offset.
-            const PAGE_SIZE: usize = 100;
+            // 128 keeps the whole `all` catalog (102 tools) on one page, for
+            // clients that do not follow nextCursor.
+            const PAGE_SIZE: usize = 128;
             let offset = request
                 .params
                 .get("cursor")

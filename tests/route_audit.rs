@@ -1,4 +1,4 @@
-//! Every server path a tool calls must be a route of the Dakera v0.12.0 server.
+//! Every server path a tool calls must be a route of the Dakera v0.12.2 server.
 //!
 //! The route list (`tests/server_routes_v0.12.txt`) comes from the server's
 //! router (`crates/api/src/lib.rs`); the paths the tools call are the string
