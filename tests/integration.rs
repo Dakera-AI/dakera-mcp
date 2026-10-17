@@ -791,11 +791,11 @@ fn test_profile_all_larger_than_admin() {
 #[test]
 fn test_total_tool_count_regression() {
     let all = filtered_definitions("all");
-    // 102 tools: 87 after PR#123 added dakera_tif_evaluate, +12 for Dakera v0.12 (incl. dakera_wake_up), +3 for v0.12.2 (session touch, agent create, whoami). Update this constant after intentional catalog changes.
+    // 106 tools in the static catalog: 87 after PR#123 added dakera_tif_evaluate, +12 for Dakera v0.12 (incl. dakera_wake_up), +3 for v0.12.2 (session touch, agent create, whoami), +4 for v0.12.3 (document import). Update this constant after intentional catalog changes.
     assert_eq!(
         all.len(),
-        102,
-        "Total tool count must be exactly 102. Actual: {}. \
+        106,
+        "Total tool count must be exactly 106. Actual: {}. \
          If you intentionally added/removed tools, update this constant.",
         all.len()
     );
@@ -965,8 +965,9 @@ async fn test_protocol_tools_list_all_returns_87() {
         }
     }
     assert_eq!(
-        total, 102,
-        "tools/list profile=all must return exactly 102 tools across all pages"
+        total, 106,
+        "tools/list profile=all must return exactly 106 tools across all pages \
+         (no server to ask: nothing is hidden)"
     );
 }
 
@@ -1434,7 +1435,8 @@ async fn test_pagination_core_profile_single_page() {
 
 #[tokio::test]
 async fn test_pagination_all_profile_first_page() {
-    // all profile (102 tools) with page_size=128 fits in one page — no nextCursor.
+    // all profile (106 tools; the server cannot be asked, so nothing is hidden) with
+    // page_size=128 fits in one page — no nextCursor.
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1447,12 +1449,12 @@ async fn test_pagination_all_profile_first_page() {
     let tools = result["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        102,
-        "all profile must return all 102 tools in one page"
+        106,
+        "all profile must return all 106 tools in one page"
     );
     assert!(
         result.get("nextCursor").is_none(),
-        "'all' profile (102 tools) fits in one page — no nextCursor expected"
+        "'all' profile (106 tools) fits in one page — no nextCursor expected"
     );
 }
 
@@ -1463,7 +1465,7 @@ async fn test_pagination_cursor_advances_page() {
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
     let req: dakera_mcp::protocol::JsonRpcRequest =
-        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"102"}}"#).unwrap();
+        serde_json::from_str(r#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"profile":"all","cursor":"106"}}"#).unwrap();
     let resp = handle_request(&c, &req).await;
     let result = resp.result.unwrap();
     let tools = result["tools"].as_array().unwrap();
@@ -1476,7 +1478,8 @@ async fn test_pagination_cursor_advances_page() {
 
 #[tokio::test]
 async fn test_pagination_all_tools_across_pages() {
-    // Paginating through all pages of 'all' profile must cover all 102 tools exactly once.
+    // Paginating through all pages of 'all' profile must cover all 106 tools exactly once
+    // (the server cannot be asked, so nothing is hidden).
     use dakera_mcp::server::handle_request;
     use dakera_mcp::tools::DakeraApiClient;
     let c = DakeraApiClient::new("http://127.0.0.1:9".to_string(), None);
@@ -1516,8 +1519,8 @@ async fn test_pagination_all_tools_across_pages() {
 
     assert_eq!(
         all_names.len(),
-        102,
-        "Paginating through 'all' profile must yield all 102 tools, got: {}",
+        106,
+        "Paginating through 'all' profile must yield all 106 tools, got: {}",
         all_names.len()
     );
 }
@@ -1529,7 +1532,7 @@ fn test_token_count_before_after_measurement() {
     // Measure JSON byte size of each profile's tools/list response.
     // Token estimate: bytes / 3.5 (conservative avg chars/token for JSON).
     // Pre-optimization all-profile baseline: ~72000 bytes (~20571 tokens).
-    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 102, 0)];
+    let profiles = [("core", 14usize, 0usize), ("power", 0, 0), ("all", 106, 0)];
     for (profile, expected_count, _) in &profiles {
         let defs = dakera_mcp::tools::filtered_definitions(profile);
         if *expected_count > 0 {
@@ -1654,4 +1657,76 @@ async fn test_v0122_session_agent_and_preview_tools_on_any_v012_server() {
     }
 
     cleanup(&c, &a).await;
+}
+
+// ── Capability gating against the live server (Dakera v0.12.3 document tools) ──
+
+#[tokio::test]
+async fn test_tools_list_follows_the_live_servers_capabilities() {
+    // The static catalog has 106 tools; tools/list leaves out the ones the
+    // server cannot serve. Against a server whose /v1/capabilities has no
+    // enabled `documents` section (v0.12.2 and older) the 4 document tools are
+    // hidden, and the attachment tools while DAKERA_ATTACHMENTS is off.
+    let c = client();
+    let caps = c
+        .probe_capabilities()
+        .await
+        .expect("the live server must answer /v1/capabilities");
+    let doc = match caps {
+        dakera_mcp::tools::capabilities::CapabilityState::Known(doc) => doc,
+        other => panic!("expected a capabilities document, got {other:?}"),
+    };
+    let enabled = |feature: &str| doc[feature]["enabled"].as_bool() == Some(true);
+    let req = rpc_request("tools/list", serde_json::json!({"profile": "all"}));
+    let resp = handle_request(&c, &req).await;
+    let names: Vec<String> = resp.result.unwrap()["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap().to_string())
+        .collect();
+    let documents = [
+        "dakera_import_document",
+        "dakera_document_status",
+        "dakera_list_documents",
+        "dakera_delete_document",
+    ];
+    for tool in documents {
+        assert_eq!(
+            names.contains(&tool.to_string()),
+            enabled("documents"),
+            "{tool} listed must follow documents.enabled"
+        );
+    }
+    assert_eq!(
+        names.contains(&"dakera_attachment_upload".to_string()),
+        enabled("attachments"),
+        "attachment tools listed must follow attachments.enabled"
+    );
+    let mut hidden = 0;
+    if !enabled("documents") {
+        hidden += 4;
+    }
+    if !enabled("attachments") {
+        hidden += 7;
+    } else if !enabled("vision") {
+        hidden += 1;
+    }
+    assert_eq!(names.len(), 106 - hidden, "listed: {names:?}");
+
+    // A direct call of a hidden document tool explains itself and sends nothing.
+    if !enabled("documents") {
+        let r = execute_tool(
+            &c,
+            "dakera_list_documents",
+            &serde_json::json!({"agent_id": agent("documents")}),
+        )
+        .await;
+        assert_eq!(r.is_error, Some(true));
+        assert!(
+            r.content[0].text.contains("v0.12.3") || r.content[0].text.contains("DAKERA_DOCUMENTS"),
+            "{}",
+            r.content[0].text
+        );
+    }
 }
