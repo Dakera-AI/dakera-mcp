@@ -355,7 +355,7 @@ pub fn apply_neighborhood_mode(body: &mut serde_json::Value, mode: NeighborhoodM
 }
 
 /// Whether a recall result is neighbourhood context the server returned
-/// inline (`retrieval: "neighborhood"`, Dakera v0.12.3+).
+/// inline (`retrieval: "neighborhood"`, Dakera v0.13.0+).
 fn is_inline_context(item: &serde_json::Value) -> bool {
     item.get("retrieval").and_then(|v| v.as_str()) == Some("neighborhood")
 }
