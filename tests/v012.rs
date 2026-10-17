@@ -1692,7 +1692,9 @@ fn sample(schema: &Value) -> Value {
 async fn every_tool_sends_only_methods_and_paths_the_v012_router_serves() {
     let server = MockServer::start(|req| {
         if req.path == "/v1/capabilities" {
-            return Reply::json(200, caps(true, true));
+            let mut doc = caps(true, true);
+            doc["documents"] = json!({"enabled": true});
+            return Reply::json(200, doc);
         }
         if req.path.starts_with("/v1/export") || req.path.ends_with("/ops/metrics") {
             return Reply::bytes(200, "text/plain", b"x");
@@ -1721,6 +1723,10 @@ async fn every_tool_sends_only_methods_and_paths_the_v012_router_serves() {
             json!({"memory_ids": ["a", "b"]}),
         ),
         ("dakera_graph_traverse", json!({"agent_id": "x"})),
+        (
+            "dakera_import_document",
+            json!({"agent_id": "x", "content": "t"}),
+        ),
     ]
     .into_iter()
     .collect();
@@ -2095,4 +2101,151 @@ fn the_api_key_never_reaches_stdout_or_stderr() {
         !stderr.contains("never_print_me"),
         "key on stderr: {stderr}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Document import (Dakera v0.12.3, Dakera-AI/dakera#923)
+// ---------------------------------------------------------------------------
+
+fn documents_on() -> Value {
+    json!({"documents": {"enabled": true, "text_media_types": ["text/plain", "text/markdown", "text/html"]}})
+}
+
+#[tokio::test]
+async fn import_document_sends_the_text_route_body_and_waits_for_the_job() {
+    let server = MockServer::start(|req| {
+        if req.path == "/v1/capabilities" {
+            return Reply::json(200, documents_on());
+        }
+        if req.method == "POST" {
+            return Reply::json(
+                202,
+                json!({"job_id": "job_1_2", "document_id": "guide", "agent_id": "a",
+                       "status_url": "/v1/memory/documents/jobs/job_1_2?agent_id=a"}),
+            );
+        }
+        Reply::json(
+            200,
+            json!({"id": "job_1_2", "job_type": "document_import", "status": "Completed",
+                   "progress": 100, "message": "document imported: 3 chunks", "metadata": {}}),
+        )
+    })
+    .await;
+    let args = json!({
+        "agent_id": "a", "content": "# Guide\n\nhello", "media_type": "text/markdown",
+        "document_id": "guide", "max_tokens": 300, "overlap_tokens": 20, "wait_seconds": 5
+    });
+    let result = execute_tool(&server.client(), "dakera_import_document", &args).await;
+    let shown = json_of(&result);
+    assert_eq!(shown["job"]["status"], "Completed");
+    assert_eq!(shown["document_id"], "guide");
+    let sent = server.last("/v1/memory/documents").json();
+    assert_eq!(
+        sent,
+        json!({"agent_id": "a", "content": "# Guide\n\nhello", "media_type": "text/markdown",
+               "document_id": "guide", "chunking": {"max_tokens": 300, "overlap_tokens": 20}})
+    );
+    server.last("/v1/memory/documents/jobs/job_1_2?agent_id=a");
+}
+
+#[tokio::test]
+async fn import_document_from_an_attachment_uses_the_attachment_route() {
+    let server = MockServer::start(|req| {
+        if req.path == "/v1/capabilities" {
+            return Reply::json(200, documents_on());
+        }
+        Reply::json(
+            202,
+            json!({"job_id": "j", "document_id": "d", "agent_id": "bot", "status_url": "/x"}),
+        )
+    })
+    .await;
+    let args = json!({"agent_id": "bot", "attachment_ref": "sha256:ab", "title": "Manual"});
+    let result = execute_tool(&server.client(), "dakera_import_document", &args).await;
+    assert_eq!(json_of(&result)["job_id"], "j");
+    let sent = server
+        .last("/v1/namespaces/_dakera_agent_bot/attachments/sha256%3Aab/document")
+        .json();
+    assert_eq!(sent, json!({"agent_id": "bot", "title": "Manual"}));
+}
+
+#[tokio::test]
+async fn import_document_needs_exactly_one_source() {
+    let server = MockServer::start(|_| Reply::json(200, documents_on())).await;
+    for args in [
+        json!({"agent_id": "a"}),
+        json!({"agent_id": "a", "content": "x", "attachment_ref": "sha256:ab"}),
+    ] {
+        let result = execute_tool(&server.client(), "dakera_import_document", &args).await;
+        assert_eq!(result.is_error, Some(true), "{args}");
+    }
+    assert!(server
+        .paths()
+        .iter()
+        .all(|p| p.ends_with("/v1/capabilities")));
+}
+
+#[tokio::test]
+async fn document_tools_say_an_older_server_lacks_them() {
+    // A v0.12.2 server: /v1/capabilities without a documents section.
+    let server = v012_server(true, false).await;
+    let args = json!({"agent_id": "a"});
+    let result = execute_tool(&server.client(), "dakera_list_documents", &args).await;
+    assert_eq!(result.is_error, Some(true));
+    assert!(text_of(&result).contains("v0.12.3"), "{}", text_of(&result));
+    assert!(server
+        .paths()
+        .iter()
+        .all(|p| !p.contains("/v1/memory/documents")));
+    let listed = listed_definitions(&server.client(), "all").await;
+    assert!(!names(&listed).contains(&"dakera_import_document".to_string()));
+}
+
+#[tokio::test]
+async fn document_status_list_and_delete_hit_their_routes() {
+    let server = MockServer::start(|req| {
+        if req.path == "/v1/capabilities" {
+            return Reply::json(200, documents_on());
+        }
+        if req.method == "DELETE" {
+            return Reply::json(200, json!({"document_id": "d 1", "deleted_chunks": 4}));
+        }
+        Reply::json(200, json!({"documents": [], "status": "Running"}))
+    })
+    .await;
+    let client = server.client();
+    let status = json!({"agent_id": "a", "job_id": "job_9"});
+    execute_tool(&client, "dakera_document_status", &status).await;
+    server.last("/v1/memory/documents/jobs/job_9?agent_id=a");
+    let list = json!({"agent_id": "a", "limit": 2, "cursor": "c"});
+    execute_tool(&client, "dakera_list_documents", &list).await;
+    server.last("/v1/memory/documents?agent_id=a&limit=2&cursor=c");
+    let del = json!({"agent_id": "a", "document_id": "d 1"});
+    let result = execute_tool(&client, "dakera_delete_document", &del).await;
+    assert_eq!(json_of(&result)["deleted_chunks"], 4);
+    let seen = server.last("/v1/memory/documents/d%201?agent_id=a");
+    assert_eq!(seen.method, "DELETE");
+}
+
+#[tokio::test]
+async fn recall_cites_document_chunks() {
+    let server = MockServer::start(|_| {
+        let mut chunk = ranked("doc_1", 0.9);
+        chunk["memory"]["metadata"] = json!({"_dakera_document": {
+            "id": "manual", "title": "Field Manual", "media_type": "application/pdf",
+            "chunk_index": 4, "chunk_count": 9, "page_start": 3, "page_end": 4,
+            "heading_path": ["Field Manual", "Install"], "char_start": 0, "char_end": 9,
+            "sha256": "ab"
+        }});
+        Reply::json(200, json!({"memories": [chunk, ranked("m2", 0.5)]}))
+    })
+    .await;
+    let args = json!({"agent_id": "a", "query": "install"});
+    let shown = json_of(&execute_tool(&server.client(), "dakera_recall", &args).await);
+    let cite = &shown["memories"][0]["citation"];
+    assert_eq!(cite["document_id"], "manual");
+    assert_eq!(cite["title"], "Field Manual");
+    assert_eq!(cite["page_start"], 3);
+    assert_eq!(cite["heading_path"], json!(["Field Manual", "Install"]));
+    assert!(shown["memories"][1].get("citation").is_none());
 }

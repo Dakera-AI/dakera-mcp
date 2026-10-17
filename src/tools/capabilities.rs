@@ -35,6 +35,11 @@ pub fn feature_enabled(state: &CapabilityState, feature: &str) -> Option<bool> {
     match state {
         // Any server that serves /v1/capabilities is v0.12 or later.
         CapabilityState::Known(_) if feature == SERVER_V012 => Some(true),
+        // `documents` is new in v0.12.3: a v0.12 document without the
+        // section is a server that has no document routes.
+        CapabilityState::Known(doc) if feature == DOCUMENTS && doc.get(feature).is_none() => {
+            Some(false)
+        }
         CapabilityState::Known(doc) => {
             let section = doc.get(feature)?;
             section.get("enabled")?.as_bool()
@@ -48,6 +53,17 @@ pub fn feature_enabled(state: &CapabilityState, feature: &str) -> Option<bool> {
 /// v0.12 server has needs (no opt-in variable).
 pub const SERVER_V012: &str = "server_v012";
 
+/// The capability section of document import (Dakera v0.12.3, on by default).
+pub const DOCUMENTS: &str = "documents";
+
+/// The document tools.
+const DOCUMENT_TOOLS: &[&str] = &[
+    "dakera_import_document",
+    "dakera_document_status",
+    "dakera_list_documents",
+    "dakera_delete_document",
+];
+
 /// Tools whose routes are new in Dakera v0.12 but need no opt-in feature.
 const V012_ONLY_TOOLS: &[&str] = &["dakera_embed_migration_status", "dakera_encryption_status"];
 
@@ -55,6 +71,9 @@ const V012_ONLY_TOOLS: &[&str] = &["dakera_embed_migration_status", "dakera_encr
 pub fn required_features(tool: &str) -> &'static [&'static str] {
     if V012_ONLY_TOOLS.contains(&tool) {
         return &[SERVER_V012];
+    }
+    if DOCUMENT_TOOLS.contains(&tool) {
+        return &[DOCUMENTS];
     }
     if tool == "dakera_attachment_index_image" {
         return &["attachments", "vision"];
@@ -71,6 +90,7 @@ pub fn feature_variable(feature: &str) -> &'static str {
         "attachments" => "DAKERA_ATTACHMENTS",
         "vision" => "DAKERA_VISION",
         "records" => "DAKERA_RECORDS",
+        "documents" => "DAKERA_DOCUMENTS",
         _ => "the feature's DAKERA_* variable",
     }
 }
@@ -91,6 +111,16 @@ fn reason_for(tool: &str, feature: &str, state: &CapabilityState) -> String {
             "{tool} needs Dakera server v0.12 or later: this server has no /v1/capabilities, \
              so it predates v0.12."
         );
+    }
+    if feature == DOCUMENTS {
+        if let CapabilityState::Known(doc) = state {
+            if doc.get(DOCUMENTS).is_none() {
+                return format!(
+                    "{tool} needs Dakera server v0.12.3 or later: this server's /v1/capabilities \
+                     has no documents section, so it has no document import routes."
+                );
+            }
+        }
     }
     let variable = feature_variable(feature);
     format!(
@@ -205,6 +235,26 @@ mod tests {
         // Rotation works on v0.11 too (with new_key).
         assert!(is_available(
             "dakera_encryption_rotate_key",
+            &CapabilityState::NotSupported
+        ));
+    }
+
+    #[test]
+    fn document_tools_need_the_documents_section() {
+        let on = CapabilityState::Known(json!({"documents": {"enabled": true}}));
+        let off = CapabilityState::Known(json!({"documents": {"enabled": false}}));
+        let v0122 = CapabilityState::Known(json!({"attachments": {"enabled": true}}));
+        assert!(is_available("dakera_import_document", &on));
+        let reason = unavailable_reason("dakera_list_documents", &off).unwrap();
+        assert!(reason.contains("DAKERA_DOCUMENTS"), "{reason}");
+        let reason = unavailable_reason("dakera_delete_document", &v0122).unwrap();
+        assert!(reason.contains("v0.12.3"), "{reason}");
+        assert!(is_available(
+            "dakera_document_status",
+            &CapabilityState::Unknown
+        ));
+        assert!(!is_available(
+            "dakera_document_status",
             &CapabilityState::NotSupported
         ));
     }

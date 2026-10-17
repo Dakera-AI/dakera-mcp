@@ -78,7 +78,7 @@ pub fn error_hint(status: u16, body: &str, retry_after_secs: Option<u64>) -> Opt
     if status == 422 && body.contains("missing field `new_key`") {
         return Some(HINT_NEW_KEY.to_string());
     }
-    // Since Dakera v0.13.0 the admin key, backup and rotate-key requests refuse
+    // Since Dakera v0.12.3 the admin key, backup and rotate-key requests refuse
     // a field they do not know (422 from the JSON extractor, 400 on the key
     // routes that parse the body themselves) instead of ignoring it.
     if status == 422 || status == 400 {

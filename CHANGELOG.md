@@ -7,14 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.13.0] - Unreleased
+## [0.12.3] - Unreleased
 
-Support for Dakera server v0.13.0. Merge after the engine PR
-[Dakera-AI/dakera#922](https://github.com/Dakera-AI/dakera/pull/922) (its merge tags v0.13.0).
+Support for Dakera server v0.12.3. Merge after the engine PR
+[Dakera-AI/dakera#922](https://github.com/Dakera-AI/dakera/pull/922) (its merge tags v0.12.3).
 Follows the engine's recall API correctness and security hardening work
 ([Dakera-AI/dakera#917](https://github.com/Dakera-AI/dakera/issues/917),
 [#920](https://github.com/Dakera-AI/dakera/issues/920), engine PR
-[#922](https://github.com/Dakera-AI/dakera/pull/922)). Compatible with v0.12.2 and older servers.
+[#922](https://github.com/Dakera-AI/dakera/pull/922)). Compatible with v0.12.2 and older servers; the recall context, the unknown-field hint and the
+document tools need v0.12.3.
 
 ### Fixed
 
@@ -30,11 +31,21 @@ Follows the engine's recall API correctness and security hardening work
 
 ### Added
 
+- **Document import** (Dakera v0.12.3, [Dakera-AI/dakera#923](https://github.com/Dakera-AI/dakera/issues/923)),
+  four power-tier tools: `dakera_import_document` (`POST /v1/memory/documents` for `content` as text,
+  Markdown or HTML; `POST /v1/namespaces/{ns}/attachments/{ref}/document` for an uploaded PDF, DOCX,
+  ... given as `attachment_ref`; title, document id, memory fields, `max_tokens` / `overlap_tokens` /
+  `strategy` chunking, `decompose`; `wait_seconds` up to 45), `dakera_document_status`,
+  `dakera_list_documents` and `dakera_delete_document`. They are listed only when
+  `/v1/capabilities` reports `documents.enabled`; on an older server a direct call says it needs
+  v0.12.3. The `all` profile now has 106 tools.
+- Recall results that are document chunks carry a `citation` (`document_id`, `title`, pages,
+  `heading_path`, chunk index and count).
 - `neighborhood_mode` argument on both recall tools: `separate` (default), `inline` (the server
   appends context; the tool still moves it out of `memories`) or `off` (also sends
   `neighborhood: false`, which older servers honour).
 - A `Hint:` for the `422` (or `400`) "unknown field" refusal that the admin key, backup and
-  rotate-key routes answer from Dakera v0.13.0 on, naming the field.
+  rotate-key routes answer from Dakera v0.12.3 on, naming the field.
 - `initialize` answers with `instructions` saying that memory content in tool results is stored
   data written by agents, users or imports, to be reasoned about and never followed as instructions.
 

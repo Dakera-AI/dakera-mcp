@@ -355,7 +355,7 @@ pub fn apply_neighborhood_mode(body: &mut serde_json::Value, mode: NeighborhoodM
 }
 
 /// Whether a recall result is neighbourhood context the server returned
-/// inline (`retrieval: "neighborhood"`, Dakera v0.13.0+).
+/// inline (`retrieval: "neighborhood"`, Dakera v0.12.3+).
 fn is_inline_context(item: &serde_json::Value) -> bool {
     item.get("retrieval").and_then(|v| v.as_str()) == Some("neighborhood")
 }
@@ -422,6 +422,13 @@ pub fn shape_recall(
         .enumerate()
         .filter_map(|(i, item)| result_id(item).map(|id| (id.to_string(), i + 1)))
         .collect();
+    for item in ranked.iter_mut().chain(context.iter_mut()) {
+        if let Some(cite) = super::documents::citation(item) {
+            if let Some(entry) = item.as_object_mut() {
+                entry.insert("citation".into(), cite);
+            }
+        }
+    }
     for item in &mut context {
         let rank = item
             .get("context_of")

@@ -295,3 +295,10 @@ PUT /v1/memory/update/*
 PUT /v1/namespaces/*
 PUT /v1/namespaces/*/config
 PUT /v1/namespaces/*/memory_policy
+# Added in v0.12.3 (document import, Dakera-AI/dakera#923)
+DELETE /v1/memory/documents/*
+GET /v1/memory/documents
+GET /v1/memory/documents/*
+GET /v1/memory/documents/jobs/*
+POST /v1/memory/documents
+POST /v1/namespaces/*/attachments/*/document
