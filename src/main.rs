@@ -19,7 +19,16 @@ async fn main() {
 
     let api_key = std::env::var("DAKERA_API_KEY").ok();
 
+    // Never the key itself: stdout is the MCP channel and stderr is often
+    // kept in the client's log files.
     tracing::info!(api_url = %api_url, has_key = api_key.is_some(), "Connecting to Dakera API");
+    if api_key.is_some() && dakera_mcp::tools::is_cleartext_remote(&api_url) {
+        tracing::warn!(
+            api_url = %api_url,
+            "DAKERA_API_URL is plain http:// to a remote host: the API key is sent unencrypted; \
+             use https://"
+        );
+    }
 
     let server = dakera_mcp::server::McpServer::new(api_url, api_key);
     if let Err(e) = server.run().await {

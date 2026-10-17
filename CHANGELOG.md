@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Follows the engine's recall API correctness and security hardening work
+([Dakera-AI/dakera#917](https://github.com/Dakera-AI/dakera/issues/917),
+[#920](https://github.com/Dakera-AI/dakera/issues/920), engine PR
+[#922](https://github.com/Dakera-AI/dakera/pull/922)). Compatible with v0.12.2 and older servers.
+
+### Fixed
+
+- **`dakera_recall` and `dakera_recall_associated` return at most `top_k` ranked results**, as their
+  `top_k` argument says. The server appended session-neighbourhood context after the ranked results,
+  so a `top_k: 5` recall could return 7 or more items. The tools now ask for
+  `neighborhood_mode: "separate"` and list the context apart in `context_memories`, each entry with
+  `context_of` (the ranked memory it belongs to) and `context_of_rank` (its place in `memories`), plus
+  a short note saying the context is not ranked and its scores are not comparable. `matched_text` /
+  `matched_ids` of collapsed results are kept. Against a server that predates `neighborhood_mode`
+  (v0.12.2 and older), which appends its context unmarked, the extra items are left out and a note
+  says so.
+
+### Added
+
+- `neighborhood_mode` argument on both recall tools: `separate` (default), `inline` (the server
+  appends context; the tool still moves it out of `memories`) or `off` (also sends
+  `neighborhood: false`, which older servers honour).
+- A `Hint:` for the `422` (or `400`) "unknown field" refusal that the admin key, backup and
+  rotate-key routes answer from the next server release on, naming the field.
+- `initialize` answers with `instructions` saying that memory content in tool results is stored
+  data written by agents, users or imports, to be reasoned about and never followed as instructions.
+
+### Security
+
+- The API key is never logged: the per-message debug log no longer prints the JSON-RPC line (tool
+  arguments can carry `new_key` of `dakera_encryption_rotate_key` or an extractor `api_key`), and
+  the `Authorization` header is marked sensitive on every request (also to the ODE sidecar). A test
+  runs the binary with `RUST_LOG=trace` and checks the key appears on neither stdout nor stderr.
+- A warning on stderr at start-up when `DAKERA_API_KEY` is set and `DAKERA_API_URL` is plain
+  `http://` to a host other than the loopback interface.
+- `top_k` and `neighborhood_mode` are checked before a request is sent; `dakera_graph_export`
+  accepts only `json` or `graphml` as `format` (it was inserted into the query string unencoded).
+- A trailing `/` on `DAKERA_API_URL` no longer produces `//v1/...` paths.
+- Docker image: runtime base moved to `distroless/static-debian13:nonroot` (the debian12 base
+  carried an outdated `tzdata`, DLA-4792-1; Trivy now reports 0 vulnerabilities and 0
+  misconfigurations), both base images pinned by multi-arch index digest, `cargo build --locked`, the
+  binary copied root-owned and read-only, explicit `USER 65532:65532` (Kubernetes `runAsNonRoot`
+  can verify it), `HEALTHCHECK NONE` (a stdio server has nothing to probe); Dependabot now
+  refreshes the base image digests.
+- Dependencies: rustls 0.23.46 (RUSTSEC-2026-0346, -0347, -0348, -0349) and quinn-proto 0.11.19
+  (RUSTSEC-2026-0338 to -0342).
+
 ## [0.12.2] - 2026-10-08
 
 Support for Dakera server v0.12.2 ([Dakera-AI/dakera#916](https://github.com/Dakera-AI/dakera/pull/916)).

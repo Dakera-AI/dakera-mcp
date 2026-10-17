@@ -113,6 +113,45 @@ pub struct DakeraApiClient {
     capabilities: CapabilityCache,
 }
 
+/// Add `Authorization: Bearer <key>` to a request, marked sensitive so that
+/// no `Debug` output or HTTP-level trace log of the request prints the key.
+pub fn with_bearer(req: reqwest::RequestBuilder, key: Option<&str>) -> reqwest::RequestBuilder {
+    let Some(key) = key else {
+        return req;
+    };
+    match reqwest::header::HeaderValue::from_str(&format!("Bearer {key}")) {
+        Ok(mut value) => {
+            value.set_sensitive(true);
+            req.header(reqwest::header::AUTHORIZATION, value)
+        }
+        // A key with a control character cannot be a header; sending none
+        // gets the server's 401 (and its hint) instead of a panic.
+        Err(_) => req,
+    }
+}
+
+/// Whether `url` sends requests in clear text to another machine: `http://`
+/// to a host that is not the loopback interface. An API key sent there can
+/// be read on the network.
+pub fn is_cleartext_remote(url: &str) -> bool {
+    let Some(rest) = url.trim().strip_prefix("http://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host_port = authority.rsplit('@').next().unwrap_or("");
+    let host = if let Some(v6) = host_port.strip_prefix('[') {
+        v6.split(']').next().unwrap_or("")
+    } else {
+        host_port.split(':').next().unwrap_or("")
+    };
+    let host = host.to_ascii_lowercase();
+    let loopback = host == "localhost"
+        || host.ends_with(".localhost")
+        || host == "::1"
+        || host.starts_with("127.");
+    !loopback
+}
+
 /// The `Retry-After` header of a response, in seconds.
 fn retry_after_secs(resp: &reqwest::Response) -> Option<u64> {
     let value = resp.headers().get("retry-after")?;
@@ -162,7 +201,9 @@ impl DakeraApiClient {
             .unwrap_or_else(|_| reqwest::Client::new());
 
         Self {
-            base_url,
+            // Paths start with `/`: a configured `http://host:3000/` must not
+            // turn every route into `//v1/...`.
+            base_url: base_url.trim_end_matches('/').to_string(),
             api_key,
             client,
             capabilities: std::sync::Mutex::new(None),
@@ -171,11 +212,8 @@ impl DakeraApiClient {
 
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let url = format!("{}{}", self.base_url, path);
-        let mut req = self.client.request(method, &url);
-        if let Some(ref key) = self.api_key {
-            req = req.header("Authorization", format!("Bearer {}", key));
-        }
-        req
+        let req = self.client.request(method, &url);
+        with_bearer(req, self.api_key.as_deref())
     }
 
     async fn send_with_retry(
@@ -482,10 +520,10 @@ impl DakeraApiClient {
         let form = reqwest::multipart::Form::new().part("file", part);
 
         let url = format!("{}{}", self.base_url, path);
-        let mut req = self.client.post(&url).multipart(form);
-        if let Some(ref key) = self.api_key {
-            req = req.header("Authorization", format!("Bearer {}", key));
-        }
+        let req = with_bearer(
+            self.client.post(&url).multipart(form),
+            self.api_key.as_deref(),
+        );
 
         let resp = req
             .send()
@@ -774,6 +812,18 @@ pub async fn execute_tool(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn cleartext_remote_urls_are_told_apart() {
+        assert!(is_cleartext_remote("http://dakera.example.com:3000"));
+        assert!(is_cleartext_remote("http://10.0.0.5:3000/"));
+        assert!(is_cleartext_remote("http://user:pw@db.internal/x"));
+        assert!(!is_cleartext_remote("https://dakera.example.com"));
+        assert!(!is_cleartext_remote("http://localhost:3000"));
+        assert!(!is_cleartext_remote("http://127.0.0.1:3000"));
+        assert!(!is_cleartext_remote("http://[::1]:3000"));
+        assert!(!is_cleartext_remote("http://dakera.localhost"));
+    }
 
     #[test]
     fn test_require_string_present() {

@@ -30,7 +30,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Semantic recall: the top_k (default 5) memories closest to a query, optionally narrowed by tags, memory_type or session_id. include_associated adds KG neighbours one hop away (dakera_recall_associated goes deeper).".into(),
+            description: "Semantic recall: the top_k (default 5) memories closest to a query, optionally narrowed by tags, memory_type or session_id. Session neighbours of the results come apart in context_memories, never counted in top_k. include_associated adds KG neighbours one hop away (dakera_recall_associated goes deeper).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -44,7 +44,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "session_id": { "type": "string" },
                     "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
                     "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" },
-                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" }
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" },
+                    "neighborhood_mode": neighborhood_schema()
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -169,7 +170,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "associated_memories_min_weight": { "type": "number", "description": "Min KG edge weight to follow (0.0–1.0)" },
                     "since": { "type": "string", "description": "Only memories created at or after this ISO-8601 timestamp" },
                     "until": { "type": "string", "description": "Only memories created at or before this ISO-8601 timestamp" },
-                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" }
+                    "lang": { "type": "string", "description": "en, de, fr, es, it, pt or nl (v0.12+)" },
+                    "neighborhood_mode": neighborhood_schema()
                 },
                 "required": ["agent_id", "query"]
             }),
@@ -275,6 +277,184 @@ async fn tool_store(client: &DakeraApiClient, args: &serde_json::Value) -> CallT
     }
 }
 
+/// The `top_k` a recall tool asks for when the caller names none.
+pub const DEFAULT_RECALL_TOP_K: u64 = 5;
+
+/// Where a recall's session-neighbourhood context goes (Dakera
+/// `neighborhood_mode`). The tools default to [`NeighborhoodMode::Separate`]
+/// so that `top_k` is what it says: the most results returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NeighborhoodMode {
+    /// Context in `context_memories`, each with `context_of` (the default here).
+    Separate,
+    /// Context appended by the server after the ranked results; this tool
+    /// still moves it out of `memories` into `context_memories`.
+    Inline,
+    /// No neighbourhood context.
+    Off,
+}
+
+impl NeighborhoodMode {
+    /// The wire name.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NeighborhoodMode::Separate => "separate",
+            NeighborhoodMode::Inline => "inline",
+            NeighborhoodMode::Off => "off",
+        }
+    }
+}
+
+/// The JSON schema of the recall tools' `neighborhood_mode` argument.
+fn neighborhood_schema() -> serde_json::Value {
+    json!({
+        "type": "string",
+        "enum": ["separate", "inline", "off"],
+        "description": "Session-neighbour context: separate (listed apart, the default), inline or off"
+    })
+}
+
+/// The recall tools' `top_k` and `neighborhood_mode` arguments, checked.
+pub fn recall_shape_args(
+    args: &serde_json::Value,
+) -> Result<(u64, NeighborhoodMode), CallToolResult> {
+    let top_k = match args.get("top_k").filter(|v| !v.is_null()) {
+        None => DEFAULT_RECALL_TOP_K,
+        Some(v) => match v.as_u64() {
+            Some(n) if n >= 1 => n,
+            _ => {
+                return Err(CallToolResult::error(format!(
+                    "top_k must be a positive integer; got {v}"
+                )))
+            }
+        },
+    };
+    let mode = match args.get("neighborhood_mode").filter(|v| !v.is_null()) {
+        None => NeighborhoodMode::Separate,
+        Some(v) => match v.as_str().map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+            Some("separate") => NeighborhoodMode::Separate,
+            Some("inline") => NeighborhoodMode::Inline,
+            Some("off") => NeighborhoodMode::Off,
+            _ => {
+                return Err(CallToolResult::error(format!(
+                    "neighborhood_mode must be one of separate, inline, off; got {v}"
+                )))
+            }
+        },
+    };
+    Ok((top_k, mode))
+}
+
+/// Put the neighbourhood choice into a recall body. `off` also sends
+/// `neighborhood: false`, which servers before `neighborhood_mode` honour.
+pub fn apply_neighborhood_mode(body: &mut serde_json::Value, mode: NeighborhoodMode) {
+    body["neighborhood_mode"] = json!(mode.as_str());
+    if mode == NeighborhoodMode::Off {
+        body["neighborhood"] = json!(false);
+    }
+}
+
+/// Whether a recall result is neighbourhood context the server returned
+/// inline (`retrieval: "neighborhood"`, Dakera v0.12.3+).
+fn is_inline_context(item: &serde_json::Value) -> bool {
+    item.get("retrieval").and_then(|v| v.as_str()) == Some("neighborhood")
+}
+
+/// The id of a recall result's memory.
+fn result_id(item: &serde_json::Value) -> Option<&str> {
+    item.get("memory")
+        .and_then(|m| m.get("id"))
+        .and_then(|v| v.as_str())
+}
+
+/// Shape a `POST /v1/memory/recall` answer for the agent: at most `top_k`
+/// ranked results in `memories`; neighbourhood context in its own
+/// `context_memories` list, each entry with `context_of` (the ranked memory it
+/// belongs to, when the server says) and `context_of_rank` (that memory's
+/// 1-based place in `memories`). Everything else in the answer
+/// (`matched_text`, timings, `associated_memories`, rerank report) is kept.
+///
+/// A server that predates `neighborhood_mode` ignores it and appends its
+/// context to `memories`, unmarked: under `separate` / `off` that overflow is
+/// dropped (and the note says so), under `inline` it becomes context.
+pub fn shape_recall(
+    mut answer: serde_json::Value,
+    top_k: u64,
+    mode: NeighborhoodMode,
+) -> CallToolResult {
+    let Some(obj) = answer.as_object_mut() else {
+        return ok_json(&answer);
+    };
+    let top_k = usize::try_from(top_k).unwrap_or(usize::MAX);
+    let returned = match obj.remove("memories") {
+        Some(serde_json::Value::Array(items)) => items,
+        Some(other) => {
+            obj.insert("memories".into(), other);
+            return ok_json(&answer);
+        }
+        None => Vec::new(),
+    };
+    let mut ranked = Vec::new();
+    let mut context = Vec::new();
+    for item in returned {
+        if is_inline_context(&item) {
+            context.push(item);
+        } else {
+            ranked.push(item);
+        }
+    }
+    let overflow = if ranked.len() > top_k {
+        ranked.split_off(top_k)
+    } else {
+        Vec::new()
+    };
+    let mut omitted = 0;
+    if mode == NeighborhoodMode::Inline {
+        context.extend(overflow);
+    } else {
+        omitted = overflow.len();
+    }
+    if let Some(serde_json::Value::Array(separate)) = obj.remove("context_memories") {
+        context.extend(separate);
+    }
+    let ranks: std::collections::HashMap<String, usize> = ranked
+        .iter()
+        .enumerate()
+        .filter_map(|(i, item)| result_id(item).map(|id| (id.to_string(), i + 1)))
+        .collect();
+    for item in &mut context {
+        let rank = item
+            .get("context_of")
+            .and_then(|v| v.as_str())
+            .and_then(|id| ranks.get(id).copied());
+        if let (Some(rank), Some(entry)) = (rank, item.as_object_mut()) {
+            entry.insert("context_of_rank".into(), json!(rank));
+        }
+    }
+    let context_count = context.len();
+    obj.insert("memories".into(), serde_json::Value::Array(ranked));
+    if context_count > 0 {
+        obj.insert("context_memories".into(), serde_json::Value::Array(context));
+    }
+    let mut result = ok_json(&answer);
+    if context_count > 0 {
+        result = result.with_note(format!(
+            "context_memories: {context_count} session neighbour(s) of the ranked results, \
+             not ranked and not counted in top_k; context_of (context_of_rank) names the \
+             result each belongs to. Their scores come from another search and are not \
+             comparable with the ranked scores."
+        ));
+    }
+    if omitted > 0 {
+        result = result.with_note(format!(
+            "Note: {omitted} neighbourhood context item(s) omitted: this server predates \
+             neighborhood_mode and returns context inline, unmarked; only the top_k ranked \
+             results are shown."
+        ));
+    }
+    result
+}
+
 async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> CallToolResult {
     let agent_id = match require_string(args, "agent_id") {
         Ok(v) => v,
@@ -284,12 +464,17 @@ async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> Call
         Ok(v) => v,
         Err(e) => return e,
     };
+    let (top_k, mode) = match recall_shape_args(args) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let mut body = json!({
         "agent_id": agent_id,
         "query": query,
-        "top_k": args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(5),
+        "top_k": top_k,
         "min_importance": args.get("min_importance").and_then(|v| v.as_f64()).unwrap_or(0.0),
     });
+    apply_neighborhood_mode(&mut body, mode);
     if let Some(true) = args.get("include_associated").and_then(|v| v.as_bool()) {
         body["include_associated"] = json!(true);
     }
@@ -308,7 +493,7 @@ async fn tool_recall(client: &DakeraApiClient, args: &serde_json::Value) -> Call
     }
     forward_optional_strings(&mut body, args, &["lang", "memory_type", "session_id"]);
     match client.post_json("/v1/memory/recall", &body).await {
-        Ok(result) => ok_json(&result),
+        Ok(result) => shape_recall(result, top_k, mode),
         Err(e) => CallToolResult::error(e),
     }
 }
@@ -536,6 +721,10 @@ async fn tool_recall_associated(
         Ok(v) => v,
         Err(e) => return e,
     };
+    let (top_k, mode) = match recall_shape_args(args) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let depth = args
         .get("associated_memories_depth")
         .and_then(|v| v.as_u64())
@@ -544,11 +733,12 @@ async fn tool_recall_associated(
     let mut body = json!({
         "agent_id": agent_id,
         "query": query,
-        "top_k": args.get("top_k").and_then(|v| v.as_u64()).unwrap_or(5),
+        "top_k": top_k,
         "min_importance": args.get("min_importance").and_then(|v| v.as_f64()).unwrap_or(0.0),
         "include_associated": true,
         "associated_memories_depth": depth,
     });
+    apply_neighborhood_mode(&mut body, mode);
     if let Some(w) = args
         .get("associated_memories_min_weight")
         .and_then(|v| v.as_f64())
@@ -563,7 +753,7 @@ async fn tool_recall_associated(
     }
     forward_optional_strings(&mut body, args, &["lang"]);
     match client.post_json("/v1/memory/recall", &body).await {
-        Ok(result) => ok_json(&result),
+        Ok(result) => shape_recall(result, top_k, mode),
         Err(e) => CallToolResult::error(e),
     }
 }

@@ -229,6 +229,10 @@ async fn tool_graph_export(client: &DakeraApiClient, args: &serde_json::Value) -
         .get("format")
         .and_then(|v| v.as_str())
         .unwrap_or("json");
+    // Checked, not just encoded: it goes into the query string as is.
+    if !matches!(format, "json" | "graphml") {
+        return CallToolResult::error(format!("format must be json or graphml; got {format:?}"));
+    }
     let encoded = urlencoding::encode(&agent_id);
     // KG-2 export endpoint supports both json and graphml.
     let path = format!(
