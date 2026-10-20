@@ -30,7 +30,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_recall".into(),
-            description: "Semantic recall: the top_k (default 5) memories closest to a query, optionally narrowed by tags, memory_type or session_id. Session neighbours of the results come apart in context_memories, never counted in top_k. include_associated adds KG neighbours one hop away (dakera_recall_associated goes deeper). Results come best first; rank_score (Dakera v0.12.3+) is the ranking score and never rises down the list, while score is each result's own cross-encoder or retrieval value and can.".into(),
+            description: "Semantic recall: the top_k (default 5) memories closest to a query, optionally narrowed by tags, memory_type or session_id. Session neighbours go in context_memories, outside top_k. include_associated adds KG neighbours one hop away (dakera_recall_associated goes deeper). Best first: rank_score (v0.12.3+) orders them; score may rise.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
