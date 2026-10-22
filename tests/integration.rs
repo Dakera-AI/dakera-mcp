@@ -1730,3 +1730,139 @@ async fn test_tools_list_follows_the_live_servers_capabilities() {
         );
     }
 }
+
+// ── Dakera v0.12.3 against the live server: documents, recall ranking, empty agents ──
+// Skipped against an older server (no enabled `documents` capability): CI's
+// container may be an earlier release.
+
+async fn server_has_documents(c: &DakeraApiClient) -> bool {
+    let known = match c.probe_capabilities().await {
+        Ok(dakera_mcp::tools::capabilities::CapabilityState::Known(doc)) => {
+            doc["documents"]["enabled"].as_bool() == Some(true)
+        }
+        _ => false,
+    };
+    if !known {
+        eprintln!("skipped: this server has no document import (needs v0.12.3)");
+    }
+    known
+}
+
+#[tokio::test]
+async fn test_document_import_recall_citation_and_delete_live() {
+    let c = client();
+    if !server_has_documents(&c).await {
+        return;
+    }
+    let a = agent(&format!("docs-live-{}", std::process::id()));
+    let imported = ok(&execute_tool(
+        &c,
+        "dakera_import_document",
+        &json!({
+            "agent_id": a,
+            "content": "# Field Manual\n\n## Install\n\nRun the installer and accept the licence. \
+                        The service listens on port 8080.\n\n## Upgrade\n\nStop the service \
+                        first, then replace the binary.\n",
+            "media_type": "text/markdown",
+            "title": "Field Manual",
+            "tags": [TEST_TAG],
+            "wait_seconds": 30,
+        }),
+    )
+    .await);
+    assert_eq!(imported["job"]["status"], "Completed", "{imported}");
+    let document_id = imported["document_id"]
+        .as_str()
+        .expect("document_id")
+        .to_string();
+
+    let listed = ok(&execute_tool(&c, "dakera_list_documents", &json!({"agent_id": a})).await);
+    assert!(listed.to_string().contains(&document_id), "{listed}");
+
+    // The ranked chunk cites its document; its neighbour is context, outside top_k.
+    let recalled = ok(&execute_tool(
+        &c,
+        "dakera_recall",
+        &json!({"agent_id": a, "query": "which port does the service listen on", "top_k": 1}),
+    )
+    .await);
+    let memories = recalled["memories"].as_array().expect("memories");
+    assert_eq!(memories.len(), 1, "{recalled}");
+    assert_eq!(
+        memories[0]["citation"]["title"], "Field Manual",
+        "{recalled}"
+    );
+    assert_eq!(memories[0]["citation"]["document_id"], document_id.as_str());
+    assert!(memories[0]["rank_score"].is_number(), "{recalled}");
+
+    ok(&execute_tool(
+        &c,
+        "dakera_delete_document",
+        &json!({"agent_id": a, "document_id": document_id}),
+    )
+    .await);
+    let listed = ok(&execute_tool(&c, "dakera_list_documents", &json!({"agent_id": a})).await);
+    assert!(!listed.to_string().contains(&document_id), "{listed}");
+}
+
+#[tokio::test]
+async fn test_recall_rank_score_follows_the_order_live() {
+    let c = client();
+    if !server_has_documents(&c).await {
+        return;
+    }
+    let a = agent(&format!("rank-live-{}", std::process::id()));
+    for text in [
+        "Maya moved to Lisbon in 2021 for a job at a bakery.",
+        "Maya's sister lives in Porto and visits every summer.",
+        "The bakery in Lisbon opens at six in the morning.",
+        "Maya started learning the cello last winter.",
+        "Lisbon trams are crowded on weekday mornings.",
+    ] {
+        ok(&execute_tool(
+            &c,
+            "dakera_store",
+            &json!({"agent_id": a, "content": text, "tags": [TEST_TAG]}),
+        )
+        .await);
+    }
+    let recalled = ok(&execute_tool(
+        &c,
+        "dakera_recall",
+        &json!({"agent_id": a, "query": "Where does Maya live?", "top_k": 5}),
+    )
+    .await);
+    let ranks: Vec<f64> = recalled["memories"]
+        .as_array()
+        .expect("memories")
+        .iter()
+        .map(|m| m["rank_score"].as_f64().expect("rank_score"))
+        .collect();
+    assert!(!ranks.is_empty());
+    assert!(ranks.windows(2).all(|w| w[0] >= w[1]), "{ranks:?}");
+    cleanup(&c, &a).await;
+}
+
+#[tokio::test]
+async fn test_recall_and_search_of_an_agent_with_nothing_stored_live() {
+    let c = client();
+    if !server_has_documents(&c).await {
+        return;
+    }
+    // v0.12.3 answers 200 with no memories (it was 404 NAMESPACE_NOT_FOUND).
+    let a = agent(&format!("empty-live-{}", std::process::id()));
+    let recalled = ok(&execute_tool(
+        &c,
+        "dakera_recall",
+        &json!({"agent_id": a, "query": "anything"}),
+    )
+    .await);
+    assert_eq!(recalled["memories"], json!([]), "{recalled}");
+    let searched = ok(&execute_tool(
+        &c,
+        "dakera_search",
+        &json!({"agent_id": a, "query": "anything"}),
+    )
+    .await);
+    assert_eq!(searched["memories"], json!([]), "{searched}");
+}

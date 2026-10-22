@@ -20,6 +20,7 @@ document tools need v0.12.3.
 ### Fixed
 
 - **`dakera_recall` says which score ranks (Dakera-AI/dakera#940).** The tool description says results come best first, ordered by `rank_score` (server v0.12.3+), and that `score` may rise down the list. The response is passed through, so `rank_score` reaches the agent as the server sends it.
+- **`dakera_autopilot_trigger` describes what `dedup` does on v0.12.3.** Since v0.12.3 the server's dedup pass only reports duplicates unless its dedup mode is `merge`, and merged memories stay restorable for a while; the tool said `dedup` removes duplicates. `consolidate` merges memories of one session only.
 - **`dakera_recall` and `dakera_recall_associated` return at most `top_k` ranked results**, as their
   `top_k` argument says. The server appended session-neighbourhood context after the ranked results,
   so a `top_k: 5` recall could return 7 or more items. The tools now ask for
@@ -70,7 +71,7 @@ document tools need v0.12.3.
   can verify it), `HEALTHCHECK NONE` (a stdio server has nothing to probe); Dependabot now
   refreshes the base image digests.
 - Dependencies: rustls 0.23.46 (RUSTSEC-2026-0346, -0347, -0348, -0349) and quinn-proto 0.11.19
-  (RUSTSEC-2026-0338 to -0342).
+  (RUSTSEC-2026-0338 to -0342), rustls-webpki 0.103.16 (RUSTSEC-2026-0382).
 
 ## [0.12.2] - 2026-10-08
 
