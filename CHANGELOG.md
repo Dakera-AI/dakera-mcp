@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.12.3] - Unreleased
+## [0.12.3] - 2026-10-22
 
 Support for Dakera server v0.12.3. Merge after the engine PR
 [Dakera-AI/dakera#922](https://github.com/Dakera-AI/dakera/pull/922) (its merge tags v0.12.3).
