@@ -24,7 +24,7 @@
 # Base images are pinned by the digest of their multi-arch index (amd64 + arm64);
 # Dependabot (docker ecosystem) or a manual `docker buildx imagetools inspect
 # <image:tag>` refreshes them.
-FROM rust:1.95.0-alpine@sha256:606fd313a0f49743ee2a7bd49a0914bab7deedb12791f3a846a34a4711db7ed2 AS builder
+FROM rust:1.99.0-alpine@sha256:0cce0a5e0e8ba67b455257a3a02a1d99005f382748789d6464460028810f1627 AS builder
 
 # musl-dev: C runtime/headers for crates with C code (ring)
 RUN apk add --no-cache musl-dev
