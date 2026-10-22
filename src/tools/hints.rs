@@ -78,6 +78,18 @@ pub fn error_hint(status: u16, body: &str, retry_after_secs: Option<u64>) -> Opt
     if status == 422 && body.contains("missing field `new_key`") {
         return Some(HINT_NEW_KEY.to_string());
     }
+    // Since Dakera v0.12.3 the admin key, backup and rotate-key requests refuse
+    // a field they do not know (422 from the JSON extractor, 400 on the key
+    // routes that parse the body themselves) instead of ignoring it.
+    if status == 422 || status == 400 {
+        if let Some(name) = unknown_field(body) {
+            return Some(format!(
+                "The server does not accept the field `{name}` on this route (admin key, backup \
+                 and encryption requests refuse unknown fields instead of ignoring them); \
+                 remove or correct it and call again."
+            ));
+        }
+    }
     let parsed: Value = serde_json::from_str(body).unwrap_or(Value::Null);
     let code = field(&parsed, "code");
     let details = field(&parsed, "details");
@@ -100,6 +112,13 @@ pub fn error_hint(status: u16, body: &str, retry_after_secs: Option<u64>) -> Opt
         _ => return None,
     };
     Some(hint.to_string())
+}
+
+/// The field serde names in an "unknown field `x`, expected ..." refusal.
+pub fn unknown_field(body: &str) -> Option<&str> {
+    let start = body.find("unknown field `")? + "unknown field `".len();
+    let len = body[start..].find('`')?;
+    Some(&body[start..start + len])
 }
 
 /// The field a v0.12.2 validation message names (`"content"`,
@@ -140,6 +159,28 @@ mod tests {
 
     fn body(code: &str, details: &str) -> String {
         json!({ "error": "refused", "code": code, "details": details }).to_string()
+    }
+
+    #[test]
+    fn unknown_field_refusal_names_the_field() {
+        let refused = json!({
+            "error": "Failed to deserialize the JSON body into the target type: unknown field \
+                      `namespace`, expected one of `new_key`, `namespace_id`",
+            "code": "INVALID_REQUEST",
+            "status": 422
+        })
+        .to_string();
+        let hint = error_hint(422, &refused, None).unwrap();
+        assert!(hint.contains("`namespace`"), "{hint}");
+        assert!(hint.contains("refuse unknown fields"), "{hint}");
+        let keys = json!({
+            "error": "invalid request body: unknown field `expires_in`, expected one of `name`",
+            "code": "INVALID_REQUEST"
+        })
+        .to_string();
+        let hint = error_hint(400, &keys, None).unwrap();
+        assert!(hint.contains("`expires_in`"), "{hint}");
+        assert_eq!(unknown_field("no such thing"), None);
     }
 
     #[test]

@@ -1692,7 +1692,9 @@ fn sample(schema: &Value) -> Value {
 async fn every_tool_sends_only_methods_and_paths_the_v012_router_serves() {
     let server = MockServer::start(|req| {
         if req.path == "/v1/capabilities" {
-            return Reply::json(200, caps(true, true));
+            let mut doc = caps(true, true);
+            doc["documents"] = json!({"enabled": true});
+            return Reply::json(200, doc);
         }
         if req.path.starts_with("/v1/export") || req.path.ends_with("/ops/metrics") {
             return Reply::bytes(200, "text/plain", b"x");
@@ -1721,6 +1723,10 @@ async fn every_tool_sends_only_methods_and_paths_the_v012_router_serves() {
             json!({"memory_ids": ["a", "b"]}),
         ),
         ("dakera_graph_traverse", json!({"agent_id": "x"})),
+        (
+            "dakera_import_document",
+            json!({"agent_id": "x", "content": "t"}),
+        ),
     ]
     .into_iter()
     .collect();
@@ -1805,4 +1811,441 @@ fn every_request_is_answered_when_input_ends() {
     let out = child.wait_with_output().unwrap();
     let text = String::from_utf8(out.stdout).unwrap();
     assert_eq!(text.lines().count(), 3, "{text}");
+}
+
+// ---------------------------------------------------------------------------
+// Recall: top_k is the most ranked results returned; neighbourhood context
+// comes apart (Dakera `neighborhood_mode`, issue Dakera-AI/dakera#917).
+// ---------------------------------------------------------------------------
+
+fn ranked(id: &str, score: f64) -> Value {
+    json!({"memory": {"id": id, "content": format!("content of {id}")}, "score": score})
+}
+
+fn notes_of(result: &CallToolResult) -> String {
+    let notes: Vec<&str> = result.content[1..]
+        .iter()
+        .map(|c| c.text.as_str())
+        .collect();
+    notes.join("\n")
+}
+
+#[tokio::test]
+async fn recall_asks_for_separate_context_and_lists_it_apart() {
+    let server = MockServer::start(|_| {
+        let mut collapsed = ranked("m1", 0.9);
+        collapsed["matched_text"] = json!("the sentence that matched");
+        collapsed["matched_ids"] = json!(["m1-s2"]);
+        let mut neighbour = ranked("n1", 0.4);
+        neighbour["retrieval"] = json!("neighborhood");
+        neighbour["context_of"] = json!("m2");
+        Reply::json(
+            200,
+            json!({
+                "memories": [collapsed, ranked("m2", 0.8)],
+                "context_memories": [neighbour],
+                "search_time_ms": 3
+            }),
+        )
+    })
+    .await;
+    let args = json!({"agent_id": "a", "query": "q", "top_k": 2});
+    let result = execute_tool(&server.client(), "dakera_recall", &args).await;
+    let sent = server.last("/v1/memory/recall").json();
+    assert_eq!(sent["neighborhood_mode"], "separate");
+    assert_eq!(sent["top_k"], 2);
+    assert!(sent.get("neighborhood").is_none(), "{sent}");
+
+    let shown = json_of(&result);
+    assert_eq!(shown["memories"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        shown["memories"][0]["matched_text"],
+        "the sentence that matched"
+    );
+    assert_eq!(shown["memories"][0]["matched_ids"], json!(["m1-s2"]));
+    let context = shown["context_memories"].as_array().unwrap();
+    assert_eq!(context.len(), 1);
+    assert_eq!(context[0]["context_of"], "m2");
+    assert_eq!(context[0]["context_of_rank"], 2);
+    assert_eq!(shown["search_time_ms"], 3);
+    let notes = notes_of(&result);
+    assert!(notes.contains("context_memories: 1"), "{notes}");
+    assert!(notes.contains("not counted in top_k"), "{notes}");
+}
+
+#[tokio::test]
+async fn recall_never_shows_more_than_top_k_from_an_older_server() {
+    // A v0.12.2 server ignores neighborhood_mode and appends its context to
+    // `memories`, unmarked.
+    let server = MockServer::start(|_| {
+        let items: Vec<Value> = (1..=7).map(|i| ranked(&format!("m{i}"), 1.0)).collect();
+        Reply::json(200, json!({ "memories": items }))
+    })
+    .await;
+    let args = json!({"agent_id": "a", "query": "q"});
+    let result = execute_tool(&server.client(), "dakera_recall", &args).await;
+    assert_eq!(server.last("/v1/memory/recall").json()["top_k"], 5);
+    let shown = json_of(&result);
+    assert_eq!(shown["memories"].as_array().unwrap().len(), 5);
+    assert_eq!(shown["memories"][4]["memory"]["id"], "m5");
+    assert!(shown.get("context_memories").is_none());
+    let notes = notes_of(&result);
+    assert!(
+        notes.contains("2 neighbourhood context item(s) omitted"),
+        "{notes}"
+    );
+}
+
+#[tokio::test]
+async fn recall_without_context_adds_nothing() {
+    let server =
+        MockServer::start(|_| Reply::json(200, json!({ "memories": [ranked("m1", 0.5)] }))).await;
+    let args = json!({"agent_id": "a", "query": "q", "top_k": 3});
+    let result = execute_tool(&server.client(), "dakera_recall", &args).await;
+    assert_eq!(result.content.len(), 1, "no note expected");
+    let shown = json_of(&result);
+    assert_eq!(shown["memories"].as_array().unwrap().len(), 1);
+    assert!(shown.get("context_memories").is_none());
+}
+
+#[tokio::test]
+async fn recall_inline_mode_still_keeps_context_out_of_the_ranked_list() {
+    let server = MockServer::start(|_| {
+        let mut neighbour = ranked("n1", 0.3);
+        neighbour["retrieval"] = json!("neighborhood");
+        Reply::json(200, json!({ "memories": [ranked("m1", 0.9), neighbour] }))
+    })
+    .await;
+    let args = json!({"agent_id": "a", "query": "q", "top_k": 1, "neighborhood_mode": "inline"});
+    let result = execute_tool(&server.client(), "dakera_recall", &args).await;
+    assert_eq!(
+        server.last("/v1/memory/recall").json()["neighborhood_mode"],
+        "inline"
+    );
+    let shown = json_of(&result);
+    assert_eq!(shown["memories"].as_array().unwrap().len(), 1);
+    assert_eq!(shown["context_memories"][0]["memory"]["id"], "n1");
+}
+
+#[tokio::test]
+async fn recall_off_mode_also_switches_older_servers_off() {
+    let server = MockServer::start(|_| Reply::json(200, json!({ "memories": [] }))).await;
+    let args = json!({"agent_id": "a", "query": "q", "neighborhood_mode": "off"});
+    execute_tool(&server.client(), "dakera_recall", &args).await;
+    let sent = server.last("/v1/memory/recall").json();
+    assert_eq!(sent["neighborhood_mode"], "off");
+    assert_eq!(sent["neighborhood"], false);
+}
+
+#[tokio::test]
+async fn recall_refuses_a_bad_top_k_or_mode_before_calling_the_server() {
+    let server = MockServer::start(|_| Reply::json(200, json!({ "memories": [] }))).await;
+    let client = server.client();
+    for args in [
+        json!({"agent_id": "a", "query": "q", "top_k": 0}),
+        json!({"agent_id": "a", "query": "q", "top_k": "5"}),
+        json!({"agent_id": "a", "query": "q", "neighborhood_mode": "sideways"}),
+    ] {
+        let result = execute_tool(&client, "dakera_recall", &args).await;
+        assert_eq!(result.is_error, Some(true), "{args}");
+    }
+    assert!(server.requests().is_empty(), "{:?}", server.paths());
+}
+
+#[tokio::test]
+async fn recall_associated_honours_top_k_too() {
+    let server = MockServer::start(|_| {
+        let items: Vec<Value> = (1..=4).map(|i| ranked(&format!("m{i}"), 1.0)).collect();
+        Reply::json(
+            200,
+            json!({ "memories": items, "associated_memories": [ranked("k1", 0.2)] }),
+        )
+    })
+    .await;
+    let args = json!({"agent_id": "a", "query": "q", "top_k": 2});
+    let result = execute_tool(&server.client(), "dakera_recall_associated", &args).await;
+    let sent = server.last("/v1/memory/recall").json();
+    assert_eq!(sent["neighborhood_mode"], "separate");
+    assert_eq!(sent["include_associated"], true);
+    let shown = json_of(&result);
+    assert_eq!(shown["memories"].as_array().unwrap().len(), 2);
+    assert_eq!(shown["associated_memories"][0]["memory"]["id"], "k1");
+}
+
+#[tokio::test]
+async fn recall_tools_offer_the_neighborhood_mode_argument() {
+    for def in dakera_mcp::tools::filtered_definitions("all") {
+        if def.name == "dakera_recall" || def.name == "dakera_recall_associated" {
+            let mode = &def.input_schema["properties"]["neighborhood_mode"];
+            assert_eq!(
+                mode["enum"],
+                json!(["separate", "inline", "off"]),
+                "{}",
+                def.name
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Hardening: strict admin routes, the key, untrusted content.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn an_unknown_field_refusal_names_the_field() {
+    let server = MockServer::start(|_| {
+        Reply::json(
+            422,
+            json!({
+                "error": "Failed to deserialize the JSON body into the target type: unknown \
+                          field `namespace_id`, expected one of `new_key`, `namespace`, `wait_secs`",
+                "code": "INVALID_REQUEST",
+                "status": 422
+            }),
+        )
+    })
+    .await;
+    let args = json!({"namespace": "team-a"});
+    let result = execute_tool(&server.client(), "dakera_encryption_rotate_key", &args).await;
+    assert_eq!(result.is_error, Some(true));
+    assert!(text_of(&result).contains("Hint: The server does not accept the field `namespace_id`"));
+}
+
+#[tokio::test]
+async fn strict_admin_bodies_carry_only_fields_the_server_knows() {
+    let server = MockServer::start(|_| Reply::json(200, json!({}))).await;
+    let client = server.client();
+    let args = json!({
+        "namespace": "ns", "name": "ci", "scope": "read",
+        "extra_namespaces": ["b"], "expires_in_days": 7, "unrelated": true
+    });
+    execute_tool(&client, "dakera_namespace_key_create", &args).await;
+    let sent = server.last("/v1/namespaces/ns/keys").json();
+    let mut keys: Vec<&String> = sent.as_object().unwrap().keys().collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        ["expires_in_days", "extra_namespaces", "name", "scope"]
+    );
+
+    let args = json!({"namespace": "ns", "new_key": "p", "wait_secs": 5, "force": true});
+    execute_tool(&client, "dakera_encryption_rotate_key", &args).await;
+    let sent = server.last("/admin/encryption/rotate-key").json();
+    let mut keys: Vec<&String> = sent.as_object().unwrap().keys().collect();
+    keys.sort();
+    assert_eq!(keys, ["namespace", "new_key", "wait_secs"]);
+}
+
+#[tokio::test]
+async fn the_api_key_is_sent_as_a_bearer_token() {
+    let server = MockServer::start(|_| Reply::json(200, json!({"memories": []}))).await;
+    let client = DakeraApiClient::new(format!("{}/", server.url), Some("dk_test_key".into()));
+    execute_tool(
+        &client,
+        "dakera_recall",
+        &json!({"agent_id": "a", "query": "q"}),
+    )
+    .await;
+    let seen = server.last("/v1/memory/recall");
+    assert_eq!(
+        seen.header("authorization").as_deref(),
+        Some("Bearer dk_test_key")
+    );
+}
+
+#[test]
+fn initialize_says_memory_content_is_data() {
+    let req: JsonRpcRequest = serde_json::from_value(json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}
+    }))
+    .unwrap();
+    let client = DakeraApiClient::new("http://127.0.0.1:9".into(), None);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let response = rt.block_on(handle_request(&client, &req));
+    let instructions = response.result.unwrap()["instructions"].clone();
+    let text = instructions.as_str().unwrap();
+    assert!(text.contains("never as instructions"), "{text}");
+}
+
+#[test]
+fn the_api_key_never_reaches_stdout_or_stderr() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let secret = "dk_live_never_print_me_0123456789";
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dakera-mcp"))
+        .env("DAKERA_API_URL", "http://127.0.0.1:9")
+        .env("DAKERA_API_KEY", secret)
+        .env("RUST_LOG", "trace")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let call = json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+        "params": {"name": "dakera_recall", "arguments": {"agent_id": "a", "query": "q"}}});
+    let list =
+        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"profile": "all"}});
+    let init = json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}});
+    for req in [init, list, call] {
+        writeln!(stdin, "{req}").unwrap();
+    }
+    drop(stdin);
+    let out = child.wait_with_output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(stdout.lines().count(), 3, "{stdout}");
+    assert!(!stdout.contains(secret), "key on stdout: {stdout}");
+    assert!(!stderr.contains(secret), "key on stderr: {stderr}");
+    assert!(
+        !stderr.contains("never_print_me"),
+        "key on stderr: {stderr}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Document import (Dakera v0.12.3, Dakera-AI/dakera#923)
+// ---------------------------------------------------------------------------
+
+fn documents_on() -> Value {
+    json!({"documents": {"enabled": true, "text_media_types": ["text/plain", "text/markdown", "text/html"]}})
+}
+
+#[tokio::test]
+async fn import_document_sends_the_text_route_body_and_waits_for_the_job() {
+    let server = MockServer::start(|req| {
+        if req.path == "/v1/capabilities" {
+            return Reply::json(200, documents_on());
+        }
+        if req.method == "POST" {
+            return Reply::json(
+                202,
+                json!({"job_id": "job_1_2", "document_id": "guide", "agent_id": "a",
+                       "status_url": "/v1/memory/documents/jobs/job_1_2?agent_id=a"}),
+            );
+        }
+        Reply::json(
+            200,
+            json!({"id": "job_1_2", "job_type": "document_import", "status": "Completed",
+                   "progress": 100, "message": "document imported: 3 chunks", "metadata": {}}),
+        )
+    })
+    .await;
+    let args = json!({
+        "agent_id": "a", "content": "# Guide\n\nhello", "media_type": "text/markdown",
+        "document_id": "guide", "max_tokens": 300, "overlap_tokens": 20, "wait_seconds": 5
+    });
+    let result = execute_tool(&server.client(), "dakera_import_document", &args).await;
+    let shown = json_of(&result);
+    assert_eq!(shown["job"]["status"], "Completed");
+    assert_eq!(shown["document_id"], "guide");
+    let sent = server.last("/v1/memory/documents").json();
+    assert_eq!(
+        sent,
+        json!({"agent_id": "a", "content": "# Guide\n\nhello", "media_type": "text/markdown",
+               "document_id": "guide", "chunking": {"max_tokens": 300, "overlap_tokens": 20}})
+    );
+    server.last("/v1/memory/documents/jobs/job_1_2?agent_id=a");
+}
+
+#[tokio::test]
+async fn import_document_from_an_attachment_uses_the_attachment_route() {
+    let server = MockServer::start(|req| {
+        if req.path == "/v1/capabilities" {
+            return Reply::json(200, documents_on());
+        }
+        Reply::json(
+            202,
+            json!({"job_id": "j", "document_id": "d", "agent_id": "bot", "status_url": "/x"}),
+        )
+    })
+    .await;
+    let args = json!({"agent_id": "bot", "attachment_ref": "sha256:ab", "title": "Manual"});
+    let result = execute_tool(&server.client(), "dakera_import_document", &args).await;
+    assert_eq!(json_of(&result)["job_id"], "j");
+    let sent = server
+        .last("/v1/namespaces/_dakera_agent_bot/attachments/sha256%3Aab/document")
+        .json();
+    assert_eq!(sent, json!({"agent_id": "bot", "title": "Manual"}));
+}
+
+#[tokio::test]
+async fn import_document_needs_exactly_one_source() {
+    let server = MockServer::start(|_| Reply::json(200, documents_on())).await;
+    for args in [
+        json!({"agent_id": "a"}),
+        json!({"agent_id": "a", "content": "x", "attachment_ref": "sha256:ab"}),
+    ] {
+        let result = execute_tool(&server.client(), "dakera_import_document", &args).await;
+        assert_eq!(result.is_error, Some(true), "{args}");
+    }
+    assert!(server
+        .paths()
+        .iter()
+        .all(|p| p.ends_with("/v1/capabilities")));
+}
+
+#[tokio::test]
+async fn document_tools_say_an_older_server_lacks_them() {
+    // A v0.12.2 server: /v1/capabilities without a documents section.
+    let server = v012_server(true, false).await;
+    let args = json!({"agent_id": "a"});
+    let result = execute_tool(&server.client(), "dakera_list_documents", &args).await;
+    assert_eq!(result.is_error, Some(true));
+    assert!(text_of(&result).contains("v0.12.3"), "{}", text_of(&result));
+    assert!(server
+        .paths()
+        .iter()
+        .all(|p| !p.contains("/v1/memory/documents")));
+    let listed = listed_definitions(&server.client(), "all").await;
+    assert!(!names(&listed).contains(&"dakera_import_document".to_string()));
+}
+
+#[tokio::test]
+async fn document_status_list_and_delete_hit_their_routes() {
+    let server = MockServer::start(|req| {
+        if req.path == "/v1/capabilities" {
+            return Reply::json(200, documents_on());
+        }
+        if req.method == "DELETE" {
+            return Reply::json(200, json!({"document_id": "d 1", "deleted_chunks": 4}));
+        }
+        Reply::json(200, json!({"documents": [], "status": "Running"}))
+    })
+    .await;
+    let client = server.client();
+    let status = json!({"agent_id": "a", "job_id": "job_9"});
+    execute_tool(&client, "dakera_document_status", &status).await;
+    server.last("/v1/memory/documents/jobs/job_9?agent_id=a");
+    let list = json!({"agent_id": "a", "limit": 2, "cursor": "c"});
+    execute_tool(&client, "dakera_list_documents", &list).await;
+    server.last("/v1/memory/documents?agent_id=a&limit=2&cursor=c");
+    let del = json!({"agent_id": "a", "document_id": "d 1"});
+    let result = execute_tool(&client, "dakera_delete_document", &del).await;
+    assert_eq!(json_of(&result)["deleted_chunks"], 4);
+    let seen = server.last("/v1/memory/documents/d%201?agent_id=a");
+    assert_eq!(seen.method, "DELETE");
+}
+
+#[tokio::test]
+async fn recall_cites_document_chunks() {
+    let server = MockServer::start(|_| {
+        let mut chunk = ranked("doc_1", 0.9);
+        chunk["memory"]["metadata"] = json!({"_dakera_document": {
+            "id": "manual", "title": "Field Manual", "media_type": "application/pdf",
+            "chunk_index": 4, "chunk_count": 9, "page_start": 3, "page_end": 4,
+            "heading_path": ["Field Manual", "Install"], "char_start": 0, "char_end": 9,
+            "sha256": "ab"
+        }});
+        Reply::json(200, json!({"memories": [chunk, ranked("m2", 0.5)]}))
+    })
+    .await;
+    let args = json!({"agent_id": "a", "query": "install"});
+    let shown = json_of(&execute_tool(&server.client(), "dakera_recall", &args).await);
+    let cite = &shown["memories"][0]["citation"];
+    assert_eq!(cite["document_id"], "manual");
+    assert_eq!(cite["title"], "Field Manual");
+    assert_eq!(cite["page_start"], 3);
+    assert_eq!(cite["heading_path"], json!(["Field Manual", "Install"]));
+    assert!(shown["memories"][1].get("citation").is_none());
 }

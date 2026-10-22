@@ -28,7 +28,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "action": {
                         "type": "string",
                         "enum": ["dedup", "consolidate", "all"],
-                        "description": "Which cycle to trigger: 'dedup' removes duplicate memories, 'consolidate' merges related memories, 'all' runs both in sequence."
+                        "description": "Which cycle to trigger: 'dedup' finds duplicate memories (v0.12.3+: only reports them unless the server's dedup mode is merge; merged ones stay restorable), 'consolidate' merges related memories of one session, 'all' runs both."
                     }
                 },
                 "required": ["action"]

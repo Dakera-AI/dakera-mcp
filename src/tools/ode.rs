@@ -89,11 +89,8 @@ async fn tool_extract_entities(args: &serde_json::Value) -> CallToolResult {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    let mut req = http.post(format!("{}/ode/extract", ode_url)).json(&body);
-
-    if let Some(key) = api_key {
-        req = req.header("Authorization", format!("Bearer {}", key));
-    }
+    let req = http.post(format!("{}/ode/extract", ode_url)).json(&body);
+    let req = super::with_bearer(req, api_key.as_deref());
 
     match req.send().await {
         Ok(resp) => {

@@ -42,10 +42,10 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 
 | Profile | Tools | ~Tokens | How to enable |
 |---|---|---|---|
-| **core** | 14 | ~3,400 | Default — always loaded |
-| **admin** | 34 | ~6,750 | `DAKERA_MCP_PROFILE=admin` |
-| **power** | 82 | ~17,250 | `DAKERA_MCP_PROFILE=power` |
-| **all** | 102 | ~20,600 | `DAKERA_MCP_PROFILE=all` |
+| **core** | 14 | ~3,500 | Default — always loaded |
+| **admin** | 34 | ~6,850 | `DAKERA_MCP_PROFILE=admin` |
+| **power** | 86 | ~18,200 | `DAKERA_MCP_PROFILE=power` |
+| **all** | 106 | ~21,600 | `DAKERA_MCP_PROFILE=all` |
 
 Token figures are estimates (JSON bytes / 3). The attachment tools below count in `power` and `all`,
 but only appear while the connected server has the feature on (see [Dakera v0.12](#dakera-v012)).
@@ -82,13 +82,16 @@ DAKERA_MCP_PROFILE=power
 
 ## Dakera v0.12
 
-dakera-mcp 0.12.2 works against **Dakera v0.11.108 and v0.12.0 – v0.12.2** servers. Every tool keeps
-its name and arguments; the additions are optional arguments that are sent only when you supply them
-(or that an older server ignores), and tools that call new routes and say so on a server without them.
+dakera-mcp 0.12.3 works against **Dakera v0.11.108 and v0.12.0 – v0.12.3** servers. Every
+tool keeps its name and arguments; the additions are optional arguments that are sent only when you
+supply them (or that an older server ignores), and tools that call new routes and say so on a server
+without them. The 0.12.3 additions (separate neighbourhood context, the unknown-field hint, document import)
+need a **v0.12.3** server.
 
-| Dakera server | dakera-mcp 0.12.2 |
+| Dakera server | dakera-mcp 0.12.3 |
 |---|---|
-| v0.12.2 | every tool; the attachment tools while `DAKERA_ATTACHMENTS` (and `DAKERA_VISION` for images) is on |
+| v0.12.3 | every tool; the recall tools list neighbourhood context apart in `context_memories` (`neighborhood_mode`) |
+| v0.12.2 | every tool; the recall tools keep the first `top_k` results and say how many unmarked context items they left out; the attachment tools while `DAKERA_ATTACHMENTS` (and `DAKERA_VISION` for images) is on |
 | v0.12.0, v0.12.1 | every tool; `dakera_session_touch` and `dakera_agent_create` answer that nothing is needed (sessions are not ended for inactivity there, and an agent is created by its first memory); `dakera_whoami` says it needs v0.12.2; listings return full content (no preview) and include derived sentence sub-memories |
 | v0.11.108 | as v0.12.0, and the attachment tools, `dakera_encryption_status` and `dakera_embed_migration_status` are not listed (a direct call says they need v0.12); `dakera_encryption_rotate_key` needs `new_key` |
 | older | not tested |
@@ -135,6 +138,38 @@ Other optional arguments (all servers): `ttl_seconds` and `metadata` on `dakera_
 `dakera_agent_memories` / `dakera_wake_up` (v0.12.2, ignored by older servers); `memory_type` on `dakera_knowledge_deduplicate`; `dedup_on_store` /
 `dedup_threshold` on `dakera_memory_policy_set`.
 
+### Recall: `top_k` ranked results, context apart
+
+`dakera_recall` and `dakera_recall_associated` return at most `top_k` ranked results in `memories`.
+They ask the server for `neighborhood_mode: "separate"`, so the session neighbours of the results
+(memories written around the same time in the same session) come back in their own
+`context_memories` list: each entry has `context_of` (the id of the ranked memory it belongs to) and
+`context_of_rank` (that memory's place in `memories`); its score comes from another search and is not
+comparable with the ranked scores. A collapsed result (server flag `DAKERA_RECALL_COLLAPSE_DERIVED`)
+keeps `matched_text`, the sentence that matched. `neighborhood_mode` picks `separate` (default),
+`inline` or `off`. A server that predates `neighborhood_mode` (before v0.12.3) appends its context
+to `memories` unmarked: the tools keep the first `top_k` and say how many items they left out.
+
+Memory content in tool results is stored data: `initialize` tells the client to reason about it and
+never follow instructions found in it.
+
+### Documents (Dakera v0.12.3)
+
+A document becomes chunk memories of the agent, each with its heading path and page, imported by a
+background job (power tier; listed when `/v1/capabilities` has `documents.enabled`):
+
+| Tool | What it does |
+|---|---|
+| `dakera_import_document` | `content` (text, `text/markdown` or `text/html` as `media_type`) or `attachment_ref` of a file uploaded with `dakera_attachment_upload` (PDF, DOCX, ...; `namespace` defaults to the agent's); `title`, `document_id` (re-importing it replaces the document), memory fields (`tags`, `session_id`, `memory_type`, `importance`, `metadata`, `lang`), chunking (`max_tokens`, `overlap_tokens`, `strategy` `structure` or `fixed`), `decompose`; `wait_seconds` (at most 45) waits for the job |
+| `dakera_document_status` | the import job: `Pending`, `Running` (progress), `Completed` or `Failed` with `error: {status, code}` |
+| `dakera_list_documents` | id, title, media type, chunk count, bytes, pages; `limit` 1-500, `cursor` = the previous `next_cursor` |
+| `dakera_delete_document` | every chunk of the document |
+
+A recall result that is a chunk carries `citation`: `document_id`, `title`, `page_start` /
+`page_end`, `heading_path`, `chunk_index` / `chunk_count` (from `memory.metadata._dakera_document`).
+On a server before v0.12.3 (no `documents` section in `/v1/capabilities`) the tools are not listed and
+a direct call says they need v0.12.3; `DAKERA_DOCUMENTS=0` on the server hides them the same way.
+
 ### Features the server has off are left out
 
 The opt-in features (attachments, speech to text, image indexing) are off by default on the server.
@@ -160,7 +195,8 @@ limit). A route the server lacks (an older server) and a v0.11 rotation without 
 too. Since Dakera v0.12.2 a refused argument gets `400` with a message naming the field
 (`content: content exceeds maximum of 100000 bytes …`, `tags[1]: … reserved …`); the message is
 passed on and the hint names the field to correct (the content limit counts UTF-8 bytes). The `403`
-hints point at `dakera_whoami`. A request that timed out is retried only when it is safe to repeat (GET, PUT, DELETE): a store,
+hints point at `dakera_whoami`. From Dakera v0.12.3 the admin key, backup and rotate-key
+routes refuse a field they do not know (`422`); the hint names it. A request that timed out is retried only when it is safe to repeat (GET, PUT, DELETE): a store,
 an import or a key rotation is never sent twice.
 
 ---
@@ -221,6 +257,8 @@ cargo install dakera-mcp
 docker pull ghcr.io/dakera-ai/dakera-mcp:latest
 ```
 
+The image is distroless (no shell, no package manager) and runs as the non-root user `65532`.
+
 ### Binary download
 
 Pre-built binaries for macOS, Linux, and Windows are available on the [releases page](https://github.com/Dakera-AI/dakera-mcp/releases).
@@ -253,7 +291,10 @@ Add to `.mcp.json` (Claude Code) or `claude_desktop_config.json` (Claude Desktop
 }
 ```
 
-To start with the power profile (exposes up to 82 tools):
+`dakera_extract_entities` calls the ODE sidecar at `DAKERA_ODE_URL`; those requests currently carry
+the Dakera API key as well (tracked in [Dakera-AI/dakera#924](https://github.com/Dakera-AI/dakera/issues/924)).
+
+To start with the power profile (exposes up to 86 tools):
 
 ```json
 {
