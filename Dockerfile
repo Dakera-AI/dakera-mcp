@@ -69,7 +69,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime — distroless static, runs as non-root (uid 65532)
 # ---------------------------------------------------------------------------
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:d62067879de890a1def9da0e7766b7d20810a5e5555cef8506b752437d7a3e88
 
 # Required annotation for MCP registry OCI package validation
 LABEL io.modelcontextprotocol.server.name="io.github.Dakera-AI/dakera-mcp"
