@@ -1,4 +1,5 @@
-//! Every server path a tool calls must be a route of the Dakera v0.12.2 server.
+//! Every server path a tool calls must be a route of the Dakera v0.12.4 server
+//! (its Dakera Cloud tenant routes, `/v1/tenants/*`, are no tool's to call).
 //!
 //! The route list (`tests/server_routes_v0.12.txt`) comes from the server's
 //! router (`crates/api/src/lib.rs`); the paths the tools call are the string
@@ -93,6 +94,17 @@ fn every_route_a_tool_calls_exists_on_the_v012_server() {
         missing.is_empty(),
         "routes the server does not serve: {missing:#?}"
     );
+}
+
+#[test]
+fn no_tool_calls_a_tenant_route() {
+    for (file, text) in sources() {
+        let production = text.split("#[cfg(test)]").next().unwrap_or("");
+        assert!(
+            !production.contains("/v1/tenants"),
+            "{file} names a Dakera Cloud tenant route"
+        );
+    }
 }
 
 #[test]

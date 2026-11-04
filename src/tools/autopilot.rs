@@ -12,7 +12,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_autopilot_status".into(),
-            description: "Return AutoPilot configuration and last-cycle stats (memories deduped, consolidated, timestamps). Needs a global admin key (not namespace-pinned).".into(),
+            description: "Return AutoPilot configuration and last-cycle stats (duplicates and consolidation clusters found or merged, failures, timestamps). Needs a global admin key (not namespace-pinned).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -28,7 +28,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "action": {
                         "type": "string",
                         "enum": ["dedup", "consolidate", "all"],
-                        "description": "Which cycle to trigger: 'dedup' finds duplicate memories (v0.12.3+: only reports them unless the server's dedup mode is merge; merged ones stay restorable), 'consolidate' merges related memories of one session, 'all' runs both."
+                        "description": "Which cycle to trigger: 'dedup' finds duplicate memories, 'consolidate' finds groups of related faded memories of one session, 'all' runs both. Each only reports what it would merge unless the server's dedup / consolidation mode is merge (v0.12.3+ for dedup, v0.12.4+ for consolidation); merged memories stay restorable. failures lists what could not be done."
                     }
                 },
                 "required": ["action"]

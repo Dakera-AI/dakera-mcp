@@ -1,4 +1,4 @@
-# Routes of the Dakera v0.12.3 server (v0.12.0 plus the routes v0.12.2 and v0.12.3 add) (crates/api/src/lib.rs + keys_router + attachment routes), params as *.
+# Routes of the Dakera v0.12.4 server (v0.12.0 plus the routes v0.12.2, v0.12.3 and v0.12.4 add; the Dakera Cloud tenant routes /v1/tenants/* are left out) (crates/api/src/lib.rs + keys_router + attachment routes), params as *.
 # Admin routes are served under /admin and /v1/admin. Regenerate when the server's router changes.
 # New in v0.12.2: POST /v1/agents, GET /v1/auth/whoami, POST /v1/sessions/*/touch, PATCH key routes, derivations.
 # New in v0.12.3: the document routes and GET /v1/memory/deduplicated, POST /v1/memory/deduplicated/*/restore.
@@ -246,6 +246,7 @@ POST /v1/memories/store/batch
 POST /v1/memory/consolidate
 POST /v1/memory/feedback
 POST /v1/memory/forget
+POST /v1/memory/forget/detect
 POST /v1/memory/importance
 POST /v1/memory/recall
 POST /v1/memory/search

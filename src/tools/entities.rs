@@ -7,11 +7,14 @@ use serde_json::json;
 use super::{ok_json, require_string, DakeraApiClient};
 use crate::protocol::{CallToolResult, ToolDefinition};
 
+/// The most labels a namespace's `entity_types` may hold (Dakera v0.12.4).
+pub const MAX_ENTITY_LABELS: usize = 200;
+
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "dakera_auto_tag".into(),
-            description: "Extract typed entity spans from text: a rule-based pass (dates, URLs, emails, IPs) plus GLiNER NER when its model is available. Returns spans without storing. Use to preview extraction before enabling it on a namespace.".into(),
+            description: "Extract typed entity spans from text without storing: a rule-based pass (dates, URLs, emails, IPs) plus the server's GLiNER model (v0.12.4: chosen by the embedding model's languages, gliner-bi-small English or gliner-x-small multilingual). extractor says which ran; warnings a failed model pass.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -22,7 +25,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "entity_types": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "GLiNER entity types (default: person, organization, location)"
+                        "description": "Labels (default: person, organization, location); presets @conversational, @technical, @personal, @pii; at most 200, no ':'"
                     },
                     "lang": { "type": "string", "description": "Language of the text: en, de, fr, es, it, pt, nl; Dakera v0.12+" }
                 },
@@ -31,7 +34,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_entity_types_set".into(),
-            description: "Enable or disable automatic GLiNER entity tagging at memory write time for a namespace, and set which entity types to extract.".into(),
+            description: "Turn automatic entity tagging of a namespace's stored memories on or off and set its labels (only the fields given change). Since v0.12.4 it is on by default (person, organization, location; source server_default) and tags are added in the background just after each store.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -41,20 +44,20 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     },
                     "extract_entities": {
                         "type": "boolean",
-                        "description": "Whether to automatically extract entities when memories are stored"
+                        "description": "Tag memories when they are stored"
                     },
                     "entity_types": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Entity types to extract (e.g. [\"person\", \"organization\", \"date\"])"
+                        "description": "Labels, any words (e.g. person, product); presets @conversational, @technical, @personal, @pii; at most 200 of 64 chars, no ':'; [] = rules only"
                     }
                 },
-                "required": ["namespace", "extract_entities", "entity_types"]
+                "required": ["namespace"]
             }),
         },
         ToolDefinition {
             name: "dakera_entity_types_get".into(),
-            description: "Get the current entity extraction configuration for a namespace — whether automatic tagging is enabled and which entity types are configured.".into(),
+            description: "Get the entity tagging a namespace's stores run: extract_entities, entity_types, and source (v0.12.4+: namespace = set for it, server_default = the server's default).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -121,26 +124,35 @@ async fn tool_entity_types_set(
         Ok(v) => v,
         Err(e) => return e,
     };
-    let extract_entities = match args.get("extract_entities").and_then(|v| v.as_bool()) {
-        Some(v) => v,
-        None => {
-            return CallToolResult::error(
-                "Missing required parameter: extract_entities (boolean)".to_string(),
-            )
+    // PATCH: only the fields given change.
+    let mut body = json!({});
+    if let Some(v) = args.get("extract_entities").filter(|v| !v.is_null()) {
+        match v.as_bool() {
+            Some(b) => body["extract_entities"] = json!(b),
+            None => {
+                return CallToolResult::error(format!(
+                    "extract_entities must be true or false; got {v}"
+                ))
+            }
         }
-    };
-    let entity_types = match args.get("entity_types").and_then(|v| v.as_array()) {
-        Some(v) => v.clone(),
-        None => {
-            return CallToolResult::error(
-                "Missing required parameter: entity_types (array)".to_string(),
-            )
+    }
+    if let Some(v) = args.get("entity_types").filter(|v| !v.is_null()) {
+        let Some(types) = v.as_array() else {
+            return CallToolResult::error(format!("entity_types must be an array; got {v}"));
+        };
+        if types.len() > MAX_ENTITY_LABELS {
+            return CallToolResult::error(format!(
+                "entity_types holds at most {MAX_ENTITY_LABELS} labels; got {}",
+                types.len()
+            ));
         }
-    };
-    let body = json!({
-        "extract_entities": extract_entities,
-        "entity_types": entity_types,
-    });
+        body["entity_types"] = json!(types);
+    }
+    if body.as_object().is_some_and(|b| b.is_empty()) {
+        return CallToolResult::error(
+            "Give extract_entities, entity_types or both; nothing was changed.".to_string(),
+        );
+    }
     let encoded = urlencoding::encode(&namespace);
     let path = format!("/v1/namespaces/{}/config", encoded);
     match client.patch_json(&path, &body).await {
@@ -224,14 +236,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_entity_types_set_missing_extract_entities() {
+    async fn test_entity_types_set_needs_a_field_to_change() {
+        let result = tool_entity_types_set(&dummy_client(), &json!({"namespace": "ns"})).await;
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("extract_entities"));
+    }
+
+    #[tokio::test]
+    async fn test_entity_types_set_refuses_more_labels_than_the_server() {
+        let labels: Vec<String> = (0..201).map(|i| format!("l{i}")).collect();
         let result = tool_entity_types_set(
             &dummy_client(),
-            &json!({"namespace": "ns", "entity_types": []}),
+            &json!({"namespace": "ns", "entity_types": labels}),
         )
         .await;
         assert_eq!(result.is_error, Some(true));
-        assert!(result.content[0].text.contains("extract_entities"));
+        assert!(result.content[0].text.contains("at most 200"));
     }
 
     #[tokio::test]

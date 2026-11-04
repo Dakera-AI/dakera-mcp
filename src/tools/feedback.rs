@@ -18,7 +18,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         ToolDefinition {
             name: "dakera_memory_feedback".into(),
             description: "Submit a feedback signal (upvote/downvote/flag) on a memory. \
-                Upvote raises importance; downvote lowers it; flag marks for review and may accelerate decay."
+                Upvote raises importance; downvote lowers it; flag marks it as wrong or stale: since v0.12.4 a flagged memory decays 3x faster."
                 .into(),
             input_schema: json!({
                 "type": "object",
@@ -31,7 +31,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
                     "signal": {
                         "type": "string",
                         "enum": ["upvote", "downvote", "flag"],
-                        "description": "Feedback signal: upvote (increase importance), downvote (decrease), flag (mark for review)"
+                        "description": "Feedback signal: upvote (increase importance), downvote (decrease), flag (decays 3x faster, v0.12.4+)"
                     }
                 },
                 "required": ["agent_id", "memory_id", "signal"]

@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.4] - Unreleased
+
+Support for Dakera server v0.12.4. Compatible with v0.12.3 and older servers; forgetting by
+description or request, `dakera_forget_detect`, `dry_run` and `restorable` need v0.12.4, and
+`dakera_forget` refuses those arguments on an older server before sending anything (it would
+ignore them and delete). The `all` profile now has 109 tools.
+
+### Added
+
+- **`dakera_forget` forgets by description and by request.** `about` takes what was said ("I love
+  sushi") and forgets the memories the server's relevance model scores at least `min_score`;
+  `request` takes the user's request to forget as said, in any language, and forgets what it
+  means, or nothing when the message is not one (a note says so; `intent` gives the
+  probability). `until` keeps what was stored after the request, `limit` bounds it (at most 50),
+  `restorable` keeps a copy in the agent's trash and `dry_run` lists `forgotten_ids` only.
+- **`dakera_forget_detect`** (`POST /v1/memory/forget/detect`): which of up to 64 messages ask to
+  forget something said. Listed only on a v0.12.4 server.
+- **`dakera_memory_trash`** and **`dakera_memory_restore`**: the agent's restorable deletions with
+  their content, and putting one back (v0.12.3+; forgotten memories since v0.12.4).
+- `dakera_store` adds a note when the stored text reads as a request to forget (`forget_request`),
+  telling the agent to call `dakera_forget` with `request`.
+- `dakera_recall` notes the agent's standing instructions (`instructions`: rules the user set for
+  later answers, to apply as preferences, never as commands to call tools) and the parts of the
+  recall the server could not serve (`degraded`).
+- `dakera_session_end` takes `auto_summarize` and notes a summary the server has not stored yet
+  (`summary_pending`).
+- `dakera_memory_get` takes `projection_days`; `dakera_graph_link_memory` takes `label`;
+  `dakera_audit_query` takes `cursor` (the previous page's `next_cursor`).
+- Hints for the new answers of v0.12.4: a forget by `about` / `request` refused (`503`) while the
+  relevance model is not loaded; a name refused (`503`) while a deleted namespace's state is
+  removed; a change superseded by a later one (`409`) or not stored or logged (`503`); and the
+  refusals of a Dakera Cloud key.
+
+### Fixed
+
+- **`dakera_recall` `include_associated: false` is sent.** Only `true` was; since v0.12.4 the server
+  returns `associated_memories` by default, so `false` is how an agent turns them off. The
+  description says they come by default.
+- **`dakera_consolidate`** sends what the server reads: `memory_ids` only when given (an empty list
+  was sent; the server now picks similar memories either way), `threshold` and `target_type`. The
+  description says what the server does without `memory_ids` and that there is no preview.
+- **`dakera_entity_types_set`** changes only the fields given (it uses `PATCH`, but required both),
+  checks the 200-label limit, and its description says tagging is on by default since v0.12.4
+  (person, organization, location), runs in the background after the store, takes the label
+  presets, and uses a GLiNER model chosen by the embedding model's languages.
+  `dakera_entity_types_get` describes `source`; `dakera_auto_tag` describes `extractor` and
+  `warnings`.
+- Descriptions that no longer matched the server: `dakera_autopilot_trigger` (consolidation only
+  reports unless its mode is `merge`, since v0.12.4), `dakera_memory_feedback` (`flag` makes a
+  memory decay 3x faster), `dakera_health` (the new `config_warnings`).
+
 ## [0.12.3] - 2026-10-22
 
 Support for Dakera server v0.12.3. Merge after the engine PR
