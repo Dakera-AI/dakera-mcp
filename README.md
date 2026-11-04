@@ -29,7 +29,7 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 | `dakera_session_start` | Start a session to group related memories |
 | `dakera_session_end` | End a session with optional summary |
 | `dakera_batch_recall` | Bulk filter-based recall (by tags, importance, time) |
-| `dakera_forget` | Delete specific memories by ID |
+| `dakera_forget` | Delete memories by ID or tag, or (v0.12.4) by what was said (`about`) or by the user's request to forget (`request`, any language) |
 | `dakera_hybrid_search` | Combined vector + BM25 search |
 | `dakera_fulltext_search` | BM25 full-text search |
 | `dakera_knowledge_graph` | Build a knowledge graph from a seed memory |
@@ -44,8 +44,8 @@ Starting every agent session with 60+ tool schemas wastes ~15K tokens before you
 |---|---|---|---|
 | **core** | 14 | ~3,500 | Default — always loaded |
 | **admin** | 34 | ~6,850 | `DAKERA_MCP_PROFILE=admin` |
-| **power** | 86 | ~18,200 | `DAKERA_MCP_PROFILE=power` |
-| **all** | 106 | ~21,600 | `DAKERA_MCP_PROFILE=all` |
+| **power** | 89 | ~18,600 | `DAKERA_MCP_PROFILE=power` |
+| **all** | 109 | ~22,500 | `DAKERA_MCP_PROFILE=all` |
 
 Token figures are estimates (JSON bytes / 3). The attachment tools below count in `power` and `all`,
 but only appear while the connected server has the feature on (see [Dakera v0.12](#dakera-v012)).
@@ -82,19 +82,40 @@ DAKERA_MCP_PROFILE=power
 
 ## Dakera v0.12
 
-dakera-mcp 0.12.3 works against **Dakera v0.11.108 and v0.12.0 – v0.12.3** servers. Every
+dakera-mcp 0.12.4 works against **Dakera v0.11.108 and v0.12.0 – v0.12.4** servers. Every
 tool keeps its name and arguments; the additions are optional arguments that are sent only when you
 supply them (or that an older server ignores), and tools that call new routes and say so on a server
-without them. The 0.12.3 additions (separate neighbourhood context, the unknown-field hint, document import)
-need a **v0.12.3** server.
+without them. The 0.12.4 additions (forget by description or request, request detection, the trash
+of forgotten memories) need a **v0.12.4** server; the 0.12.3 ones (separate neighbourhood context,
+the unknown-field hint, document import) a v0.12.3 server.
 
-| Dakera server | dakera-mcp 0.12.3 |
+| Dakera server | dakera-mcp 0.12.4 |
 |---|---|
+| v0.12.4 | every tool; `dakera_forget` takes `about`, `request`, `until`, `restorable`, `dry_run`; recall answers carry `associated_memories` by default and the agent's standing `instructions` |
+| v0.12.3 | every tool but `dakera_forget_detect`; `dakera_forget` refuses the v0.12.4 arguments before sending (the server would ignore them and delete) |
 | v0.12.3 | every tool; the recall tools list neighbourhood context apart in `context_memories` (`neighborhood_mode`) |
 | v0.12.2 | every tool; the recall tools keep the first `top_k` results and say how many unmarked context items they left out; the attachment tools while `DAKERA_ATTACHMENTS` (and `DAKERA_VISION` for images) is on |
 | v0.12.0, v0.12.1 | every tool; `dakera_session_touch` and `dakera_agent_create` answer that nothing is needed (sessions are not ended for inactivity there, and an agent is created by its first memory); `dakera_whoami` says it needs v0.12.2; listings return full content (no preview) and include derived sentence sub-memories |
 | v0.11.108 | as v0.12.0, and the attachment tools, `dakera_encryption_status` and `dakera_embed_migration_status` are not listed (a direct call says they need v0.12); `dakera_encryption_rotate_key` needs `new_key` |
 | older | not tested |
+
+### New with Dakera v0.12.4
+
+| Tool / argument | Tier | What it does |
+|---|---|---|
+| `dakera_forget` `about` | core | forget the memories that say this (what was said, not the request to forget it), scored by the server's relevance model; `min_score` (0-1), `limit` (at most 50), `until` (keep what was stored later) |
+| `dakera_forget` `request` | core | the user's request to forget as said, in any language: the server checks it is one (`intent`) and forgets what it means; a message that is not one forgets nothing (a note says so) |
+| `dakera_forget` `restorable`, `dry_run` | core | keep a copy in the agent's trash; list `forgotten_ids` and forget nothing |
+| `dakera_forget_detect` | power | `POST /v1/memory/forget/detect`: which of up to 64 messages ask to forget something said |
+| `dakera_memory_trash` / `dakera_memory_restore` | power | the agent's restorable deletions with their content (forgotten, deduplicated, consolidated) and putting one back (v0.12.3+) |
+| `dakera_store` | core | a note when the stored text reads as a request to forget (`forget_request`), saying how to act on it |
+| `dakera_recall` | core | `associated_memories` (knowledge-graph neighbours) come by default since v0.12.4 (`include_associated: false` turns them off); `instructions`: the user's standing rules that fit the query, with a note; parts the server could not serve (`degraded`) in a note |
+| `dakera_session_end` `auto_summarize` | core | a summary memory for any session with memories, or never; a note when the summary is not stored yet (`summary_pending`) |
+| `dakera_consolidate` | power | `memory_ids` optional (the server picks similar memories), `threshold`, `target_type`; there is no preview |
+| `dakera_memory_get` `projection_days` | power | the memory's projected importance for the next days |
+| `dakera_entity_types_set` / `_get` | power | only the fields given change; labels may use presets (`@conversational`, `@technical`, `@personal`, `@pii`), at most 200; `source` says whether the namespace set them or runs the server's default (tagging is on by default since v0.12.4, with a GLiNER model chosen by the embedding model's languages: `gliner-bi-small` English, `gliner-x-small` multilingual) |
+| `dakera_graph_link_memory` `label`, `dakera_audit_query` `cursor` | power | the link's meaning (stored since v0.12.4); the next page of the audit log (`next_cursor`) |
+| hints | — | a forget refused (`503`) while the relevance model is not loaded, a deleted namespace's name refused while it is cleaned up, a change superseded (`409`) or not stored (`503`), and Dakera Cloud key refusals |
 
 ### New with Dakera v0.12.2
 

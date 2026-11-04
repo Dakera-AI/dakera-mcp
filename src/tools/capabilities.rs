@@ -35,6 +35,11 @@ pub fn feature_enabled(state: &CapabilityState, feature: &str) -> Option<bool> {
     match state {
         // Any server that serves /v1/capabilities is v0.12 or later.
         CapabilityState::Known(_) if feature == SERVER_V012 => Some(true),
+        // A later v0.12 release: the document's `server_version` says.
+        CapabilityState::Known(doc) if minimum_version(feature).is_some() => {
+            let version = doc.get("server_version")?.as_str()?;
+            Some(parse_version(version)? >= minimum_version(feature)?)
+        }
         // `documents` is new in v0.12.3: a v0.12 document without the
         // section is a server that has no document routes.
         CapabilityState::Known(doc) if feature == DOCUMENTS && doc.get(feature).is_none() => {
@@ -53,6 +58,41 @@ pub fn feature_enabled(state: &CapabilityState, feature: &str) -> Option<bool> {
 /// v0.12 server has needs (no opt-in variable).
 pub const SERVER_V012: &str = "server_v012";
 
+/// Not a section either: a tool that needs Dakera v0.12.3 or later (the
+/// restorable-memory trash).
+pub const SERVER_V0123: &str = "server_v0123";
+
+/// Not a section either: a tool or argument that needs Dakera v0.12.4 or
+/// later (forget by description or request, request detection, dry runs).
+pub const SERVER_V0124: &str = "server_v0124";
+
+/// The release a `server_v*` pseudo-feature stands for.
+fn minimum_version(feature: &str) -> Option<(u64, u64, u64)> {
+    match feature {
+        SERVER_V0123 => Some((0, 12, 3)),
+        SERVER_V0124 => Some((0, 12, 4)),
+        _ => None,
+    }
+}
+
+/// `(major, minor, patch)` of a version string (`0.12.4`, `0.12.4-rc1`).
+pub fn parse_version(version: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = version
+        .trim()
+        .trim_start_matches('v')
+        .split(['.', '-', '+']);
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next()?.parse().ok()?;
+    Some((major, minor, patch))
+}
+
+/// Whether the server is at least the release `feature` stands for
+/// ([`SERVER_V0123`], [`SERVER_V0124`]); `None` when it cannot be known.
+pub fn server_at_least(state: &CapabilityState, feature: &str) -> Option<bool> {
+    feature_enabled(state, feature)
+}
+
 /// The capability section of document import (Dakera v0.12.3, on by default).
 pub const DOCUMENTS: &str = "documents";
 
@@ -67,10 +107,22 @@ const DOCUMENT_TOOLS: &[&str] = &[
 /// Tools whose routes are new in Dakera v0.12 but need no opt-in feature.
 const V012_ONLY_TOOLS: &[&str] = &["dakera_embed_migration_status", "dakera_encryption_status"];
 
+/// Tools whose routes are new in Dakera v0.12.3.
+const V0123_TOOLS: &[&str] = &["dakera_memory_trash", "dakera_memory_restore"];
+
+/// Tools whose routes are new in Dakera v0.12.4.
+const V0124_TOOLS: &[&str] = &["dakera_forget_detect"];
+
 /// The capability sections an opt-in tool needs.
 pub fn required_features(tool: &str) -> &'static [&'static str] {
     if V012_ONLY_TOOLS.contains(&tool) {
         return &[SERVER_V012];
+    }
+    if V0123_TOOLS.contains(&tool) {
+        return &[SERVER_V0123];
+    }
+    if V0124_TOOLS.contains(&tool) {
+        return &[SERVER_V0124];
     }
     if DOCUMENT_TOOLS.contains(&tool) {
         return &[DOCUMENTS];
@@ -110,6 +162,19 @@ fn reason_for(tool: &str, feature: &str, state: &CapabilityState) -> String {
         return format!(
             "{tool} needs Dakera server v0.12 or later: this server has no /v1/capabilities, \
              so it predates v0.12."
+        );
+    }
+    if let Some((major, minor, patch)) = minimum_version(feature) {
+        let version = match state {
+            CapabilityState::Known(doc) => doc
+                .get("server_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("older"),
+            _ => "older",
+        };
+        return format!(
+            "{tool} needs Dakera server v{major}.{minor}.{patch} or later; this server is \
+             {version}."
         );
     }
     if feature == DOCUMENTS {
@@ -179,6 +244,33 @@ mod tests {
             "vision": {"enabled": false},
             "records": {"enabled": false}
         }))
+    }
+
+    #[test]
+    fn server_versions_gate_the_newer_tools() {
+        let v0123 = CapabilityState::Known(json!({"server_version": "0.12.3"}));
+        let v0124 = CapabilityState::Known(json!({"server_version": "0.12.4"}));
+        let unnamed = CapabilityState::Known(json!({}));
+        assert_eq!(server_at_least(&v0123, SERVER_V0124), Some(false));
+        assert_eq!(server_at_least(&v0124, SERVER_V0124), Some(true));
+        assert_eq!(server_at_least(&v0123, SERVER_V0123), Some(true));
+        assert_eq!(server_at_least(&unnamed, SERVER_V0124), None);
+        let reason = unavailable_reason("dakera_forget_detect", &v0123).unwrap();
+        assert!(
+            reason.contains("v0.12.4") && reason.contains("0.12.3"),
+            "{reason}"
+        );
+        assert!(is_available("dakera_forget_detect", &v0124));
+        assert!(is_available("dakera_memory_trash", &v0123));
+        assert!(!is_available(
+            "dakera_memory_trash",
+            &CapabilityState::NotSupported
+        ));
+        assert!(is_available(
+            "dakera_forget_detect",
+            &CapabilityState::Unknown
+        ));
+        assert_eq!(parse_version("v0.13.0-rc1"), Some((0, 13, 0)));
     }
 
     #[test]

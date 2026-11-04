@@ -49,6 +49,21 @@ const HINT_RESERVED: &str = "That tag, metadata key or id is reserved for what t
      itself; leave it out and call again.";
 const HINT_NEW_KEY: &str = "Dakera servers before v0.12 require new_key: pass a passphrase or a \
      64-char hex key.";
+const HINT_FORGET_MODEL: &str = "Forgetting by about or request needs the server's relevance \
+     model (and, for request, its request-to-forget detector), which is not loaded yet or failed \
+     to load; forget by memory_ids meanwhile, or";
+const HINT_FENCED: &str = "This name belonged to a deleted namespace whose stored state is still \
+     being removed; writes to it are refused until that is done:";
+const HINT_NOT_DURABLE: &str = "The change applies now, but the server could not store or log \
+     it, so a restart could undo it; call again once the server's storage recovers.";
+const HINT_SUPERSEDED: &str = "Another change of the same record was made at the same time and \
+     won; nothing of this one was applied. Read the current state and repeat it if still needed.";
+const HINT_TENANT_ROUTE: &str = "This tool is not available with a Dakera Cloud key.";
+const HINT_TENANT_SUSPENDED: &str = "This Dakera Cloud account is suspended; the message says why.";
+const HINT_TENANT_POLICY: &str = "The limits of this Dakera Cloud account do not allow this \
+     request; the message names what they refuse.";
+const HINT_TENANT_MODE_OFF: &str = "This key belongs to a Dakera Cloud account and is not valid \
+     on this server; use a key this server issued.";
 const HINT_UNSUPPORTED: &str = "The server's configuration cannot serve this request; the \
      details name the settings to change.";
 
@@ -56,10 +71,24 @@ const HINT_UNSUPPORTED: &str = "The server's configuration cannot serve this req
 /// header. `None` when the answer has no well-known v0.12 meaning.
 pub fn error_hint(status: u16, body: &str, retry_after_secs: Option<u64>) -> Option<String> {
     if status == 503 {
-        return Some(match retry_after_secs {
-            Some(secs) => format!("The server is busy or starting; retry in {secs}s."),
-            None => "The server is busy or starting; retry shortly.".to_string(),
-        });
+        let when = match retry_after_secs {
+            Some(secs) => format!("retry in {secs}s"),
+            None => "retry shortly".to_string(),
+        };
+        // Dakera v0.12.4 answers 503 for three things that are not a busy server.
+        if body.contains("relevance model") || body.contains("detector") {
+            return Some(format!("{HINT_FORGET_MODEL} {when}."));
+        }
+        if body.contains("not accepting writes") {
+            return Some(format!("{HINT_FENCED} {when}."));
+        }
+        if body.contains("could not be stored or logged") {
+            return Some(HINT_NOT_DURABLE.to_string());
+        }
+        return Some(format!("The server is busy or starting; {when}."));
+    }
+    if status == 409 && body.contains("a later change of the same record") {
+        return Some(HINT_SUPERSEDED.to_string());
     }
     if status == 429 {
         return Some(match retry_after_secs {
@@ -104,6 +133,10 @@ pub fn error_hint(status: u16, body: &str, retry_after_secs: Option<u64>) -> Opt
         (403, "NAMESPACE_ACCESS_DENIED") => HINT_NAMESPACE,
         (403, "INSUFFICIENT_SCOPE") if super_admin => HINT_SUPER_ADMIN,
         (403, "INSUFFICIENT_SCOPE") => HINT_SCOPE,
+        (403, "TENANT_ROUTE") => HINT_TENANT_ROUTE,
+        (403, "TENANT_SUSPENDED") => HINT_TENANT_SUSPENDED,
+        (403, "TENANT_POLICY") => HINT_TENANT_POLICY,
+        (403, "TENANT_MODE_OFF") => HINT_TENANT_MODE_OFF,
         (413, "QUOTA_EXCEEDED") => HINT_QUOTA,
         (413, _) => HINT_TOO_LARGE,
         (404, "ROUTE_NOT_FOUND") | (405, _) => HINT_NO_ROUTE_CODED,
@@ -220,6 +253,33 @@ mod tests {
         assert!(hint.contains("retry shortly"));
         let hint = error_hint(429, "{}", Some(12)).unwrap();
         assert!(hint.contains("retry in 12s"));
+    }
+
+    #[test]
+    fn the_v0124_503s_say_what_they_are() {
+        let model = r#"{"error":"Service unavailable","code":"SERVICE_UNAVAILABLE","details":"forget by description needs the relevance model (not loaded); retry"}"#;
+        let hint = error_hint(503, model, Some(5)).unwrap();
+        assert!(
+            hint.contains("memory_ids") && hint.contains("retry in 5s"),
+            "{hint}"
+        );
+        let fenced = r#"{"error":"Namespace 'a' is not accepting writes right now (teardown); retry in 5 s","code":"SERVICE_UNAVAILABLE"}"#;
+        assert!(error_hint(503, fenced, Some(5))
+            .unwrap()
+            .contains("deleted namespace"));
+        let lost = r#"{"success":false,"message":"API key 'k' has been revoked on every node now, but it could not be stored or logged (io)"}"#;
+        assert!(error_hint(503, lost, Some(5))
+            .unwrap()
+            .contains("restart could undo"));
+    }
+
+    #[test]
+    fn superseded_409_and_tenant_refusals() {
+        let won = r#"{"success":false,"message":"a later change of the same record took over before this one was stored; nothing of this one was applied"}"#;
+        assert!(error_hint(409, won, None).unwrap().contains("won"));
+        assert!(error_hint(409, &body("CONFLICT", ""), None).is_none());
+        let route = error_hint(403, &body("TENANT_ROUTE", ""), None).unwrap();
+        assert!(route.contains("Dakera Cloud"));
     }
 
     #[test]

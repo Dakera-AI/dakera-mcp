@@ -34,7 +34,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "type": "object",
                 "properties": {
                     "session_id": { "type": "string", "description": "Session ID to end" },
-                    "summary": { "type": "string", "description": "Optional session summary" }
+                    "summary": { "type": "string", "description": "Optional session summary" },
+                    "auto_summarize": { "type": "boolean", "description": "Summary memory even if short; false: never" }
                 },
                 "required": ["session_id"]
             }),
@@ -143,18 +144,29 @@ async fn tool_session_end(client: &DakeraApiClient, args: &serde_json::Value) ->
         Ok(v) => v,
         Err(e) => return e,
     };
-    let body = json!({
+    let mut body = json!({
         "summary": args.get("summary").and_then(|v| v.as_str()),
     });
+    // Sent only when given: the server's default (a summary for a session of
+    // more than 3 memories) applies otherwise.
+    if let Some(auto) = args.get("auto_summarize").and_then(|v| v.as_bool()) {
+        body["auto_summarize"] = json!(auto);
+    }
     let encoded = urlencoding::encode(&session_id);
     let path = format!("/v1/sessions/{}/end", encoded);
     match client.post_json(&path, &body).await {
         Ok(result) => {
-            let answer = ok_json(&result);
-            match end_note(&result) {
-                Some(note) => answer.with_note(note),
-                None => answer,
+            let mut answer = ok_json(&result);
+            if let Some(note) = end_note(&result) {
+                answer = answer.with_note(note);
             }
+            if let Some(why) = result.get("summary_pending").and_then(|v| v.as_str()) {
+                answer = answer.with_note(format!(
+                    "Note: the session ended, but its summary memory is not stored yet ({why}); \
+                     the server retries until it is. Nothing to do."
+                ));
+            }
+            answer
         }
         Err(e) => CallToolResult::error(e),
     }

@@ -76,7 +76,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_graph_link_memory".into(),
-            description: "Create an explicit linked_by edge between two memories. \
+            description: "Create an explicit linked_by edge between two memories, with an optional label saying what the link means (stored since v0.12.4). \
                 Use when semantic similarity did not auto-link them; affects graph traversal and dakera_recall_associated."
                 .into(),
             input_schema: json!({
@@ -84,7 +84,8 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "properties": {
                     "memory_id": { "type": "string", "description": "Source memory ID" },
                     "target_id": { "type": "string", "description": "Target memory ID to link to" },
-                    "agent_id": { "type": "string" }
+                    "agent_id": { "type": "string" },
+                    "label": { "type": "string", "description": "What the link means, e.g. caused_by (at most 256 bytes)" }
                 },
                 "required": ["memory_id", "target_id", "agent_id"]
             }),
@@ -213,7 +214,10 @@ async fn tool_graph_link_memory(
     // Server contract (MemoryLinkRequest): agent_id is required for
     // authorization — omitting it is a 422. Same drift class as the
     // dakera_memory_feedback fix (#136).
-    let body = json!({ "target_id": target_id, "agent_id": agent_id });
+    let mut body = json!({ "target_id": target_id, "agent_id": agent_id });
+    if let Some(label) = args.get("label").and_then(|v| v.as_str()) {
+        body["label"] = json!(label);
+    }
     match client.post_json(&path, &body).await {
         Ok(result) => ok_json(&result),
         Err(e) => CallToolResult::error(e),

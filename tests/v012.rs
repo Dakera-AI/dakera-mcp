@@ -1694,6 +1694,7 @@ async fn every_tool_sends_only_methods_and_paths_the_v012_router_serves() {
         if req.path == "/v1/capabilities" {
             let mut doc = caps(true, true);
             doc["documents"] = json!({"enabled": true});
+            doc["server_version"] = json!("0.12.4");
             return Reply::json(200, doc);
         }
         if req.path.starts_with("/v1/export") || req.path.ends_with("/ops/metrics") {
@@ -1718,6 +1719,8 @@ async fn every_tool_sends_only_methods_and_paths_the_v012_router_serves() {
         ("dakera_attachment_delete", json!({"agent_id": "x"})),
         ("dakera_attachment_job", json!({"agent_id": "x"})),
         ("dakera_batch_forget", json!({"tags": ["x"]})),
+        ("dakera_forget", json!({"memory_ids": ["x"]})),
+        ("dakera_entity_types_set", json!({"extract_entities": true})),
         (
             "dakera_knowledge_summarize",
             json!({"memory_ids": ["a", "b"]}),
@@ -2248,4 +2251,310 @@ async fn recall_cites_document_chunks() {
     assert_eq!(cite["page_start"], 3);
     assert_eq!(cite["heading_path"], json!(["Field Manual", "Install"]));
     assert!(shown["memories"][1].get("citation").is_none());
+}
+
+// ── Dakera v0.12.4 ──────────────────────────────────────────────────────────
+
+/// Every text item of a tool result (the answer, then its notes).
+fn all_text(result: &CallToolResult) -> String {
+    result
+        .content
+        .iter()
+        .map(|c| c.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// A server that reports `version` in `/v1/capabilities` and answers the
+/// other routes with `reply`.
+async fn versioned_server<F>(version: &'static str, reply: F) -> MockServer
+where
+    F: Fn(&Seen) -> Reply + Send + Sync + 'static,
+{
+    MockServer::start(move |req| {
+        if req.path == "/v1/capabilities" {
+            let mut doc = caps(false, false);
+            doc["server_version"] = json!(version);
+            return Reply::json(200, doc);
+        }
+        reply(req)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn forget_by_request_sends_it_and_says_when_it_is_not_one() {
+    let server = versioned_server("0.12.4", |_| {
+        Reply::json(
+            200,
+            json!({
+                "deleted_count": 0,
+                "forgotten_ids": [],
+                "intent": {"probability": 0.04, "threshold": 0.5, "is_request": false}
+            }),
+        )
+    })
+    .await;
+    let r = execute_tool(
+        &server.client(),
+        "dakera_forget",
+        &json!({"agent_id": "a", "request": "I always forget my keys", "restorable": true}),
+    )
+    .await;
+    assert_ne!(r.is_error, Some(true), "{}", all_text(&r));
+    assert!(all_text(&r).contains("does not read as a request to forget"));
+    assert_eq!(
+        server.last("/v1/memory/forget").json(),
+        json!({"agent_id": "a", "request": "I always forget my keys", "restorable": true})
+    );
+}
+
+#[tokio::test]
+async fn forget_options_of_v0124_are_refused_on_an_older_server() {
+    let server =
+        versioned_server("0.12.3", |_| Reply::json(200, json!({"deleted_count": 1}))).await;
+    let r = execute_tool(
+        &server.client(),
+        "dakera_forget",
+        &json!({"agent_id": "a", "memory_ids": ["m1"], "dry_run": true}),
+    )
+    .await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(text_of(&r).contains("v0.12.4"), "{}", text_of(&r));
+    assert!(!server
+        .paths()
+        .iter()
+        .any(|p| p.contains("/v1/memory/forget")));
+    // Forgetting by id needs nothing new and still works there.
+    let r = execute_tool(
+        &server.client(),
+        "dakera_forget",
+        &json!({"agent_id": "a", "memory_ids": ["m1"]}),
+    )
+    .await;
+    assert_ne!(r.is_error, Some(true), "{}", text_of(&r));
+}
+
+#[tokio::test]
+async fn forget_detect_and_trash_need_their_release() {
+    let old = versioned_server("0.12.2", |_| Reply::json(200, json!({}))).await;
+    let r = execute_tool(
+        &old.client(),
+        "dakera_forget_detect",
+        &json!({"texts": ["Forget my address"]}),
+    )
+    .await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(text_of(&r).contains("v0.12.4"));
+    let r = execute_tool(
+        &old.client(),
+        "dakera_memory_trash",
+        &json!({"agent_id": "a"}),
+    )
+    .await;
+    assert!(text_of(&r).contains("v0.12.3"));
+    let listed: Vec<String> = listed_definitions(&old.client(), "all")
+        .await
+        .into_iter()
+        .map(|d| d.name)
+        .collect();
+    assert!(!listed.contains(&"dakera_forget_detect".to_string()));
+
+    let new = versioned_server("0.12.4", |req| {
+        if req.path.starts_with("/v1/memory/forget/detect") {
+            return Reply::json(
+                200,
+                json!({
+                    "model": "multilingual-minilm",
+                    "threshold": 0.5,
+                    "sentence_threshold": 0.7,
+                    "results": [{"probability": 0.97, "is_request": true}]
+                }),
+            );
+        }
+        Reply::json(200, json!({"agent_id": "a", "memories": [], "count": 0}))
+    })
+    .await;
+    let r = execute_tool(
+        &new.client(),
+        "dakera_forget_detect",
+        &json!({"texts": ["Oublie mon adresse"]}),
+    )
+    .await;
+    assert_ne!(r.is_error, Some(true), "{}", text_of(&r));
+    assert!(text_of(&r).contains("is_request"));
+    assert_eq!(
+        new.last("/v1/memory/forget/detect").json(),
+        json!({"texts": ["Oublie mon adresse"]})
+    );
+    let r = execute_tool(
+        &new.client(),
+        "dakera_memory_restore",
+        &json!({"agent_id": "a b", "memory_id": "m/1"}),
+    )
+    .await;
+    assert_ne!(r.is_error, Some(true), "{}", text_of(&r));
+    assert!(new
+        .paths()
+        .contains(&"POST /v1/memory/deduplicated/m%2F1/restore?agent_id=a%20b".to_string()));
+}
+
+#[tokio::test]
+async fn store_notes_a_request_to_forget() {
+    let server = versioned_server("0.12.4", |_| {
+        Reply::json(
+            200,
+            json!({
+                "memory": {"id": "m1"},
+                "embedding_time_ms": 1,
+                "forget_request": {"probability": 0.92, "threshold": 0.5, "is_request": true}
+            }),
+        )
+    })
+    .await;
+    let r = execute_tool(
+        &server.client(),
+        "dakera_store",
+        &json!({"agent_id": "a", "content": "Please forget my address"}),
+    )
+    .await;
+    assert_ne!(r.is_error, Some(true));
+    assert!(all_text(&r).contains("call dakera_forget with request"));
+}
+
+#[tokio::test]
+async fn recall_notes_instructions_and_degraded_and_can_turn_associated_off() {
+    let server = versioned_server("0.12.4", |_| {
+        Reply::json(
+            200,
+            json!({
+                "memories": [],
+                "instructions": [{"memory": {"id": "i1", "content": "Answer in French"}, "score": 0.9}],
+                "degraded": ["graph: read failed"]
+            }),
+        )
+    })
+    .await;
+    let r = execute_tool(
+        &server.client(),
+        "dakera_recall",
+        &json!({"agent_id": "a", "query": "q", "include_associated": false}),
+    )
+    .await;
+    let text = all_text(&r);
+    assert!(text.contains("standing instruction"), "{text}");
+    assert!(text.contains("graph: read failed"), "{text}");
+    assert_eq!(
+        server.last("/v1/memory/recall").json()["include_associated"],
+        json!(false)
+    );
+}
+
+#[tokio::test]
+async fn session_end_sends_auto_summarize_and_notes_a_pending_summary() {
+    let server = versioned_server("0.12.4", |_| {
+        Reply::json(
+            200,
+            json!({
+                "session": {"id": "s1", "agent_id": "a"},
+                "memory_count": 5,
+                "summary_pending": "the store refused the write"
+            }),
+        )
+    })
+    .await;
+    let r = execute_tool(
+        &server.client(),
+        "dakera_session_end",
+        &json!({"session_id": "s1", "auto_summarize": false}),
+    )
+    .await;
+    assert!(all_text(&r).contains("summary memory is not stored yet"));
+    assert_eq!(
+        server.last("/v1/sessions/s1/end").json(),
+        json!({"summary": null, "auto_summarize": false})
+    );
+}
+
+#[tokio::test]
+async fn consolidate_sends_only_what_the_server_reads() {
+    let server = versioned_server("0.12.4", |_| Reply::json(200, json!({}))).await;
+    execute_tool(
+        &server.client(),
+        "dakera_consolidate",
+        &json!({"agent_id": "a", "memory_ids": [], "threshold": 0.9, "target_type": "semantic"}),
+    )
+    .await;
+    assert_eq!(
+        server.last("/v1/memory/consolidate").json(),
+        json!({"agent_id": "a", "threshold": 0.9, "target_type": "semantic"})
+    );
+    let r = execute_tool(
+        &server.client(),
+        "dakera_consolidate",
+        &json!({"agent_id": "a", "threshold": 1.5}),
+    )
+    .await;
+    assert_eq!(r.is_error, Some(true));
+}
+
+#[tokio::test]
+async fn memory_get_link_and_audit_send_the_v0124_fields() {
+    let server = versioned_server("0.12.4", |_| Reply::json(200, json!({}))).await;
+    let client = server.client();
+    execute_tool(
+        &client,
+        "dakera_memory_get",
+        &json!({"agent_id": "a", "memory_id": "m1", "projection_days": 7}),
+    )
+    .await;
+    assert!(server
+        .paths()
+        .contains(&"GET /v1/memory/get/m1?agent_id=a&projection_days=7".to_string()));
+    execute_tool(
+        &client,
+        "dakera_graph_link_memory",
+        &json!({"agent_id": "a", "memory_id": "m1", "target_id": "m2", "label": "caused_by"}),
+    )
+    .await;
+    assert_eq!(
+        server.last("/v1/memories/m1/links").json()["label"],
+        "caused_by"
+    );
+    execute_tool(&client, "dakera_audit_query", &json!({"cursor": "c 1"})).await;
+    assert!(server
+        .paths()
+        .iter()
+        .any(|p| p.starts_with("GET /v1/audit?cursor=c%201")));
+}
+
+#[tokio::test]
+async fn a_forget_without_the_relevance_model_explains_the_503() {
+    let server = versioned_server("0.12.4", |req| {
+        if req.path == "/v1/memory/forget" {
+            return Reply::json(
+                503,
+                json!({
+                    "error": "Service unavailable",
+                    "code": "SERVICE_UNAVAILABLE",
+                    "details": "forget by description needs the relevance model (not loaded); retry"
+                }),
+            )
+            .with_header("Retry-After", "1");
+        }
+        Reply::json(200, json!({}))
+    })
+    .await;
+    let r = execute_tool(
+        &server.client(),
+        "dakera_forget",
+        &json!({"agent_id": "a", "about": "my address"}),
+    )
+    .await;
+    assert_eq!(r.is_error, Some(true));
+    assert!(
+        text_of(&r).contains("forget by memory_ids meanwhile"),
+        "{}",
+        text_of(&r)
+    );
 }

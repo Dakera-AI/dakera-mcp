@@ -74,7 +74,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_hybrid_search".into(),
-            description: "BM25 + vector ANN hybrid search in a single pass. Omit vector for BM25-only mode. Use for RAG when pure semantic or keyword search alone is insufficient. vector_weight: 0.0=BM25, 1.0=vector (default 0.5).".into(),
+            description: "BM25 + vector ANN hybrid search in one pass. Omit vector for BM25 only. vector_weight: 0.0=BM25, 1.0=vector (default 0.5).".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

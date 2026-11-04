@@ -15,6 +15,7 @@ pub mod encryption;
 pub mod entities;
 pub mod extractor;
 pub mod feedback;
+pub mod forget;
 pub mod fulltext;
 pub mod graph;
 pub mod health;
@@ -616,6 +617,7 @@ pub fn ok_json(value: &serde_json::Value) -> CallToolResult {
 pub fn full_catalog() -> Vec<ToolCatalogEntry> {
     let mut raw = Vec::new();
     raw.extend(memory::definitions());
+    raw.extend(forget::definitions());
     raw.extend(sessions::definitions());
     raw.extend(agents::definitions());
     raw.extend(knowledge::definitions());
@@ -733,6 +735,9 @@ pub async fn execute_tool(
         return result;
     }
     if let Some(result) = memory::execute(client, name, arguments).await {
+        return result;
+    }
+    if let Some(result) = forget::execute(client, name, arguments).await {
         return result;
     }
     if let Some(result) = sessions::execute(client, name, arguments).await {
@@ -1325,13 +1330,14 @@ mod tests {
         // + 12 for Dakera v0.12: capabilities, health, embed migration status, encryption
         // status, the 7 attachment tools and dakera_wake_up; + 3 for Dakera v0.12.2:
         // dakera_session_touch, dakera_agent_create and dakera_whoami; + 4 document tools for
-        // Dakera v0.12.3).
+        // Dakera v0.12.3; + 3 for Dakera v0.12.4: dakera_forget_detect, dakera_memory_trash
+        // and dakera_memory_restore).
         // If this fails, run filtered_definitions("all").len() to discover the new count
         // and update this assertion. Catches accidental add/remove.
         assert_eq!(
             all.len(),
-            106,
-            "Expected exactly 106 tools in 'all' profile. Actual: {}. \
+            109,
+            "Expected exactly 109 tools in 'all' profile. Actual: {}. \
              Update this constant after intentional catalog changes.",
             all.len()
         );
@@ -1532,17 +1538,18 @@ mod tests {
 
     #[test]
     fn test_token_size_all_profile_within_budget() {
-        // All-profile (106 tools) after description compression. Budget: 22000 estimated
+        // All-profile (109 tools) after description compression. Budget: 23000 estimated
         // tokens (JSON bytes / 3; it was 17000 for 87 tools before the v0.12 tools, 20000
-        // for 99 before the v0.12.2 session, agent and identity tools, and 21000 for 102
-        // before the v0.12.3 document tools and recall neighborhood_mode). With MCP
-        // pagination at 128 tools/page, one page holds the whole catalog.
+        // for 99 before the v0.12.2 session, agent and identity tools, 21000 for 102
+        // before the v0.12.3 document tools and recall neighborhood_mode, and 22000 for 106
+        // before the v0.12.4 forget, detection and trash tools). With MCP pagination at 128
+        // tools/page, one page holds the whole catalog.
         let defs = filtered_definitions("all");
         let json_bytes = serde_json::to_string(&defs).unwrap().len();
         let estimated_tokens = json_bytes / 3;
         assert!(
-            estimated_tokens < 22000,
-            "All profile estimated tokens {} exceeds 22000 budget (JSON bytes: {})",
+            estimated_tokens < 23000,
+            "All profile estimated tokens {} exceeds 23000 budget (JSON bytes: {})",
             estimated_tokens,
             json_bytes
         );

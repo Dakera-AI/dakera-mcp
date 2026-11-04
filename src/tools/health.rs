@@ -19,7 +19,7 @@ pub fn definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "dakera_health".into(),
-            description: "Server status: healthy or degraded, version, degraded components, config_warnings and the embed_migration progress (the last three since v0.12). \
+            description: "Server status: healthy or degraded, version, degraded components, config_warnings (setup advice; v0.12.4 adds sizing, storage_in_memory, ephemeral_data_dir) and the embed_migration progress. \
                 Use dakera_health_ready to know whether it can take traffic yet. No auth required.".into(),
             input_schema: json!({"type": "object", "properties": {}, "required": []}),
         },

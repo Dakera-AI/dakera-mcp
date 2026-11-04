@@ -11,7 +11,7 @@ use crate::protocol::{CallToolResult, ToolDefinition};
 pub fn definitions() -> Vec<ToolDefinition> {
     vec![ToolDefinition {
         name: "dakera_audit_query".into(),
-        description: "Query the audit log of memory lifecycle events with optional filters by agent, event type, and time range (Unix ms). Needs a global admin key (not namespace-pinned). Limit defaults to 100 (max 10000)."
+        description: "Query the audit log of memory lifecycle events with optional filters by agent, event type, and time range (Unix ms). Needs a global admin key (not namespace-pinned). Limit defaults to 100 (max 10000); newest first. v0.12.4+: pass next_cursor as cursor for the next page."
             .into(),
         input_schema: json!({
             "type": "object",
@@ -32,6 +32,10 @@ pub fn definitions() -> Vec<ToolDefinition> {
                 "limit": {
                     "type": "integer",
                     "description": "Maximum events to return (max 10000)"
+                },
+                "cursor": {
+                    "type": "string",
+                    "description": "next_cursor of the previous page (optional)"
                 }
             },
             "required": []
@@ -64,6 +68,9 @@ async fn tool_audit_query(client: &DakeraApiClient, args: &serde_json::Value) ->
     }
     if let Some(to) = args.get("to").and_then(|v| v.as_u64()) {
         params.push(("to", to.to_string()));
+    }
+    if let Some(cursor) = args.get("cursor").and_then(|v| v.as_str()) {
+        params.push(("cursor", cursor.to_string()));
     }
     let limit = args
         .get("limit")
